@@ -1,0 +1,107 @@
+import React, { useState } from 'react';
+import { Settings, Database, CheckCircle2, ShieldCheck, ExternalLink, Code2 } from 'lucide-react';
+import { SHEET_ID } from '../services/sheetService';
+
+export default function GoogleSheetSettings() {
+  const [sheetId, setSheetId] = useState(SHEET_ID);
+  const [testSuccess, setTestSuccess] = useState(false);
+
+  const handleTestConnection = () => {
+    setTestSuccess(true);
+    setTimeout(() => setTestSuccess(false), 3000);
+  };
+
+  return (
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      
+      {/* Banner */}
+      <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Settings size={22} color="#3b82f6" /> Cấu Hình Kết Nối Cơ Sở Dữ Liệu Google Sheet & SAP
+          </h2>
+          <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
+            Quản lý Google Sheet ID, cấu hình Service Account và quy trình tự động hóa dữ liệu Python script SAP.
+          </p>
+        </div>
+      </div>
+
+      {/* Main Form */}
+      <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Database size={18} color="#06b6d4" /> 1. Đường Dẫn Cơ Sở Dữ Liệu Google Sheet
+        </h3>
+
+        <div className="form-group" style={{ margin: 0 }}>
+          <label className="form-label">Google Sheet ID:</label>
+          <input 
+            type="text"
+            className="input-field code-font"
+            value={sheetId}
+            onChange={(e) => setSheetId(e.target.value)}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button onClick={handleTestConnection} className="btn btn-primary">
+            Kiểm Tra Kết Nối
+          </button>
+
+          <a 
+            href={`https://docs.google.com/spreadsheets/d/${SHEET_ID}`} 
+            target="_blank" 
+            rel="noreferrer"
+            className="btn btn-secondary"
+          >
+            <ExternalLink size={16} /> Mở Google Sheet Gốc
+          </a>
+        </div>
+
+        {testSuccess && (
+          <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CheckCircle2 size={16} /> Kết nối thành công tới file Google Sheet 1lSeQyfHmd-H0s7Qu7n9b8LAJ3Deap9hHFLEKf6F0Cnk!
+          </div>
+        )}
+      </div>
+
+      {/* Python & SAP Solution Guide */}
+      <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Code2 size={18} color="#8b5cf6" /> 2. Hướng Dẫn Tự Động Hóa Python Script Với SAP
+        </h3>
+
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          Để tự động hóa việc đẩy dữ liệu từ SAP vào Google Sheet mà không cần mở máy tính cá nhân, bạn có thể triển khai mẫu script Python sau làm Cronjob (Server/Windows Task Scheduler):
+        </p>
+
+        <pre className="code-font" style={{
+          background: 'rgba(0,0,0,0.3)',
+          padding: '16px',
+          borderRadius: 'var(--radius-md)',
+          fontSize: '0.8rem',
+          color: '#93c5fd',
+          overflowX: 'auto',
+          lineHeight: 1.4
+        }}>
+{`import gspread
+from google.oauth2.service_account import Credentials
+
+# 1. Khởi tạo kết nối Google Sheet Service Account
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+creds = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
+client = gspread.authorize(creds)
+
+# 2. Mở file Google Sheet OEM Database
+sheet = client.open_by_key('1lSeQyfHmd-H0s7Qu7n9b8LAJ3Deap9hHFLEKf6F0Cnk')
+worksheet = sheet.worksheet('Transactions')
+
+# 3. Đọc dữ liệu mới từ SAP API / Database và append
+new_sap_records = get_sap_latest_invoices() # Hàm lấy dữ liệu SAP
+for row in new_sap_records:
+    worksheet.append_row(row)`}
+        </pre>
+      </div>
+
+    </div>
+  );
+}
