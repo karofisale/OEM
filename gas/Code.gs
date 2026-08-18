@@ -70,7 +70,9 @@ const apiMap_ = {
   changePassword: changePassword_,
   saveOrder: saveOrder_,
   getOrders: getOrders_,
-  updateOrderLine: updateOrderLine_
+  updateOrderLine: updateOrderLine_,
+  insertOrderLine: insertOrderLine_,
+  deleteOrderLine: deleteOrderLine_
 };
 
 function ping_() {
@@ -469,6 +471,49 @@ function updateOrderLine_(token, rowIndex, updates) {
   const total = updates.total != null ? updates.total : (qty * price);
 
   sheet.getRange(idx, 2, 1, 5).setValues([[sku, name, qty, price, Math.round(total)]]);
+  return { ok: true };
+}
+
+// Insert an accompanying/forgotten line next to an existing one (Sale reviewing a
+// saved order realizes a "bộ sản phẩm" needs another SKU alongside it). The new row
+// inherits Mã tham chiếu SAP SO / Mã KH / Mã KH Chữ from its neighbor so it stays
+// grouped under the same order in the review UI; item fields start blank/zero and
+// get filled in via the same inline-edit + updateOrderLine flow as any other row.
+function insertOrderLine_(token, refRowIndex, position, item) {
+  const user = requireSession_(token);
+  const sheet = getOrdersSheet_();
+  const idx = parseInt(refRowIndex, 10);
+  if (!idx || idx < 2) throw new Error('rowIndex không hợp lệ.');
+
+  const refRow = sheet.getRange(idx, 1, 1, 12).getValues()[0];
+  const insertAt = position === 'above' ? idx : idx + 1;
+  sheet.insertRowBefore(insertAt);
+
+  const now = Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH:mm');
+  item = item || {};
+  sheet.getRange(insertAt, 1, 1, 12).setValues([[
+    '',
+    item.sku || '',
+    item.name || '',
+    item.qty || 0,
+    item.price || 0,
+    Math.round((item.qty || 0) * (item.price || 0)),
+    refRow[6] || '',
+    refRow[7] || '',
+    refRow[8] || '',
+    now,
+    user.name,
+    ''
+  ]]);
+  return { ok: true, insertedRowIndex: insertAt };
+}
+
+function deleteOrderLine_(token, rowIndex) {
+  requireSession_(token);
+  const sheet = getOrdersSheet_();
+  const idx = parseInt(rowIndex, 10);
+  if (!idx || idx < 2) throw new Error('rowIndex không hợp lệ.');
+  sheet.deleteRow(idx);
   return { ok: true };
 }
 

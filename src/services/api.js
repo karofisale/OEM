@@ -90,6 +90,14 @@ export async function updateOrderLine(token, rowIndex, updates) {
   return callApi('updateOrderLine', [token, rowIndex, updates]);
 }
 
+export async function insertOrderLine(token, refRowIndex, position, item) {
+  return callApi('insertOrderLine', [token, refRowIndex, position, item]);
+}
+
+export async function deleteOrderLine(token, rowIndex) {
+  return callApi('deleteOrderLine', [token, rowIndex]);
+}
+
 export async function ping() {
   return callApi('ping');
 }

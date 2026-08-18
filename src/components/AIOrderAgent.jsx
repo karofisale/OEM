@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   Bot,
   Sparkles,
@@ -9,7 +9,8 @@ import {
   RefreshCw,
   ShoppingCart,
   Save,
-  Loader2
+  Loader2,
+  PlusCircle
 } from 'lucide-react';
 import {
   parseOrderTextToSAP,
@@ -20,63 +21,21 @@ import {
   VAT_RATE
 } from '../services/aiAgent';
 import * as api from '../services/api';
+import SkuPickerCell from './SkuPickerCell';
+import RowActionButtons from './RowActionButtons';
 
-// Searchable Mã VT cell — free-type by code, name, or alias, so a wrong AI match
-// can be corrected without hunting through the full 440+ SKU catalogue.
-function SkuPickerCell({ item, materials, onSelect }) {
-  const [query, setQuery] = useState(`${item.sku} - ${item.name}`);
-  const [showDropdown, setShowDropdown] = useState(false);
-
-  const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const pool = !q ? materials : materials.filter(m =>
-      m.sku.toLowerCase().includes(q) ||
-      m.name.toLowerCase().includes(q) ||
-      (m.alias || '').toLowerCase().includes(q)
-    );
-    return pool.slice(0, 30);
-  }, [materials, query]);
-
-  const handleSelect = (m) => {
-    setQuery(`${m.sku} - ${m.name}`);
-    setShowDropdown(false);
-    onSelect(m);
-  };
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <input
-        className="input-field code-font"
-        style={{ padding: '4px 8px', fontSize: '0.775rem', fontWeight: 700, color: '#0369a1' }}
-        value={query}
-        onChange={(e) => { setQuery(e.target.value); setShowDropdown(true); }}
-        onFocus={(e) => { e.target.select(); setShowDropdown(true); }}
-        onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
-        placeholder="Tìm theo mã hoặc tên..."
-      />
-      {showDropdown && matches.length > 0 && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 4px)', left: 0, minWidth: '280px', zIndex: 30,
-          background: '#ffffff', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)',
-          boxShadow: 'var(--shadow-md)', maxHeight: '240px', overflowY: 'auto'
-        }}>
-          {matches.map(m => (
-            <div
-              key={m.sku}
-              onMouseDown={() => handleSelect(m)}
-              style={{ padding: '8px 10px', cursor: 'pointer', borderBottom: '1px solid var(--border-color)' }}
-            >
-              <div className="code-font" style={{ fontWeight: 700, color: '#00a0e9', fontSize: '0.775rem' }}>{m.sku}</div>
-              <div style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>
-                {m.name}{m.alias ? ` (${m.alias})` : ''}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+const createBlankItem = () => ({
+  id: 'ITEM-' + Math.random().toString(36).substr(2, 6),
+  sku: '',
+  name: '',
+  unit: 'PC',
+  qty: 1,
+  price: 0,
+  total: 0,
+  confidence: 'Thêm thủ công',
+  sourceQuery: '',
+  matchedAlias: ''
+});
 
 export default function AIOrderAgent({ clients, materials, transactions, token }) {
   const [promptText, setPromptText] = useState('');
@@ -188,6 +147,29 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
 
     const newGrandTotal = updatedItems.reduce((sum, i) => sum + i.total, 0);
     setOrderResult({ ...orderResult, items: updatedItems, grandTotal: newGrandTotal });
+    setSaved(false);
+  };
+
+  // Insert an empty line (Sale fills it via SkuPickerCell) above/below a given item —
+  // covers the "bộ sản phẩm kèm theo" case where AI only caught the main SKU.
+  const handleInsertItem = (targetId, position) => {
+    const idx = orderResult.items.findIndex(i => i.id === targetId);
+    const insertAt = position === 'above' ? idx : idx + 1;
+    const newItems = [...orderResult.items];
+    newItems.splice(insertAt, 0, createBlankItem());
+    setOrderResult({ ...orderResult, items: newItems });
+    setSaved(false);
+  };
+
+  const handleAppendItem = () => {
+    setOrderResult({ ...orderResult, items: [...orderResult.items, createBlankItem()] });
+    setSaved(false);
+  };
+
+  const handleDeleteItem = (id) => {
+    const newItems = orderResult.items.filter(i => i.id !== id);
+    const newGrandTotal = newItems.reduce((sum, i) => sum + i.total, 0);
+    setOrderResult({ ...orderResult, items: newItems, grandTotal: newGrandTotal });
     setSaved(false);
   };
 
@@ -377,13 +359,14 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
                       <th style={{ width: '100px', textAlign: 'right' }}>Số Lượng</th>
                       <th style={{ width: '130px', textAlign: 'right' }}>Đơn Giá (VND)</th>
                       <th style={{ width: '140px', textAlign: 'right' }}>Thành Tiền (VND)</th>
+                      <th style={{ width: '110px' }}>Thao Tác</th>
                     </tr>
                   </thead>
                   <tbody>
                     {orderResult.items.map((item) => (
                       <tr key={item.id}>
                         <td>
-                          <SkuPickerCell item={item} materials={materials} onSelect={(m) => handleSkuChange(item.id, m)} />
+                          <SkuPickerCell sku={item.sku} name={item.name} materials={materials} onSelect={(m) => handleSkuChange(item.id, m)} />
                         </td>
                         <td>
                           <div style={{ fontWeight: 600, fontSize: '0.78rem' }}>{item.name}</div>
@@ -410,11 +393,22 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
                         <td style={{ fontWeight: 700, color: 'var(--accent-emerald)', textAlign: 'right', whiteSpace: 'nowrap' }}>
                           {Math.round(item.total).toLocaleString('vi-VN')} ₫
                         </td>
+                        <td>
+                          <RowActionButtons
+                            onInsertAbove={() => handleInsertItem(item.id, 'above')}
+                            onInsertBelow={() => handleInsertItem(item.id, 'below')}
+                            onDelete={() => handleDeleteItem(item.id)}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+
+              <button onClick={handleAppendItem} className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}>
+                <PlusCircle size={14} /> Thêm Dòng
+              </button>
 
               {/* Grand Total Footer */}
               <div style={{

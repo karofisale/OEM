@@ -164,6 +164,7 @@ export default function App() {
             <OrdersReview
               token={session.token}
               activeUser={activeUser}
+              materials={materials}
             />
           )}
 

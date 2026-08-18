@@ -35,6 +35,17 @@ export async function extractTextFromImage(imageFile, onProgress) {
   }
 }
 
+// Free-type search for the "sửa mã vật tư" comboboxes (AI Order Agent review table,
+// Orders Chờ Duyệt page) — every typed word must appear SOMEWHERE in the SKU/name/
+// alias, in any order, so "qiangsheng block" matches "Block Qiangsheng QD25H" just
+// as well as "block qiangsheng" does.
+export function materialMatchesQuery(material, query) {
+  const tokens = String(query || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return true;
+  const haystack = `${material.sku} ${material.name} ${material.alias || ''}`.toLowerCase();
+  return tokens.every(t => haystack.includes(t));
+}
+
 // Match material from catalog
 export function findMatchingMaterial(queryText, materialsCatalog) {
   if (!queryText || !materialsCatalog.length) return null;

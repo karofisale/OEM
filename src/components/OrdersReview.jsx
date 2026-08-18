@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ClipboardList, RefreshCw, Copy, Check, Save, AlertCircle, Loader2 } from 'lucide-react';
 import * as api from '../services/api';
+import SkuPickerCell from './SkuPickerCell';
+import RowActionButtons from './RowActionButtons';
 
-export default function OrdersReview({ token, activeUser }) {
+export default function OrdersReview({ token, activeUser, materials }) {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [editedRows, setEditedRows] = useState({}); // rowIndex -> { sku, name, qty, price }
   const [savingRow, setSavingRow] = useState(null);
+  const [busyRowIndex, setBusyRowIndex] = useState(null); // insert/delete in flight
   const [copiedOrderNo, setCopiedOrderNo] = useState('');
 
   const canEdit = ['creator', 'admin', 'sale'].includes(activeUser.role);
@@ -70,6 +73,46 @@ export default function OrdersReview({ token, activeUser }) {
       alert('Không lưu được thay đổi: ' + err.message);
     } finally {
       setSavingRow(null);
+    }
+  };
+
+  // Selecting from the combobox updates sku+name together, marked as a pending edit
+  // just like typing qty/price — still needs an explicit "Lưu" to persist.
+  const handleSkuSelect = (row, material) => {
+    setEditedRows(prev => ({
+      ...prev,
+      [row.rowIndex]: { ...(prev[row.rowIndex] || {}), sku: material.sku, name: material.name }
+    }));
+  };
+
+  // Insert/delete mutate real Sheet rows, which shifts every rowIndex after the
+  // affected one — simplest correct approach is to just refetch the whole list.
+  const handleInsertRow = async (row, position) => {
+    setBusyRowIndex(row.rowIndex);
+    try {
+      await api.insertOrderLine(token, row.rowIndex, position, {});
+      // Row indices below the insert point shift, so any unsaved edits keyed by the
+      // old rowIndex would silently land on the wrong row after refetch — drop them.
+      setEditedRows({});
+      await fetchOrders();
+    } catch (err) {
+      alert('Không chèn được dòng: ' + err.message);
+    } finally {
+      setBusyRowIndex(null);
+    }
+  };
+
+  const handleDeleteRow = async (row) => {
+    if (!window.confirm('Xóa dòng này khỏi tab Orders?')) return;
+    setBusyRowIndex(row.rowIndex);
+    try {
+      await api.deleteOrderLine(token, row.rowIndex);
+      setEditedRows({});
+      await fetchOrders();
+    } catch (err) {
+      alert('Không xóa được dòng: ' + err.message);
+    } finally {
+      setBusyRowIndex(null);
     }
   };
 
@@ -145,7 +188,7 @@ export default function OrdersReview({ token, activeUser }) {
                     <th style={{ width: '120px', textAlign: 'right' }}>Đơn Giá</th>
                     <th style={{ width: '130px', textAlign: 'right' }}>Thành Tiền</th>
                     <th style={{ width: '160px' }}>Update Alias</th>
-                    {canEdit && <th style={{ width: '90px' }}></th>}
+                    {canEdit && <th style={{ width: '150px' }}></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -153,11 +196,11 @@ export default function OrdersReview({ token, activeUser }) {
                     <tr key={row.rowIndex}>
                       <td>
                         {canEdit ? (
-                          <input
-                            className="input-field code-font"
-                            style={{ padding: '4px 6px', fontSize: '0.775rem', fontWeight: 700 }}
-                            value={getValue(row, 'sku')}
-                            onChange={(e) => handleFieldChange(row.rowIndex, 'sku', e.target.value)}
+                          <SkuPickerCell
+                            sku={getValue(row, 'sku')}
+                            name={getValue(row, 'name')}
+                            materials={materials}
+                            onSelect={(m) => handleSkuSelect(row, m)}
                           />
                         ) : (
                           <span className="code-font" style={{ fontWeight: 700, color: '#0369a1' }}>{row.sku}</span>
@@ -205,17 +248,27 @@ export default function OrdersReview({ token, activeUser }) {
                       <td style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>{row.updateAlias}</td>
                       {canEdit && (
                         <td>
-                          {hasEdits(row.rowIndex) && (
-                            <button
-                              onClick={() => handleSaveRow(row)}
-                              disabled={savingRow === row.rowIndex}
-                              className="btn btn-primary btn-sm"
-                              style={{ width: '100%' }}
-                            >
-                              {savingRow === row.rowIndex ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                              Lưu
-                            </button>
-                          )}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <RowActionButtons
+                              onInsertAbove={() => handleInsertRow(row, 'above')}
+                              onInsertBelow={() => handleInsertRow(row, 'below')}
+                              onDelete={() => handleDeleteRow(row)}
+                            />
+                            {busyRowIndex === row.rowIndex && (
+                              <div style={{ textAlign: 'center' }}><Loader2 size={13} className="animate-spin" /></div>
+                            )}
+                            {hasEdits(row.rowIndex) && (
+                              <button
+                                onClick={() => handleSaveRow(row)}
+                                disabled={savingRow === row.rowIndex}
+                                className="btn btn-primary btn-sm"
+                                style={{ width: '100%' }}
+                              >
+                                {savingRow === row.rowIndex ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                                Lưu
+                              </button>
+                            )}
+                          </div>
                         </td>
                       )}
                     </tr>
