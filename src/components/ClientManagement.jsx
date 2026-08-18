@@ -7,13 +7,16 @@ export default function ClientManagement({ clients, activeUser, onAddClient }) {
 
   const isLeader = activeUser.role === 'leader';
   const isSale = activeUser.role === 'sale';
-  const canEdit = ['creator', 'admin'].includes(activeUser.role);
+  // Sales can add their own leads (same pattern as propose-price/propose-plan);
+  // only Creator/Admin can edit existing records. Leader stays view-only.
+  const canAdd = ['creator', 'admin', 'sale'].includes(activeUser.role);
+  const canEditExisting = ['creator', 'admin'].includes(activeUser.role);
 
   // Form state
   const [codeSearch, setCodeSearch] = useState('');
   const [name, setName] = useState('');
   const [alias, setAlias] = useState('');
-  const [sale, setSale] = useState('KH Đình Hoan');
+  const [sale, setSale] = useState(activeUser.saleId || 'KH Đình Hoan');
   const [address, setAddress] = useState('');
 
   // Scoped clients list if Sale role
@@ -66,7 +69,7 @@ export default function ClientManagement({ clients, activeUser, onAddClient }) {
           </p>
         </div>
 
-        {canEdit && (
+        {canAdd && (
           <button onClick={() => setShowModal(true)} className="btn btn-primary">
             <Plus size={16} /> Thêm Khách Hàng Mới
           </button>
@@ -121,7 +124,7 @@ export default function ClientManagement({ clients, activeUser, onAddClient }) {
               </div>
             </div>
 
-            {canEdit && (
+            {canEditExisting && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
                 <button className="btn btn-secondary btn-sm">
                   <Edit3 size={14} /> Chỉnh Sửa

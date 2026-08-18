@@ -119,8 +119,11 @@ function getClientTextCode_(clientName, clientCode, rawCodeSearch) {
   return String(clientCode || rawCodeSearch || 'OEM-CLIENT');
 }
 
+// NOTE (2026-08-18): rawWeekNum (cột "Tuần" tính công thức) là số TUẦN TRONG NĂM
+// (ISO week, 1-52+) chứ KHÔNG PHẢI tuần-trong-tháng (1-5) — xác nhận qua dữ liệu
+// thật (giá trị thấy được lên tới W34). Luôn tính tuần-trong-tháng từ ngày chứng
+// từ, không dùng trực tiếp giá trị cột này.
 function computeWeekFromDate_(dateStr, rawWeekNum) {
-  if (rawWeekNum && parseInt(rawWeekNum, 10) > 0) return 'W' + parseInt(rawWeekNum, 10);
   if (!dateStr) return 'W1';
   const parts = String(dateStr).split(/[\/.\-]/);
   if (parts.length >= 1) {

@@ -56,9 +56,16 @@ export default function AIOrderAgent({ clients, materials, transactions }) {
   };
 
   // Handle Image Upload & OCR
+  const MAX_OCR_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB — larger images can hang the tab during OCR
+
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (file.size > MAX_OCR_IMAGE_BYTES) {
+      alert(`Ảnh quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Vui lòng chọn ảnh dưới 8MB để tránh treo trình duyệt khi quét OCR.`);
+      e.target.value = '';
+      return;
+    }
     setImageFile(file);
     setIsProcessing(true);
     setOcrStatus('Đang quét OCR nhận diện chữ trên hình ảnh...');

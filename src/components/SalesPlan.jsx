@@ -227,7 +227,7 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
               const chenh = (plan.done || 0) - (plan.planUpdate || 0);
 
               return (
-                <tr key={idx} style={{ height: '42px' }}>
+                <tr key={`${plan.searchCode}_${plan.sale}_${idx}`} style={{ height: '42px' }}>
                   <td className="code-font" style={{ fontWeight: 800, color: '#00a0e9', fontSize: '0.85rem' }}>
                     {plan.searchCode}
                   </td>

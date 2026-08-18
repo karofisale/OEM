@@ -1,5 +1,4 @@
 // AI Agent Order Processing Engine & SAP Generator
-import { createWorker } from 'tesseract.js';
 
 // Fuzzy text matching helper
 function similarityScore(str1, str2) {
@@ -17,6 +16,9 @@ function similarityScore(str1, str2) {
 // Perform Optical Character Recognition on image file
 export async function extractTextFromImage(imageFile, onProgress) {
   try {
+    // Lazy-loaded: tesseract.js is a large dependency, only worth the download
+    // when OCR is actually used (see review item 10 — bundle size).
+    const { createWorker } = await import('tesseract.js');
     const worker = await createWorker('vie+eng');
     if (onProgress) {
       onProgress('Reading image text via OCR...');

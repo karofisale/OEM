@@ -11,7 +11,8 @@ export default function ProductManagement({ materials, clients, transactions, ac
   // Permission flags
   const isLeader = activeUser.role === 'leader';
   const isSale = activeUser.role === 'sale';
-  const canEditCatalogue = ['creator', 'admin'].includes(activeUser.role);
+  // Sales can add new SKUs too (same pattern as propose-price/propose-plan/add-client).
+  const canEditCatalogue = ['creator', 'admin', 'sale'].includes(activeUser.role);
 
   // New Material form state
   const [newSku, setNewSku] = useState('');

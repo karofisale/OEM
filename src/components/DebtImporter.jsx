@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { FileSpreadsheet, Upload, CheckCircle2, ArrowRight, AlertTriangle } from 'lucide-react';
-import * as XLSX from 'xlsx';
 
 export default function DebtImporter({ onSyncDebt }) {
   const [file, setFile] = useState(null);
@@ -15,8 +14,11 @@ export default function DebtImporter({ onSyncDebt }) {
     setIsProcessing(true);
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
+        // Lazy-loaded: xlsx is a large dependency, only worth the download when a
+        // file is actually being imported (see review item 10 — bundle size).
+        const XLSX = await import('xlsx');
         const bstr = evt.target.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
         const wsname = wb.SheetNames[0];
@@ -123,7 +125,7 @@ export default function DebtImporter({ onSyncDebt }) {
               </thead>
               <tbody>
                 {debtData.map((d, idx) => (
-                  <tr key={idx}>
+                  <tr key={`${d.clientCode}_${idx}`}>
                     <td className="code-font" style={{ color: 'var(--accent-purple)', fontWeight: 600 }}>{d.clientCode}</td>
                     <td style={{ fontWeight: 600 }}>{d.clientName}</td>
                     <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono' }}>{d.openingDebt.toLocaleString('vi-VN')} ₫</td>

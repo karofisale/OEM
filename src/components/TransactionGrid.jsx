@@ -144,7 +144,7 @@ export default function TransactionGrid({ transactions }) {
           </thead>
           <tbody>
             {pageData.map((row, idx) => (
-              <tr key={idx} style={{ height: '40px' }}>
+              <tr key={`${row.billingNo}_${row.sku}_${idx}`} style={{ height: '40px' }}>
                 <td style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>{row.date}</td>
                 <td className="code-font" style={{ fontWeight: 700, color: 'var(--accent-purple)', fontSize: '0.8rem' }}>
                   {row.orderNo}
