@@ -5,7 +5,9 @@ import { clientMatchesQuery } from '../services/aiAgent';
 // matter, see clientMatchesQuery), so a wrong/unmatched client can be corrected
 // without hunting through the full client list. Shared by AIOrderAgent and OrdersReview.
 export default function ClientPickerCell({ code, name, clients, onSelect }) {
-  const [query, setQuery] = useState(code ? `${code} - ${name}` : (name || ''));
+  // Shows the raw Mã KH (code) only, never codeSearch — codeSearch is just an
+  // internal search aid, not what should end up saved/displayed as "the code".
+  const [query, setQuery] = useState(code || name || '');
   const [showDropdown, setShowDropdown] = useState(false);
 
   const matches = useMemo(() => {
@@ -13,7 +15,7 @@ export default function ClientPickerCell({ code, name, clients, onSelect }) {
   }, [clients, query]);
 
   const handleSelect = (c) => {
-    setQuery(`${c.codeSearch || c.code} - ${c.name}`);
+    setQuery(String(c.code || ''));
     setShowDropdown(false);
     onSelect(c);
   };

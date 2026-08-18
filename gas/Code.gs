@@ -72,7 +72,8 @@ const apiMap_ = {
   getOrders: getOrders_,
   updateOrderLine: updateOrderLine_,
   insertOrderLine: insertOrderLine_,
-  deleteOrderLine: deleteOrderLine_
+  deleteOrderLine: deleteOrderLine_,
+  deleteOrder: deleteOrder_
 };
 
 function ping_() {
@@ -522,6 +523,23 @@ function deleteOrderLine_(token, rowIndex) {
   if (!idx || idx < 2) throw new Error('rowIndex không hợp lệ.');
   sheet.deleteRow(idx);
   return { ok: true };
+}
+
+function deleteOrder_(token, orderNo) {
+  const user = requireSession_(token);
+  if (user.role !== 'admin' && user.role !== 'creator') {
+    throw new Error('Chỉ Admin mới có quyền xóa cả đơn hàng.');
+  }
+  const sheet = getOrdersSheet_();
+  const rows = sheet.getDataRange().getValues();
+  const rowsToDelete = [];
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][6]) === String(orderNo)) rowsToDelete.push(i + 1);
+  }
+  if (!rowsToDelete.length) throw new Error('Không tìm thấy đơn hàng ' + orderNo + ' trong tab Orders.');
+  rowsToDelete.sort((a, b) => b - a);
+  rowsToDelete.forEach(r => sheet.deleteRow(r));
+  return { ok: true, deletedCount: rowsToDelete.length };
 }
 
 // ---------- Writers ----------

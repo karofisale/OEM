@@ -98,6 +98,10 @@ export async function deleteOrderLine(token, rowIndex) {
   return callApi('deleteOrderLine', [token, rowIndex]);
 }
 
+export async function deleteOrder(token, orderNo) {
+  return callApi('deleteOrder', [token, orderNo]);
+}
+
 export async function ping() {
   return callApi('ping');
 }

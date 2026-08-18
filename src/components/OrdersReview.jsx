@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ClipboardList, RefreshCw, Copy, Check, Save, AlertCircle, Loader2 } from 'lucide-react';
+import { ClipboardList, RefreshCw, Copy, Check, Save, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import * as api from '../services/api';
 import SkuPickerCell from './SkuPickerCell';
 import ClientPickerCell from './ClientPickerCell';
@@ -13,8 +13,12 @@ export default function OrdersReview({ token, activeUser, materials, clients }) 
   const [savingRow, setSavingRow] = useState(null);
   const [busyRowIndex, setBusyRowIndex] = useState(null); // insert/delete in flight
   const [copiedOrderNo, setCopiedOrderNo] = useState('');
+  const [deletingOrderNo, setDeletingOrderNo] = useState('');
 
   const canEdit = ['creator', 'admin', 'sale'].includes(activeUser.role);
+  // Whole-order delete is more destructive than a single-row delete (already
+  // available to sale/admin above) — restrict to Admin/Creator (phòng lên đơn trùng/nhầm).
+  const canDeleteOrder = ['admin', 'creator'].includes(activeUser.role);
 
   const fetchOrders = async () => {
     setIsLoading(true);
@@ -128,6 +132,20 @@ export default function OrdersReview({ token, activeUser, materials, clients }) 
     }
   };
 
+  const handleDeleteOrder = async (orderNo) => {
+    if (!window.confirm(`Xóa TOÀN BỘ đơn hàng ${orderNo} khỏi tab Orders? Không thể hoàn tác.`)) return;
+    setDeletingOrderNo(orderNo);
+    try {
+      await api.deleteOrder(token, orderNo);
+      setEditedRows({});
+      await fetchOrders();
+    } catch (err) {
+      alert('Không xóa được đơn hàng: ' + err.message);
+    } finally {
+      setDeletingOrderNo('');
+    }
+  };
+
   const handleCopyGroup = (orderNo, rows) => {
     let tsv = 'Mã vật tư\tTên vật tư\tSố lượng\tĐơn giá VND\tThành tiền VND\tMã KH\tMã KH Chữ\n';
     rows.forEach(r => {
@@ -175,19 +193,33 @@ export default function OrdersReview({ token, activeUser, materials, clients }) 
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
                 <span className="code-font" style={{ fontWeight: 800, color: 'var(--accent-purple)' }}>{orderNo}</span>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  Mã KH: <strong>{rows[0].clientCodeSearch || rows[0].clientCode}</strong>
+                  Mã KH: <strong>{rows[0].clientCode}{rows[0].clientCodeSearch ? ` - ${rows[0].clientCodeSearch}` : ''}</strong>
                 </span>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{rows[0].createdAt}</span>
                 <span className="badge badge-blue" style={{ fontSize: '0.7rem' }}>PIC: {rows[0].pic}</span>
               </div>
-              <button
-                onClick={() => handleCopyGroup(orderNo, rows)}
-                className="btn btn-emerald btn-sm"
-                title="Copy các dòng của đơn này để dán vào SAP"
-              >
-                {copiedOrderNo === orderNo ? <Check size={14} /> : <Copy size={14} />}
-                {copiedOrderNo === orderNo ? 'Đã Sao Chép!' : 'Copy Dán SAP'}
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => handleCopyGroup(orderNo, rows)}
+                  className="btn btn-emerald btn-sm"
+                  title="Copy các dòng của đơn này để dán vào SAP"
+                >
+                  {copiedOrderNo === orderNo ? <Check size={14} /> : <Copy size={14} />}
+                  {copiedOrderNo === orderNo ? 'Đã Sao Chép!' : 'Copy Dán SAP'}
+                </button>
+                {canDeleteOrder && (
+                  <button
+                    onClick={() => handleDeleteOrder(orderNo)}
+                    disabled={deletingOrderNo === orderNo}
+                    className="btn btn-secondary btn-sm"
+                    style={{ color: '#dc2626' }}
+                    title="Xóa toàn bộ đơn hàng này (phòng lên đơn trùng/nhầm)"
+                  >
+                    {deletingOrderNo === orderNo ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    Xóa Cả Đơn
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="table-container">

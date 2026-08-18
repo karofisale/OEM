@@ -249,44 +249,56 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
             <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Text / Ảnh viết tay</span>
           </div>
 
-          {/* Prompt Textarea */}
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Nội dung câu lệnh hoặc ghi chú đơn hàng:</label>
-            <textarea
-              rows={5}
-              className="input-field"
-              value={promptText}
-              onChange={(e) => setPromptText(e.target.value)}
-              placeholder="VD: Lên đơn cho khách hàng Tecom 500 cái màng RO 100G và 100 phin lọc 2 đầu..."
-              style={{ resize: 'vertical', fontFamily: 'inherit', border: '1.5px solid #94a3b8' }}
-            />
-          </div>
+          {/* Prompt textarea + compact tải ảnh/phân tích actions side by side —
+              saves the vertical height the old full-size OCR dropzone + full-width
+              button used to take. */}
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
+            <div className="form-group" style={{ margin: 0, flex: 1 }}>
+              <label className="form-label">Nội dung câu lệnh hoặc ghi chú đơn hàng:</label>
+              <textarea
+                rows={5}
+                className="input-field"
+                value={promptText}
+                onChange={(e) => setPromptText(e.target.value)}
+                placeholder="VD: Lên đơn cho khách hàng Tecom 500 cái màng RO 100G và 100 phin lọc 2 đầu..."
+                style={{ resize: 'vertical', fontFamily: 'inherit', border: '1.5px solid #94a3b8' }}
+              />
+            </div>
 
-          {/* OCR Image Dropzone */}
-          <div style={{
-            border: '2px dashed var(--border-color)',
-            borderRadius: 'var(--radius-md)',
-            padding: '16px',
-            textAlign: 'center',
-            background: 'rgba(0,0,0,0.15)',
-            cursor: 'pointer'
-          }}>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              id="ocr-upload"
-              style={{ display: 'none' }}
-            />
-            <label htmlFor="ocr-upload" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-              <Upload size={24} color="#06b6d4" />
-              <span style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                Tải ảnh chụp đơn hàng / Chữ viết tay (OCR)
-              </span>
-              <span style={{ fontSize: '0.725rem', color: 'var(--text-dim)' }}>
-                Tự động nhận diện chữ tiếng Việt và tạo danh mục đơn
-              </span>
-            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '150px', justifyContent: 'flex-end' }}>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                id="ocr-upload"
+                style={{ display: 'none' }}
+              />
+              <label
+                htmlFor="ocr-upload"
+                className="btn btn-secondary btn-sm"
+                style={{ cursor: 'pointer', justifyContent: 'center' }}
+                title="Tải ảnh chụp đơn hàng / chữ viết tay (OCR)"
+              >
+                <Upload size={14} /> Tải Ảnh
+              </label>
+
+              <button
+                onClick={handleGenerateOrder}
+                disabled={isProcessing || !promptText.trim()}
+                className="btn btn-accent btn-sm"
+                style={{ justifyContent: 'center' }}
+              >
+                {isProcessing ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" /> Đang xử lý...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={14} /> Phân Tích
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {ocrStatus && (
@@ -294,24 +306,6 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
               <RefreshCw size={14} className="animate-spin" /> {ocrStatus}
             </div>
           )}
-
-          {/* Process Button */}
-          <button
-            onClick={handleGenerateOrder}
-            disabled={isProcessing || !promptText.trim()}
-            className="btn btn-accent"
-            style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }}
-          >
-            {isProcessing ? (
-              <>
-                <RefreshCw size={18} className="animate-spin" /> AI Đang Tra Cứu & Tính Giá...
-              </>
-            ) : (
-              <>
-                <Sparkles size={18} /> Phân Tích & Phân Hạng Đơn SAP
-              </>
-            )}
-          </button>
         </div>
 
         {/* Generated SAP Order Preview & Review — full width */}
