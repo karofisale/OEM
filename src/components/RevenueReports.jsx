@@ -1,21 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  BarChart3, 
-  User, 
-  Calendar, 
-  CalendarDays, 
-  Table, 
-  LayoutGrid, 
-  Filter, 
-  TrendingUp, 
+import React, { useState, useMemo } from 'react';
+import {
+  BarChart3,
+  User,
+  Calendar,
+  CalendarDays,
+  Table,
+  LayoutGrid,
+  Filter,
+  TrendingUp,
   TrendingDown
 } from 'lucide-react';
-import { load2025Baselines } from '../services/sheetService';
 
-export default function RevenueReports({ transactions, clients, activeUser }) {
+export default function RevenueReports({ transactions, clients, activeUser, baselines2025 }) {
   const [reportTab, setReportTab] = useState('dt-sale'); // 'dt-sale' | 'dt-thang' | 'kh-date'
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'grid'
-  const [baselines2025, setBaselines2025] = useState(new Map());
 
   // --- DT SALE FILTERS ---
   const [saleFilterYear, setSaleFilterYear] = useState('2026');
@@ -33,13 +31,6 @@ export default function RevenueReports({ transactions, clients, activeUser }) {
   const [ngayFilterDate, setNgayFilterDate] = useState('ALL');
 
   const canFilterAllSales = ['creator', 'admin', 'leader'].includes(activeUser.role);
-
-  // Load 2025 baselines on mount
-  useEffect(() => {
-    load2025Baselines().then(map => {
-      setBaselines2025(map);
-    });
-  }, []);
 
   // --- REPORT 1 DATA: DT SALE ---
   const dtSaleData = useMemo(() => {

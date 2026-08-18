@@ -1,10 +1,20 @@
-import React, { useState } from 'react';
-import { ShieldCheck, User, Lock, Sparkles, Check, Key, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShieldCheck, Lock, Check, AlertCircle, Loader2 } from 'lucide-react';
+import * as api from '../services/api';
 
-export default function LoginModal({ users, activeUser, onSelectUser, onClose }) {
+export default function LoginModal({ onLoginSuccess, onClose, closable }) {
+  const [users, setUsers] = useState([]);
+  const [usersError, setUsersError] = useState('');
   const [pinInput, setPinInput] = useState('');
   const [selectedUserIndex, setSelectedUserIndex] = useState(0);
   const [loginError, setLoginError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    api.getUserList()
+      .then(setUsers)
+      .catch(err => setUsersError(err.message || String(err)));
+  }, []);
 
   const getRoleBadge = (role) => {
     switch (role) {
@@ -15,17 +25,20 @@ export default function LoginModal({ users, activeUser, onSelectUser, onClose })
     }
   };
 
-  const handleConfirmLogin = (e) => {
+  const handleConfirmLogin = async (e) => {
     e.preventDefault();
     const u = users[selectedUserIndex];
-    if (!u) return;
-    if (pinInput !== u.pin) {
-      setLoginError('Mã PIN không đúng. Vui lòng thử lại.');
-      return;
-    }
+    if (!u || isSubmitting) return;
+    setIsSubmitting(true);
     setLoginError('');
-    onSelectUser(u);
-    onClose();
+    try {
+      const session = await api.login(u.name, pinInput);
+      onLoginSuccess(session);
+    } catch (err) {
+      setLoginError(err.message || 'Đăng nhập thất bại.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSelectUser = (idx) => {
@@ -41,7 +54,7 @@ export default function LoginModal({ users, activeUser, onSelectUser, onClose })
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
     }}>
       <div className="glass-card animate-fade-in" style={{ width: '480px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid var(--karofi-cyan-border)' }}>
-        
+
         {/* Modal Header */}
         <div style={{ textAlign: 'center' }}>
           <div style={{
@@ -53,12 +66,18 @@ export default function LoginModal({ users, activeUser, onSelectUser, onClose })
             <ShieldCheck size={32} color="#fff" />
           </div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>
-            Đăng Nhập & Phân Quyền Hống Karofi OEM
+            Đăng Nhập Hệ Thống Karofi OEM
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Vui lòng chọn tài khoản người dùng và vai trò làm việc
+            Chọn tài khoản và nhập mã PIN để tiếp tục
           </p>
         </div>
+
+        {usersError && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '0.8rem', fontWeight: 600 }}>
+            <AlertCircle size={14} /> Không tải được danh sách tài khoản: {usersError}
+          </div>
+        )}
 
         {/* User Selection List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto' }}>
@@ -118,11 +137,11 @@ export default function LoginModal({ users, activeUser, onSelectUser, onClose })
             <label className="form-label">Mã PIN xác thực:</label>
             <div style={{ position: 'relative' }}>
               <Lock size={16} color="var(--text-dim)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-              <input 
+              <input
                 type="password"
                 className="input-field"
                 style={{ paddingLeft: '38px' }}
-                placeholder="Nhập mã PIN (Mặc định: 123456)"
+                placeholder="Nhập mã PIN"
                 value={pinInput}
                 onChange={(e) => { setPinInput(e.target.value); setLoginError(''); }}
               />
@@ -136,11 +155,14 @@ export default function LoginModal({ users, activeUser, onSelectUser, onClose })
 
           {/* Action Buttons */}
           <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
-            <button type="button" onClick={onClose} className="btn btn-secondary" style={{ flex: 1 }}>
-              Đóng
-            </button>
-            <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>
-              <ShieldCheck size={18} /> Đăng Nhập Hệ Thống
+            {closable && (
+              <button type="button" onClick={onClose} className="btn btn-secondary" style={{ flex: 1 }}>
+                Đóng
+              </button>
+            )}
+            <button type="submit" disabled={isSubmitting || !users.length} className="btn btn-primary" style={{ flex: closable ? 2 : 1 }}>
+              {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+              {isSubmitting ? 'Đang đăng nhập...' : 'Đăng Nhập Hệ Thống'}
             </button>
           </div>
         </form>

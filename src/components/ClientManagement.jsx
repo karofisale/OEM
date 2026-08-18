@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, Plus, Edit3, Search, MapPin, UserCheck, Lock, AlertCircle } from 'lucide-react';
+import { Users, Plus, Edit3, Search, MapPin, UserCheck, Lock } from 'lucide-react';
 
 export default function ClientManagement({ clients, activeUser, onAddClient }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -141,11 +141,6 @@ export default function ClientManagement({ clients, activeUser, onAddClient }) {
         }}>
           <div className="glass-card animate-fade-in" style={{ width: '460px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Thêm Khách Hàng OEM Mới</h3>
-
-            <div style={{ fontSize: '0.75rem', color: '#b45309', background: 'rgba(245, 158, 11, 0.12)', padding: '8px 10px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-              <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '1px' }} />
-              Khách hàng này chỉ lưu tạm trên trình duyệt — sẽ mất khi tải lại trang hoặc bấm "Đồng bộ Sheet" cho đến khi có API ghi dữ liệu về Google Sheet.
-            </div>
 
             <form onSubmit={handleSaveClient} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div className="form-group" style={{ margin: 0 }}>

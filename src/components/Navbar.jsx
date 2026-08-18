@@ -1,8 +1,7 @@
 import React from 'react';
-import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets } from 'lucide-react';
-import { SHEET_ID } from '../services/sheetService';
+import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut } from 'lucide-react';
 
-export default function Navbar({ activeUser, onOpenLoginModal, isSyncing, onRefreshData }) {
+export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSyncing, onRefreshData }) {
   const getRoleLabel = (role) => {
     switch (role) {
       case 'creator': return { text: '👑 Creator', badge: 'badge-amber' };
@@ -53,9 +52,7 @@ export default function Navbar({ activeUser, onOpenLoginModal, isSyncing, onRefr
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.725rem', color: 'var(--text-muted)' }}>
             <span className="pulse-dot"></span>
-            <span>Live Sheet DB</span>
-            <span style={{ opacity: 0.4 }}>|</span>
-            <span className="code-font" style={{ fontSize: '0.7rem' }}>1lSeQyfHmd...</span>
+            <span>Backend API</span>
           </div>
         </div>
       </div>
@@ -108,6 +105,14 @@ export default function Navbar({ activeUser, onOpenLoginModal, isSyncing, onRefr
           <span style={{ fontSize: '0.725rem', color: 'var(--karofi-cyan)', fontWeight: 700, marginLeft: '4px' }}>
             Đổi
           </span>
+        </button>
+
+        <button
+          onClick={onLogout}
+          className="btn btn-secondary btn-sm"
+          title="Đăng xuất"
+        >
+          <LogOut size={14} /> Đăng xuất
         </button>
       </div>
     </header>

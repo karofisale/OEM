@@ -106,7 +106,7 @@ export default function DebtImporter({ onSyncDebt }) {
           {syncStatus === 'warning' && (
             <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(245, 158, 11, 0.15)', color: '#b45309', fontSize: '0.85rem', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
               <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
-              Chức năng ghi trực tiếp lên Google Sheet chưa được kết nối (cần API/backend, ví dụ Google Apps Script). Vui lòng dùng bảng xem trước bên dưới để cập nhật thủ công vào tab <strong>Debt_Tracking</strong>, hoặc liên hệ IT để triển khai API ghi dữ liệu.
+              Tab <strong>Debt_Tracking</strong> đã có một quy trình cập nhật riêng (đối chiếu theo Mã KH/Tên khách hàng) — cố tình chưa nối chức năng này để tránh 2 luồng ghi đá nhau. Vui lòng dùng bảng xem trước bên dưới để cập nhật thủ công, hoặc dùng quy trình đã có.
             </div>
           )}
 

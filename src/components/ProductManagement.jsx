@@ -229,7 +229,7 @@ export default function ProductManagement({ materials, clients, transactions, ac
 
             <div style={{ fontSize: '0.75rem', color: '#b45309', background: 'rgba(245, 158, 11, 0.12)', padding: '8px 10px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
               <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '1px' }} />
-              Sản phẩm này chỉ lưu tạm trên trình duyệt — sẽ mất khi tải lại trang hoặc bấm "Đồng bộ Sheet" cho đến khi có API ghi dữ liệu về Google Sheet.
+              Sản phẩm này chỉ lưu tạm trên trình duyệt — Google Sheet chưa có tab danh mục sản phẩm riêng để ghi vào (tab "Materials" hiện tại là bảng số lượng bán theo tháng, không phải danh mục).
             </div>
 
             <form onSubmit={handleCreateMaterial} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

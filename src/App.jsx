@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import LoginModal from './components/LoginModal';
@@ -12,53 +12,44 @@ import SalesPlan from './components/SalesPlan';
 import DebtImporter from './components/DebtImporter';
 import GoogleSheetSettings from './components/GoogleSheetSettings';
 
-import { 
-  loadUsers, 
-  loadClients, 
-  loadTransactions, 
-  loadMaterials, 
-  loadSalesPlans 
-} from './services/sheetService';
+import * as api from './services/api';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('ai-agent');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [users, setUsers] = useState([]);
-  const [activeUser, setActiveUser] = useState({ name: 'hai.cao@karofi.com', role: 'creator', saleId: '' });
+  const [session, setSession] = useState(() => api.loadSession());
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   const [clients, setClients] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [plans, setPlans] = useState([]);
-  const [isSyncing, setIsSyncing] = useState(true);
-  const hasSetDefaultUserRef = useRef(false);
+  const [baselines2025, setBaselines2025] = useState(new Map());
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [bootstrapError, setBootstrapError] = useState('');
 
-  // Initial Load
+  const activeUser = session?.user || { name: '', role: 'sale', saleId: '' };
+
+  // Load business data once we have a valid session; re-run when the token changes.
   const fetchAllData = async () => {
+    if (!session?.token) return;
     setIsSyncing(true);
+    setBootstrapError('');
     try {
-      const [uList, cList, tList, mList, pList] = await Promise.all([
-        loadUsers(),
-        loadClients(),
-        loadTransactions(),
-        loadMaterials(),
-        loadSalesPlans()
-      ]);
-
-      setUsers(uList);
-      // Only set the default active user on the very first load — a manual
-      // "Đồng bộ Sheet" refresh must not silently log the current user out.
-      if (uList && uList.length > 0 && !hasSetDefaultUserRef.current) {
-        setActiveUser(uList[0]);
-        hasSetDefaultUserRef.current = true;
-      }
-      setClients(cList);
-      setTransactions(tList);
-      setMaterials(mList);
-      setPlans(pList);
+      const data = await api.getBootstrap(session.token);
+      setClients(data.clients || []);
+      setTransactions(data.transactions || []);
+      setMaterials(data.materials || []);
+      setPlans(data.plans || []);
+      setBaselines2025(new Map(Object.entries(data.baselines2025 || {})));
     } catch (err) {
-      console.error('Error fetching sheet data:', err);
+      console.error('Error fetching backend data:', err);
+      setBootstrapError(err.message || String(err));
+      // Token likely expired server-side — force re-login.
+      if (/hết hạn|token|unauthor/i.test(err.message || '')) {
+        api.clearSession();
+        setSession(null);
+      }
     } finally {
       setIsSyncing(false);
     }
@@ -66,38 +57,81 @@ export default function App() {
 
   useEffect(() => {
     fetchAllData();
-  }, []);
+  }, [session?.token]);
+
+  const handleLoginSuccess = (newSession) => {
+    setSession(newSession);
+    setShowLoginModal(false);
+  };
+
+  const handleLogout = () => {
+    api.clearSession();
+    setSession(null);
+    setClients([]);
+    setTransactions([]);
+    setMaterials([]);
+    setPlans([]);
+  };
 
   const handleAddMaterial = (newMat) => {
+    // No product-catalogue tab exists in the Sheet yet — kept local-only.
+    // See gas/SETUP.md for why this isn't wired to the backend.
     setMaterials(prev => [newMat, ...prev]);
   };
 
-  const handleAddClient = (newClient) => {
+  const handleAddClient = async (newClient) => {
     setClients(prev => [newClient, ...prev]);
+    try {
+      await api.addClient(session.token, newClient);
+    } catch (err) {
+      alert('Không ghi được khách hàng mới lên Google Sheet: ' + err.message);
+    }
   };
 
-  const handleAddPlan = (newPlan) => {
+  const handleAddPlan = async (newPlan) => {
     setPlans(prev => [newPlan, ...prev]);
+    try {
+      await api.addPlan(session.token, newPlan);
+    } catch (err) {
+      alert('Không ghi được kế hoạch mới lên Google Sheet: ' + err.message);
+    }
   };
+
+  // No valid session — require login before showing any business data.
+  if (!session) {
+    return (
+      <LoginModal
+        onLoginSuccess={handleLoginSuccess}
+        closable={false}
+      />
+    );
+  }
 
   return (
     <div className="app-container">
       {/* Sidebar Navigation */}
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
       />
 
       {/* Main Container */}
       <div className="main-content">
-        <Navbar 
-          activeUser={activeUser} 
-          onOpenLoginModal={() => setShowLoginModal(true)} 
+        <Navbar
+          activeUser={activeUser}
+          onOpenLoginModal={() => setShowLoginModal(true)}
+          onLogout={handleLogout}
           isSyncing={isSyncing}
           onRefreshData={fetchAllData}
         />
+
+        {bootstrapError && (
+          <div style={{ margin: '16px 32px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(220, 38, 38, 0.12)', color: '#dc2626', fontSize: '0.85rem' }}>
+            Lỗi tải dữ liệu từ backend: {bootstrapError}
+          </div>
+        )}
 
         <main className="page-container">
           {activeTab === 'ai-agent' && (
@@ -109,10 +143,11 @@ export default function App() {
           )}
 
           {activeTab === 'revenue-reports' && (
-            <RevenueReports 
+            <RevenueReports
               transactions={transactions}
               clients={clients}
               activeUser={activeUser}
+              baselines2025={baselines2025}
             />
           )}
 
@@ -167,13 +202,12 @@ export default function App() {
         </main>
       </div>
 
-      {/* Login & Role Switcher Modal */}
+      {/* Switch-user modal — reuses the same login form, but is closable since we already have a session */}
       {showLoginModal && (
-        <LoginModal 
-          users={users}
-          activeUser={activeUser}
-          onSelectUser={(u) => { hasSetDefaultUserRef.current = true; setActiveUser(u); }}
+        <LoginModal
+          onLoginSuccess={handleLoginSuccess}
           onClose={() => setShowLoginModal(false)}
+          closable={true}
         />
       )}
     </div>

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Settings, Database, CheckCircle2, ShieldCheck, ExternalLink, Code2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Settings, Database, CheckCircle2, ExternalLink, Code2, AlertTriangle, Loader2 } from 'lucide-react';
 import { SHEET_ID } from '../services/sheetService';
+import * as api from '../services/api';
 
 export default function GoogleSheetSettings() {
-  const [sheetId, setSheetId] = useState(SHEET_ID);
   const [testState, setTestState] = useState(null); // null | 'loading' | 'success' | 'error'
   const [testMessage, setTestMessage] = useState('');
 
@@ -11,16 +11,12 @@ export default function GoogleSheetSettings() {
     setTestState('loading');
     setTestMessage('');
     try {
-      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=0`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const text = await response.text();
-      if (!text || !text.trim()) throw new Error('Sheet trả về rỗng');
+      const res = await api.ping();
       setTestState('success');
-      setTestMessage(`Kết nối thành công tới file Google Sheet ${sheetId}!`);
+      setTestMessage(`Backend phản hồi OK lúc ${new Date(res.time).toLocaleTimeString('vi-VN')}.`);
     } catch (err) {
       setTestState('error');
-      setTestMessage(`Không thể kết nối tới Sheet ID này: ${err.message}. Kiểm tra lại ID và quyền chia sẻ ("Anyone with the link can view").`);
+      setTestMessage(`Không kết nối được backend: ${err.message}. Xem gas/SETUP.md để deploy/kiểm tra API_URL trong src/services/api.js.`);
     } finally {
       setTimeout(() => setTestState(null), 5000);
     }
@@ -33,10 +29,10 @@ export default function GoogleSheetSettings() {
       <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Settings size={22} color="#3b82f6" /> Cấu Hình Kết Nối Cơ Sở Dữ Liệu Google Sheet & SAP
+            <Settings size={22} color="#3b82f6" /> Cấu Hình Backend & Cơ Sở Dữ Liệu
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-            Quản lý Google Sheet ID, cấu hình Service Account và quy trình tự động hóa dữ liệu Python script SAP.
+            Toàn bộ dữ liệu giờ đọc/ghi qua backend (Google Apps Script), không còn gọi thẳng Google Sheet công khai từ trình duyệt.
           </p>
         </div>
       </div>
@@ -44,23 +40,17 @@ export default function GoogleSheetSettings() {
       {/* Main Form */}
       <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Database size={18} color="#06b6d4" /> 1. Đường Dẫn Cơ Sở Dữ Liệu Google Sheet
+          <Database size={18} color="#06b6d4" /> 1. Kết Nối Backend API
         </h3>
 
-        <div className="form-group" style={{ margin: 0 }}>
-          <label className="form-label">Google Sheet ID:</label>
-          <input 
-            type="text"
-            className="input-field code-font"
-            value={sheetId}
-            onChange={(e) => setSheetId(e.target.value)}
-          />
-        </div>
+        <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
+          Backend là một Google Apps Script Web App (mã nguồn tại <code>gas/Code.gs</code>, hướng dẫn deploy tại <code>gas/SETUP.md</code>). URL được cấu hình trong <code>src/services/api.js</code> (hằng số <code>API_URL</code>).
+        </p>
 
         <div style={{ display: 'flex', gap: '12px' }}>
           <button onClick={handleTestConnection} disabled={testState === 'loading'} className="btn btn-primary">
             {testState === 'loading' ? <Loader2 size={16} className="animate-spin" /> : null}
-            {testState === 'loading' ? 'Đang kiểm tra...' : 'Kiểm Tra Kết Nối'}
+            {testState === 'loading' ? 'Đang kiểm tra...' : 'Kiểm Tra Kết Nối Backend'}
           </button>
 
           <a
