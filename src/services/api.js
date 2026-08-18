@@ -74,6 +74,10 @@ export async function addPlan(token, plan) {
   return callApi('addPlan', [token, plan]);
 }
 
+export async function changePassword(token, oldPin, newPin) {
+  return callApi('changePassword', [token, oldPin, newPin]);
+}
+
 export async function ping() {
   return callApi('ping');
 }

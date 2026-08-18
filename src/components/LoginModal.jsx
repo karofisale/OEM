@@ -18,10 +18,10 @@ export default function LoginModal({ onLoginSuccess, onClose, closable }) {
 
   const getRoleBadge = (role) => {
     switch (role) {
-      case 'creator': return { label: '👑 Creator (Toàn quyền)', color: 'badge-amber' };
-      case 'admin': return { label: '🛡️ Admin (Toàn quyền)', color: 'badge-purple' };
-      case 'leader': return { label: '📊 Leader (Xem toàn bộ - Read-only)', color: 'badge-blue' };
-      case 'sale': default: return { label: '💼 Sale (Phân quyền KH)', color: 'badge-emerald' };
+      case 'creator': return { label: '👑 Creator', color: 'badge-amber' };
+      case 'admin': return { label: '🛡️ Admin', color: 'badge-purple' };
+      case 'leader': return { label: '📊 Leader', color: 'badge-blue' };
+      case 'sale': default: return { label: '💼 Sale', color: 'badge-emerald' };
     }
   };
 

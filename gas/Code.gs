@@ -66,7 +66,8 @@ const apiMap_ = {
   getBootstrap: getBootstrap_,
   addClient: addClient_,
   editClient: editClient_,
-  addPlan: addPlan_
+  addPlan: addPlan_,
+  changePassword: changePassword_
 };
 
 function ping_() {
@@ -184,6 +185,28 @@ function requireSession_(token) {
   const raw = token ? CacheService.getScriptCache().get(token) : null;
   if (!raw) throw new Error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
   return JSON.parse(raw);
+}
+
+function changePassword_(token, oldPin, newPin) {
+  const user = requireSession_(token);
+  if (!newPin || String(newPin).length < 4) {
+    throw new Error('Mã PIN mới phải có ít nhất 4 ký tự.');
+  }
+  const sheet = getSheetByGid_(GIDS.USERS);
+  const rows = sheet.getDataRange().getValues();
+  let rowIndex = -1;
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]).trim().toLowerCase() === String(user.name).trim().toLowerCase()) {
+      rowIndex = i;
+      break;
+    }
+  }
+  if (rowIndex === -1) throw new Error('Không tìm thấy tài khoản.');
+  if (String(rows[rowIndex][1]) !== String(oldPin)) {
+    throw new Error('Mã PIN hiện tại không đúng.');
+  }
+  sheet.getRange(rowIndex + 1, 2).setValue(String(newPin));
+  return { ok: true };
 }
 
 // ---------- Data readers (all require a valid session) ----------

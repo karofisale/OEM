@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import LoginModal from './components/LoginModal';
+import ChangePasswordModal from './components/ChangePasswordModal';
 import AIOrderAgent from './components/AIOrderAgent';
 import RevenueReports from './components/RevenueReports';
 import Dashboard from './components/Dashboard';
@@ -20,6 +21,7 @@ export default function App() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [session, setSession] = useState(() => api.loadSession());
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
   const [clients, setClients] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -138,6 +140,7 @@ export default function App() {
           isSyncing={isSyncing}
           onRefreshData={fetchAllData}
           onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
+          onOpenChangePassword={() => setShowChangePasswordModal(true)}
         />
 
         {bootstrapError && (
@@ -222,6 +225,13 @@ export default function App() {
           onLoginSuccess={handleLoginSuccess}
           onClose={() => setShowLoginModal(false)}
           closable={true}
+        />
+      )}
+
+      {showChangePasswordModal && (
+        <ChangePasswordModal
+          token={session.token}
+          onClose={() => setShowChangePasswordModal(false)}
         />
       )}
     </div>

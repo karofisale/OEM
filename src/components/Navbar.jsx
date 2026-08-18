@@ -1,7 +1,7 @@
 import React from 'react';
-import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut, Menu } from 'lucide-react';
+import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut, Menu, KeyRound } from 'lucide-react';
 
-export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSyncing, onRefreshData, onOpenMobileMenu }) {
+export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSyncing, onRefreshData, onOpenMobileMenu, onOpenChangePassword }) {
   const getRoleLabel = (role) => {
     switch (role) {
       case 'creator': return { text: '👑 Creator', badge: 'badge-amber' };
@@ -114,6 +114,14 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
           <span className="hide-mobile-xs" style={{ fontSize: '0.725rem', color: 'var(--karofi-cyan)', fontWeight: 700, marginLeft: '4px' }}>
             Đổi
           </span>
+        </button>
+
+        <button
+          onClick={onOpenChangePassword}
+          className="btn btn-secondary btn-sm"
+          title="Đổi mã PIN"
+        >
+          <KeyRound size={14} /> <span className="hide-mobile-xs">Đổi PIN</span>
         </button>
 
         <button
