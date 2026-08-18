@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Package, Plus, Edit3, DollarSign, Search, Sparkles, Tag, Check, ArrowUpRight, Lock } from 'lucide-react';
+import { Package, Plus, Edit3, DollarSign, Search, Sparkles, Tag, Check, ArrowUpRight, Lock, AlertCircle } from 'lucide-react';
 
 export default function ProductManagement({ materials, clients, transactions, activeUser, onAddMaterial }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -226,7 +226,12 @@ export default function ProductManagement({ materials, clients, transactions, ac
         }}>
           <div className="glass-card animate-fade-in" style={{ width: '460px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Thêm Vật Tư / Sản Phẩm OEM Mới</h3>
-            
+
+            <div style={{ fontSize: '0.75rem', color: '#b45309', background: 'rgba(245, 158, 11, 0.12)', padding: '8px 10px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+              <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '1px' }} />
+              Sản phẩm này chỉ lưu tạm trên trình duyệt — sẽ mất khi tải lại trang hoặc bấm "Đồng bộ Sheet" cho đến khi có API ghi dữ liệu về Google Sheet.
+            </div>
+
             <form onSubmit={handleCreateMaterial} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Mã SKU Vật Tư (SAP Code):</label>

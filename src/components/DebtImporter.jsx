@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileSpreadsheet, Upload, CheckCircle2, AlertCircle, RefreshCw, ArrowRight } from 'lucide-react';
+import { FileSpreadsheet, Upload, CheckCircle2, ArrowRight, AlertTriangle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function DebtImporter({ onSyncDebt }) {
@@ -42,13 +42,11 @@ export default function DebtImporter({ onSyncDebt }) {
     reader.readAsBinaryString(uploadedFile);
   };
 
+  // NOTE: There is currently no backend/API that can write to the Google Sheet
+  // from this static site, so this cannot actually push data to Debt_Tracking.
+  // Be honest with the user instead of faking a success toast.
   const handleSyncToSheet = () => {
-    setIsProcessing(true);
-    setSyncStatus('Đang đẩy dữ liệu Công Nợ mới lên Google Sheet (tab Debt_Tracking)...');
-    setTimeout(() => {
-      setIsProcessing(false);
-      setSyncStatus('✅ Đã đồng bộ thành công dữ liệu Công Nợ mới lên Google Sheet!');
-    }, 1200);
+    setSyncStatus('warning');
   };
 
   return (
@@ -100,15 +98,15 @@ export default function DebtImporter({ onSyncDebt }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Bảng Xem Trước Dữ Liệu Công Nợ ({debtData.length} Khách Hàng)</h3>
 
-            <button onClick={handleSyncToSheet} disabled={isProcessing} className="btn btn-emerald">
-              {isProcessing ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-              {isProcessing ? 'Đang Đẩy Lên Sheet...' : 'Đồng Bộ Lên Google Sheet'}
+            <button onClick={handleSyncToSheet} className="btn btn-emerald">
+              <ArrowRight size={16} /> Đồng Bộ Lên Google Sheet
             </button>
           </div>
 
-          {syncStatus && (
-            <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', fontSize: '0.85rem' }}>
-              {syncStatus}
+          {syncStatus === 'warning' && (
+            <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(245, 158, 11, 0.15)', color: '#b45309', fontSize: '0.85rem', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+              Chức năng ghi trực tiếp lên Google Sheet chưa được kết nối (cần API/backend, ví dụ Google Apps Script). Vui lòng dùng bảng xem trước bên dưới để cập nhật thủ công vào tab <strong>Debt_Tracking</strong>, hoặc liên hệ IT để triển khai API ghi dữ liệu.
             </div>
           )}
 

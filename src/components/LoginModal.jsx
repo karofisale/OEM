@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { ShieldCheck, User, Lock, Sparkles, Check, Key } from 'lucide-react';
+import { ShieldCheck, User, Lock, Sparkles, Check, Key, AlertCircle } from 'lucide-react';
 
 export default function LoginModal({ users, activeUser, onSelectUser, onClose }) {
   const [pinInput, setPinInput] = useState('');
   const [selectedUserIndex, setSelectedUserIndex] = useState(0);
+  const [loginError, setLoginError] = useState('');
 
   const getRoleBadge = (role) => {
     switch (role) {
@@ -17,8 +18,20 @@ export default function LoginModal({ users, activeUser, onSelectUser, onClose })
   const handleConfirmLogin = (e) => {
     e.preventDefault();
     const u = users[selectedUserIndex];
+    if (!u) return;
+    if (pinInput !== u.pin) {
+      setLoginError('Mã PIN không đúng. Vui lòng thử lại.');
+      return;
+    }
+    setLoginError('');
     onSelectUser(u);
     onClose();
+  };
+
+  const handleSelectUser = (idx) => {
+    setSelectedUserIndex(idx);
+    setPinInput('');
+    setLoginError('');
   };
 
   return (
@@ -56,7 +69,7 @@ export default function LoginModal({ users, activeUser, onSelectUser, onClose })
             return (
               <div
                 key={u.name}
-                onClick={() => setSelectedUserIndex(idx)}
+                onClick={() => handleSelectUser(idx)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -111,9 +124,14 @@ export default function LoginModal({ users, activeUser, onSelectUser, onClose })
                 style={{ paddingLeft: '38px' }}
                 placeholder="Nhập mã PIN (Mặc định: 123456)"
                 value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
+                onChange={(e) => { setPinInput(e.target.value); setLoginError(''); }}
               />
             </div>
+            {loginError && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', color: '#dc2626', fontSize: '0.8rem', fontWeight: 600 }}>
+                <AlertCircle size={14} /> {loginError}
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}

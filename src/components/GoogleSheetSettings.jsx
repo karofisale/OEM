@@ -1,14 +1,29 @@
 import React, { useState } from 'react';
-import { Settings, Database, CheckCircle2, ShieldCheck, ExternalLink, Code2 } from 'lucide-react';
+import { Settings, Database, CheckCircle2, ShieldCheck, ExternalLink, Code2, AlertTriangle, Loader2 } from 'lucide-react';
 import { SHEET_ID } from '../services/sheetService';
 
 export default function GoogleSheetSettings() {
   const [sheetId, setSheetId] = useState(SHEET_ID);
-  const [testSuccess, setTestSuccess] = useState(false);
+  const [testState, setTestState] = useState(null); // null | 'loading' | 'success' | 'error'
+  const [testMessage, setTestMessage] = useState('');
 
-  const handleTestConnection = () => {
-    setTestSuccess(true);
-    setTimeout(() => setTestSuccess(false), 3000);
+  const handleTestConnection = async () => {
+    setTestState('loading');
+    setTestMessage('');
+    try {
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=0`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const text = await response.text();
+      if (!text || !text.trim()) throw new Error('Sheet trả về rỗng');
+      setTestState('success');
+      setTestMessage(`Kết nối thành công tới file Google Sheet ${sheetId}!`);
+    } catch (err) {
+      setTestState('error');
+      setTestMessage(`Không thể kết nối tới Sheet ID này: ${err.message}. Kiểm tra lại ID và quyền chia sẻ ("Anyone with the link can view").`);
+    } finally {
+      setTimeout(() => setTestState(null), 5000);
+    }
   };
 
   return (
@@ -43,13 +58,14 @@ export default function GoogleSheetSettings() {
         </div>
 
         <div style={{ display: 'flex', gap: '12px' }}>
-          <button onClick={handleTestConnection} className="btn btn-primary">
-            Kiểm Tra Kết Nối
+          <button onClick={handleTestConnection} disabled={testState === 'loading'} className="btn btn-primary">
+            {testState === 'loading' ? <Loader2 size={16} className="animate-spin" /> : null}
+            {testState === 'loading' ? 'Đang kiểm tra...' : 'Kiểm Tra Kết Nối'}
           </button>
 
-          <a 
-            href={`https://docs.google.com/spreadsheets/d/${SHEET_ID}`} 
-            target="_blank" 
+          <a
+            href={`https://docs.google.com/spreadsheets/d/${SHEET_ID}`}
+            target="_blank"
             rel="noreferrer"
             className="btn btn-secondary"
           >
@@ -57,9 +73,15 @@ export default function GoogleSheetSettings() {
           </a>
         </div>
 
-        {testSuccess && (
+        {testState === 'success' && (
           <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CheckCircle2 size={16} /> Kết nối thành công tới file Google Sheet 1lSeQyfHmd-H0s7Qu7n9b8LAJ3Deap9hHFLEKf6F0Cnk!
+            <CheckCircle2 size={16} /> {testMessage}
+          </div>
+        )}
+
+        {testState === 'error' && (
+          <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(220, 38, 38, 0.12)', color: '#dc2626', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertTriangle size={16} /> {testMessage}
           </div>
         )}
       </div>

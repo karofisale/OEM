@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { CalendarRange, Plus, CheckCircle2, Check, Clock, Filter, User } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { CalendarRange, Plus, CheckCircle2, Check, Clock, Filter, User, AlertCircle } from 'lucide-react';
 
 export default function SalesPlan({ plans, clients, transactions, activeUser, onAddPlan }) {
   const [selectedMonth, setSelectedMonth] = useState('T08-2026');
@@ -21,6 +21,16 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
   const [w4Input, setW4Input] = useState('');
   const [w5Input, setW5Input] = useState('');
   const [noteInput, setNoteInput] = useState('');
+
+  // Re-sync with fresh data from the Sheet on every reload (e.g. "Đồng bộ Sheet"),
+  // but keep locally-added proposals that haven't made it back into `plans` yet.
+  useEffect(() => {
+    setPlanStateList(prev => {
+      const remoteCodes = new Set(plans.map(p => p.searchCode));
+      const localOnly = prev.filter(p => !remoteCodes.has(p.searchCode));
+      return [...localOnly, ...plans];
+    });
+  }, [plans]);
 
   // Use plans from props or local state
   const activePlanList = planStateList.length > 0 ? planStateList : plans;
@@ -296,7 +306,12 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
         }}>
           <div className="glass-card animate-fade-in" style={{ width: '520px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Đề Xuất Kế Hoạch Kinh Doanh Tháng & Tuần</h3>
-            
+
+            <div style={{ fontSize: '0.75rem', color: '#b45309', background: 'rgba(245, 158, 11, 0.12)', padding: '8px 10px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+              <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '1px' }} />
+              Kế hoạch này chỉ lưu tạm trên trình duyệt — sẽ mất khi tải lại trang hoặc bấm "Đồng bộ Sheet" cho đến khi có API ghi dữ liệu về Google Sheet.
+            </div>
+
             <form onSubmit={handleCreateProposal} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Client:</label>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import LoginModal from './components/LoginModal';
@@ -32,6 +32,7 @@ export default function App() {
   const [materials, setMaterials] = useState([]);
   const [plans, setPlans] = useState([]);
   const [isSyncing, setIsSyncing] = useState(true);
+  const hasSetDefaultUserRef = useRef(false);
 
   // Initial Load
   const fetchAllData = async () => {
@@ -46,8 +47,11 @@ export default function App() {
       ]);
 
       setUsers(uList);
-      if (uList && uList.length > 0) {
+      // Only set the default active user on the very first load — a manual
+      // "Đồng bộ Sheet" refresh must not silently log the current user out.
+      if (uList && uList.length > 0 && !hasSetDefaultUserRef.current) {
         setActiveUser(uList[0]);
+        hasSetDefaultUserRef.current = true;
       }
       setClients(cList);
       setTransactions(tList);
@@ -168,7 +172,7 @@ export default function App() {
         <LoginModal 
           users={users}
           activeUser={activeUser}
-          onSelectUser={(u) => setActiveUser(u)}
+          onSelectUser={(u) => { hasSetDefaultUserRef.current = true; setActiveUser(u); }}
           onClose={() => setShowLoginModal(false)}
         />
       )}
