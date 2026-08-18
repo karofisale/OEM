@@ -1,48 +1,99 @@
-import React, { useState } from 'react';
-import { 
-  Bot, 
-  Sparkles, 
-  Upload, 
-  Copy, 
-  Check, 
-  FileText, 
-  RefreshCw, 
-  AlertCircle, 
-  ShoppingCart, 
-  DollarSign, 
-  Building2, 
-  Layers,
-  ArrowRight
+import React, { useState, useMemo } from 'react';
+import {
+  Bot,
+  Sparkles,
+  Upload,
+  Copy,
+  Check,
+  FileText,
+  RefreshCw,
+  ShoppingCart,
+  Save,
+  Loader2
 } from 'lucide-react';
-import { 
-  parseOrderTextToSAP, 
-  generateSAPCopyString, 
-  extractTextFromImage 
+import {
+  parseOrderTextToSAP,
+  generateSAPCopyString,
+  extractTextFromImage,
+  getHistoricalUnitPrice,
+  isNewAliasWorthLearning,
+  VAT_RATE
 } from '../services/aiAgent';
+import * as api from '../services/api';
 
-export default function AIOrderAgent({ clients, materials, transactions }) {
-  const [promptText, setPromptText] = useState(
-    'Lên đơn cho Makxim 300 cái Block Qiangsheng QD25H và 200 phin lọc 2 đầu giá đợt trước'
+// Searchable Mã VT cell — free-type by code, name, or alias, so a wrong AI match
+// can be corrected without hunting through the full 440+ SKU catalogue.
+function SkuPickerCell({ item, materials, onSelect }) {
+  const [query, setQuery] = useState(`${item.sku} - ${item.name}`);
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const pool = !q ? materials : materials.filter(m =>
+      m.sku.toLowerCase().includes(q) ||
+      m.name.toLowerCase().includes(q) ||
+      (m.alias || '').toLowerCase().includes(q)
+    );
+    return pool.slice(0, 30);
+  }, [materials, query]);
+
+  const handleSelect = (m) => {
+    setQuery(`${m.sku} - ${m.name}`);
+    setShowDropdown(false);
+    onSelect(m);
+  };
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        className="input-field code-font"
+        style={{ padding: '4px 8px', fontSize: '0.775rem', fontWeight: 700, color: '#0369a1' }}
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); setShowDropdown(true); }}
+        onFocus={(e) => { e.target.select(); setShowDropdown(true); }}
+        onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+        placeholder="Tìm theo mã hoặc tên..."
+      />
+      {showDropdown && matches.length > 0 && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, minWidth: '280px', zIndex: 30,
+          background: '#ffffff', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)',
+          boxShadow: 'var(--shadow-md)', maxHeight: '240px', overflowY: 'auto'
+        }}>
+          {matches.map(m => (
+            <div
+              key={m.sku}
+              onMouseDown={() => handleSelect(m)}
+              style={{ padding: '8px 10px', cursor: 'pointer', borderBottom: '1px solid var(--border-color)' }}
+            >
+              <div className="code-font" style={{ fontWeight: 700, color: '#00a0e9', fontSize: '0.775rem' }}>{m.sku}</div>
+              <div style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>
+                {m.name}{m.alias ? ` (${m.alias})` : ''}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
-  const [selectedClient, setSelectedClient] = useState(clients[0]?.name || '');
+}
+
+export default function AIOrderAgent({ clients, materials, transactions, token }) {
+  const [promptText, setPromptText] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [ocrStatus, setOcrStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [copied, setCopied] = useState(false);
-  
-  // Processed order state
-  const [orderResult, setOrderResult] = useState(() => {
-    return parseOrderTextToSAP({
-      textInput: 'Lên đơn cho Makxim 300 cái Block Qiangsheng QD25H và 200 phin lọc 2 đầu giá đợt trước',
-      clientList: clients,
-      materialsCatalog: materials,
-      transactions: transactions
-    });
-  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // Processed order state — starts empty until Sale actually enters a command.
+  const [orderResult, setOrderResult] = useState(null);
 
   // Handle Text Prompt Submission
   const handleGenerateOrder = () => {
     setIsProcessing(true);
+    setSaved(false);
     setTimeout(() => {
       const result = parseOrderTextToSAP({
         textInput: promptText,
@@ -68,12 +119,13 @@ export default function AIOrderAgent({ clients, materials, transactions }) {
     }
     setImageFile(file);
     setIsProcessing(true);
+    setSaved(false);
     setOcrStatus('Đang quét OCR nhận diện chữ trên hình ảnh...');
 
     try {
       const extractedText = await extractTextFromImage(file, (msg) => setOcrStatus(msg));
       setPromptText(extractedText || 'Đơn hàng từ ảnh chụp');
-      
+
       const result = parseOrderTextToSAP({
         textInput: extractedText,
         clientList: clients,
@@ -103,24 +155,59 @@ export default function AIOrderAgent({ clients, materials, transactions }) {
       if (item.id === id) {
         const val = parseFloat(value) || 0;
         const updated = { ...item, [field]: val };
-        updated.total = updated.qty * updated.price;
+        updated.total = updated.qty * updated.price * VAT_RATE;
         return updated;
       }
       return item;
     });
 
     const newGrandTotal = updatedItems.reduce((sum, i) => sum + i.total, 0);
-    setOrderResult({
-      ...orderResult,
-      items: updatedItems,
-      grandTotal: newGrandTotal
+    setOrderResult({ ...orderResult, items: updatedItems, grandTotal: newGrandTotal });
+    setSaved(false);
+  };
+
+  // Manual SKU correction — this is also the AI's learning signal: the original
+  // free-text term (item.sourceQuery) gets tied to the SKU the human actually picked,
+  // so a future order using the same wording matches correctly on the first try
+  // (see aiAgent.js isNewAliasWorthLearning + findMatchingMaterial's learnedAliases check).
+  const handleSkuChange = (itemId, material) => {
+    const updatedItems = orderResult.items.map(item => {
+      if (item.id !== itemId) return item;
+      const price = getHistoricalUnitPrice(orderResult.client.name, material.sku, transactions, material.avgPrice);
+      return {
+        ...item,
+        sku: material.sku,
+        name: material.name,
+        unit: material.unit || 'PC',
+        price,
+        total: item.qty * price * VAT_RATE,
+        confidence: 'Đã sửa thủ công',
+        matchedAlias: isNewAliasWorthLearning(item.sourceQuery, material) ? item.sourceQuery : ''
+      };
     });
+
+    const newGrandTotal = updatedItems.reduce((sum, i) => sum + i.total, 0);
+    setOrderResult({ ...orderResult, items: updatedItems, grandTotal: newGrandTotal });
+    setSaved(false);
+  };
+
+  const handleSaveOrder = async () => {
+    if (!orderResult || !orderResult.items.length || isSaving) return;
+    setIsSaving(true);
+    try {
+      await api.saveOrder(token, orderResult);
+      setSaved(true);
+    } catch (err) {
+      alert('Không lưu được đơn hàng lên Google Sheet (tab Orders): ' + err.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Header Banner */}
-      <div className="glass-card" style={{ 
+      <div className="glass-card" style={{
         background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(139, 92, 246, 0.15))',
         border: '1px solid rgba(59, 130, 246, 0.3)',
         display: 'flex',
@@ -155,7 +242,7 @@ export default function AIOrderAgent({ clients, materials, transactions }) {
 
       {/* Main 2-Column Grid */}
       <div className="ai-agent-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '24px' }}>
-        
+
         {/* Left Column: Input Prompt & OCR */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -163,22 +250,6 @@ export default function AIOrderAgent({ clients, materials, transactions }) {
               <FileText size={18} color="#3b82f6" /> 1. Lệnh Đặt Hàng từ Sale
             </h3>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Text / Ảnh viết tay</span>
-          </div>
-
-          {/* Quick Preset Buttons */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-            <button 
-              className="btn btn-secondary btn-sm"
-              onClick={() => setPromptText('Lên đơn cho Makxim 300 cái Block Qiangsheng QD25H và 200 phin lọc 2 đầu giá đợt trước')}
-            >
-              📝 Đơn Makxim (Block & Phin)
-            </button>
-            <button 
-              className="btn btn-secondary btn-sm"
-              onClick={() => setPromptText('Khách Tecom cần gấp 100 màng RO 100 GPD Karofi OEM và 500 phin lọc')}
-            >
-              📝 Đơn Tecom (Màng RO)
-            </button>
           </div>
 
           {/* Prompt Textarea */}
@@ -190,7 +261,7 @@ export default function AIOrderAgent({ clients, materials, transactions }) {
               value={promptText}
               onChange={(e) => setPromptText(e.target.value)}
               placeholder="VD: Lên đơn cho khách hàng Tecom 500 cái màng RO 100G và 100 phin lọc 2 đầu..."
-              style={{ resize: 'vertical', fontFamily: 'inherit' }}
+              style={{ resize: 'vertical', fontFamily: 'inherit', border: '1.5px solid #94a3b8' }}
             />
           </div>
 
@@ -203,12 +274,12 @@ export default function AIOrderAgent({ clients, materials, transactions }) {
             background: 'rgba(0,0,0,0.15)',
             cursor: 'pointer'
           }}>
-            <input 
-              type="file" 
-              accept="image/*" 
-              onChange={handleImageUpload} 
-              id="ocr-upload" 
-              style={{ display: 'none' }} 
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              id="ocr-upload"
+              style={{ display: 'none' }}
             />
             <label htmlFor="ocr-upload" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
               <Upload size={24} color="#06b6d4" />
@@ -228,7 +299,7 @@ export default function AIOrderAgent({ clients, materials, transactions }) {
           )}
 
           {/* Process Button */}
-          <button 
+          <button
             onClick={handleGenerateOrder}
             disabled={isProcessing || !promptText.trim()}
             className="btn btn-accent"
@@ -256,109 +327,130 @@ export default function AIOrderAgent({ clients, materials, transactions }) {
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Admin kiểm tra & chỉnh sửa trước khi copy vào SAP</p>
             </div>
 
-            <button 
-              onClick={handleCopySAP}
-              className="btn btn-emerald btn-sm"
-              title="Sao chép toàn bộ dòng định dạng Tab-Separated dán thẳng vào SAP"
-            >
-              {copied ? <Check size={16} /> : <Copy size={16} />}
-              {copied ? 'Đã Sao Chép SAP!' : 'Copy Dán Về SAP'}
-            </button>
+            {orderResult && (
+              <button
+                onClick={handleCopySAP}
+                className="btn btn-emerald btn-sm"
+                title="Sao chép toàn bộ dòng định dạng Tab-Separated dán thẳng vào SAP"
+              >
+                {copied ? <Check size={16} /> : <Copy size={16} />}
+                {copied ? 'Đã Sao Chép SAP!' : 'Copy Dán Về SAP'}
+              </button>
+            )}
           </div>
 
-          {/* Client & Meta Info */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '12px',
-            background: 'var(--bg-input)',
-            padding: '12px 16px',
-            borderRadius: 'var(--radius-md)',
-            fontSize: '0.825rem'
-          }}>
-            <div>
-              <span style={{ color: 'var(--text-dim)' }}>Khách hàng OEM:</span>
-              <div style={{ fontWeight: 700, color: '#fff' }}>{orderResult.client.name}</div>
-              <span style={{ fontSize: '0.725rem', color: 'var(--accent-cyan)' }}>Mã KH: {orderResult.client.code}</span>
+          {!orderResult ? (
+            <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+              Nhập lệnh đặt hàng bên trái rồi bấm "Phân Tích & Phân Hạng Đơn SAP" để tạo bảng đơn hàng.
             </div>
-            <div>
-              <span style={{ color: 'var(--text-dim)' }}>Mã tham chiếu SAP SO:</span>
-              <div className="code-font" style={{ fontWeight: 700, color: 'var(--accent-purple)' }}>{orderResult.orderNo}</div>
-              <span style={{ fontSize: '0.725rem', color: 'var(--text-dim)' }}>{orderResult.timestamp}</span>
-            </div>
-          </div>
+          ) : (
+            <>
+              {/* Client & Meta Info */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '12px',
+                background: 'var(--bg-input)',
+                padding: '12px 16px',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '0.825rem'
+              }}>
+                <div>
+                  <span style={{ color: 'var(--text-dim)' }}>Khách hàng OEM:</span>
+                  <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{orderResult.client.name}</div>
+                  <span style={{ fontSize: '0.725rem', color: 'var(--accent-cyan)' }}>Mã KH: {orderResult.client.code}</span>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-dim)' }}>Mã tham chiếu SAP SO:</span>
+                  <div className="code-font" style={{ fontWeight: 700, color: 'var(--accent-purple)' }}>{orderResult.orderNo}</div>
+                  <span style={{ fontSize: '0.725rem', color: 'var(--text-dim)' }}>{orderResult.timestamp}</span>
+                </div>
+              </div>
 
-          {/* Order Items Table */}
-          <div className="table-container" style={{ maxHeight: '320px', overflowY: 'auto' }}>
-            <table className="custom-table">
-              <thead>
-                <tr>
-                  <th>Mã VT (SAP SKU)</th>
-                  <th>Tên Vật Tư</th>
-                  <th style={{ width: '80px' }}>Số Lượng</th>
-                  <th style={{ width: '110px' }}>Đơn Giá (VND)</th>
-                  <th>Thành Tiền (VND)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orderResult.items.map((item) => (
-                  <tr key={item.id}>
-                    <td className="code-font" style={{ fontWeight: 600, color: '#60a5fa' }}>
-                      {item.sku}
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{item.name}</div>
-                      <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>{item.confidence}</span>
-                    </td>
-                    <td>
-                      <input 
-                        type="number" 
-                        value={item.qty}
-                        onChange={(e) => handleUpdateItem(item.id, 'qty', e.target.value)}
-                        className="input-field"
-                        style={{ padding: '4px 8px', fontSize: '0.8rem', textAlign: 'center' }}
-                      />
-                    </td>
-                    <td>
-                      <input 
-                        type="number" 
-                        value={item.price}
-                        onChange={(e) => handleUpdateItem(item.id, 'price', e.target.value)}
-                        className="input-field"
-                        style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-                      />
-                    </td>
-                    <td style={{ fontWeight: 700, color: 'var(--accent-emerald)' }}>
-                      {item.total.toLocaleString('vi-VN')} ₫
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              {/* Order Items Table */}
+              <div className="table-container" style={{ maxHeight: '360px', overflowY: 'auto' }}>
+                <table className="custom-table" style={{ fontSize: '0.78rem' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '190px' }}>Mã VT (SAP SKU)</th>
+                      <th>Tên Vật Tư</th>
+                      <th style={{ width: '100px', textAlign: 'right' }}>Số Lượng</th>
+                      <th style={{ width: '130px', textAlign: 'right' }}>Đơn Giá (VND)</th>
+                      <th style={{ width: '140px', textAlign: 'right' }}>Thành Tiền (VND)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orderResult.items.map((item) => (
+                      <tr key={item.id}>
+                        <td>
+                          <SkuPickerCell item={item} materials={materials} onSelect={(m) => handleSkuChange(item.id, m)} />
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600, fontSize: '0.78rem' }}>{item.name}</div>
+                          <span className="badge badge-purple" style={{ fontSize: '0.625rem' }}>{item.confidence}</span>
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            value={item.qty}
+                            onChange={(e) => handleUpdateItem(item.id, 'qty', e.target.value)}
+                            className="input-field"
+                            style={{ padding: '4px 6px', fontSize: '0.78rem', textAlign: 'right' }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            value={item.price}
+                            onChange={(e) => handleUpdateItem(item.id, 'price', e.target.value)}
+                            className="input-field"
+                            style={{ padding: '4px 6px', fontSize: '0.78rem', textAlign: 'right' }}
+                          />
+                        </td>
+                        <td style={{ fontWeight: 700, color: 'var(--accent-emerald)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          {Math.round(item.total).toLocaleString('vi-VN')} ₫
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-          {/* Grand Total Footer */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '12px 16px',
-            background: 'var(--bg-card-hover)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border-color)'
-          }}>
-            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-              Tổng Giá Trị Đơn Hàng (Trước VAT):
-            </span>
-            <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#34d399' }}>
-              {orderResult.grandTotal.toLocaleString('vi-VN')} ₫
-            </span>
-          </div>
+              {/* Grand Total Footer */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 16px',
+                background: 'var(--bg-card-hover)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)'
+              }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                  Tổng Giá Trị Đơn Hàng (Đã gồm VAT 8%):
+                </span>
+                <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#34d399' }}>
+                  {Math.round(orderResult.grandTotal).toLocaleString('vi-VN')} ₫
+                </span>
+              </div>
 
-          {/* Admin SAP Copy Note */}
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', background: 'rgba(59, 130, 246, 0.08)', padding: '10px 14px', borderRadius: 'var(--radius-md)' }}>
-            💡 <strong>Hướng dẫn dán vào SAP:</strong> Bấm <strong>"Copy Dán Về SAP"</strong> ở trên, mở màn hình tạo Sales Order trong SAP GUI (VA01) hoặc SAP Web Client, click chuột vào ô đầu tiên của bảng vật tư và bấm <code>Ctrl + V</code>.
-          </div>
+              {/* Save Button */}
+              <button
+                onClick={handleSaveOrder}
+                disabled={isSaving}
+                className="btn btn-primary"
+                style={{ width: '100%', padding: '12px' }}
+              >
+                {isSaving ? <Loader2 size={18} className="animate-spin" /> : (saved ? <Check size={18} /> : <Save size={18} />)}
+                {isSaving ? 'Đang lưu...' : (saved ? 'Đã Lưu Vào Google Sheet!' : 'Lưu Đơn Về Tab Orders')}
+              </button>
+
+              {/* Admin SAP Copy Note */}
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', background: 'rgba(59, 130, 246, 0.08)', padding: '10px 14px', borderRadius: 'var(--radius-md)' }}>
+                💡 <strong>Hướng dẫn dán vào SAP:</strong> Bấm <strong>"Copy Dán Về SAP"</strong> ở trên, mở màn hình tạo Sales Order trong SAP GUI (VA01) hoặc SAP Web Client, click chuột vào ô đầu tiên của bảng vật tư và bấm <code>Ctrl + V</code>. Sau khi lưu, Sale/Admin có thể vào mục "Đơn Hàng Chờ Duyệt" để rà soát lại và copy từ đó.
+              </div>
+            </>
+          )}
         </div>
 
       </div>

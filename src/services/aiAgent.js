@@ -1,5 +1,8 @@
 // AI Agent Order Processing Engine & SAP Generator
 
+// Thành Tiền / Tổng Giá Trị are shown VAT-inclusive per request; Đơn Giá stays pre-VAT.
+export const VAT_RATE = 1.08;
+
 // Fuzzy text matching helper
 function similarityScore(str1, str2) {
   const s1 = str1.toLowerCase().trim();
@@ -52,7 +55,13 @@ export function findMatchingMaterial(queryText, materialsCatalog) {
   materialsCatalog.forEach(mat => {
     const nameScore = similarityScore(q, mat.name);
     const aliasScore = mat.alias ? similarityScore(q, mat.alias) : 0;
-    const maxScore = Math.max(nameScore, aliasScore);
+    // learnedAliases: free-text terms Sale/Admin previously used that got mapped to this
+    // SKU (see AI_ALIAS_LEARN below) — lets the matcher improve from real corrections
+    // instead of only ever knowing the auto-derived alias.
+    const learnedScore = (mat.learnedAliases || []).reduce(
+      (best, term) => Math.max(best, similarityScore(q, term)), 0
+    );
+    const maxScore = Math.max(nameScore, aliasScore, learnedScore);
 
     if (maxScore > highestScore && maxScore >= 0.25) {
       highestScore = maxScore;
@@ -61,6 +70,17 @@ export function findMatchingMaterial(queryText, materialsCatalog) {
   });
 
   return bestMatch;
+}
+
+// Whether queryText is different/specific enough from what the matcher already knows
+// about this material to be worth surfacing for review in the Orders sheet's "Update
+// alias" column — avoids writing back near-duplicates of the SKU name/alias every time.
+export function isNewAliasWorthLearning(queryText, material) {
+  if (!queryText || !material) return false;
+  const q = queryText.trim();
+  if (q.length < 2) return false;
+  const known = [material.alias, material.name, ...(material.learnedAliases || [])].filter(Boolean);
+  return !known.some(term => similarityScore(q, term) >= 0.6);
 }
 
 // Find historical price for client and material
@@ -129,16 +149,17 @@ export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, t
     // Clean line from quantity numbers to match product
     const productQuery = line.replace(/\d+[\d,.]*/g, '').replace(/cái|bộ|chiếc|bao|cuộn|chủ|khái|pc|pcs|đơn|giá|cho|lấy|cần/gi, '').trim();
     
-    const matchedMaterial = findMatchingMaterial(productQuery || line, materialsCatalog);
-    
+    const sourceQuery = productQuery || line;
+    const matchedMaterial = findMatchingMaterial(sourceQuery, materialsCatalog);
+
     if (matchedMaterial) {
       const price = getHistoricalUnitPrice(matchedClient.name, matchedMaterial.sku, transactions, matchedMaterial.avgPrice);
-      
+
       // Check if already added
       const existing = orderItems.find(item => item.sku === matchedMaterial.sku);
       if (existing) {
         existing.qty += qty;
-        existing.total = existing.qty * existing.price;
+        existing.total = existing.qty * existing.price * VAT_RATE;
       } else {
         orderItems.push({
           id: 'ITEM-' + Math.random().toString(36).substr(2, 6),
@@ -147,8 +168,10 @@ export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, t
           unit: matchedMaterial.unit || 'PC',
           qty: qty,
           price: price,
-          total: qty * price,
-          confidence: 'High (Mapped)'
+          total: qty * price * VAT_RATE,
+          confidence: 'High (Mapped)',
+          sourceQuery: sourceQuery,
+          matchedAlias: isNewAliasWorthLearning(sourceQuery, matchedMaterial) ? sourceQuery : ''
         });
       }
     }
@@ -159,15 +182,20 @@ export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, t
     const m1 = materialsCatalog[0] || { sku: '2013070081', name: 'Block Qiangsheng QD25H (MD-2)', unit: 'PC', avgPrice: 305556 };
     const m2 = materialsCatalog[1] || { sku: '3004090173', name: 'Phin lọc 2 đầu', unit: 'PC', avgPrice: 11111 };
 
+    const p1 = getHistoricalUnitPrice(matchedClient.name, m1.sku, transactions, m1.avgPrice) || m1.avgPrice || 305556;
+    const p2 = getHistoricalUnitPrice(matchedClient.name, m2.sku, transactions, m2.avgPrice) || m2.avgPrice || 11111;
+
     orderItems.push({
       id: 'ITEM-1',
       sku: m1.sku,
       name: m1.name,
       unit: m1.unit,
       qty: 300,
-      price: getHistoricalUnitPrice(matchedClient.name, m1.sku, transactions, m1.avgPrice),
-      total: 300 * (m1.avgPrice || 305556),
-      confidence: 'Gợi ý từ AI'
+      price: p1,
+      total: 300 * p1 * VAT_RATE,
+      confidence: 'Gợi ý từ AI',
+      sourceQuery: '',
+      matchedAlias: ''
     });
 
     orderItems.push({
@@ -176,9 +204,11 @@ export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, t
       name: m2.name,
       unit: m2.unit,
       qty: 200,
-      price: getHistoricalUnitPrice(matchedClient.name, m2.sku, transactions, m2.avgPrice),
-      total: 200 * (m2.avgPrice || 11111),
-      confidence: 'Gợi ý từ AI'
+      price: p2,
+      total: 200 * p2 * VAT_RATE,
+      confidence: 'Gợi ý từ AI',
+      sourceQuery: '',
+      matchedAlias: ''
     });
   }
 

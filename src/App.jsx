@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import LoginModal from './components/LoginModal';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import AIOrderAgent from './components/AIOrderAgent';
+import OrdersReview from './components/OrdersReview';
 import RevenueReports from './components/RevenueReports';
 import Dashboard from './components/Dashboard';
 import TransactionGrid from './components/TransactionGrid';
@@ -151,10 +152,18 @@ export default function App() {
 
         <main className="page-container">
           {activeTab === 'ai-agent' && (
-            <AIOrderAgent 
-              clients={clients} 
-              materials={materials} 
-              transactions={transactions} 
+            <AIOrderAgent
+              clients={clients}
+              materials={materials}
+              transactions={transactions}
+              token={session.token}
+            />
+          )}
+
+          {activeTab === 'pending-orders' && (
+            <OrdersReview
+              token={session.token}
+              activeUser={activeUser}
             />
           )}
 

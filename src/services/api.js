@@ -78,6 +78,18 @@ export async function changePassword(token, oldPin, newPin) {
   return callApi('changePassword', [token, oldPin, newPin]);
 }
 
+export async function saveOrder(token, orderResult) {
+  return callApi('saveOrder', [token, orderResult]);
+}
+
+export async function getOrders(token) {
+  return callApi('getOrders', [token]);
+}
+
+export async function updateOrderLine(token, rowIndex, updates) {
+  return callApi('updateOrderLine', [token, rowIndex, updates]);
+}
+
 export async function ping() {
   return callApi('ping');
 }

@@ -11,7 +11,8 @@ import {
   Sparkles,
   PieChart,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ClipboardList
 } from 'lucide-react';
 
 export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile }) {
@@ -26,6 +27,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
 
   const menuItems = [
     { id: 'ai-agent', label: 'AI Agent Đặt Hàng SAP', icon: Bot },
+    { id: 'pending-orders', label: 'Đơn Hàng Chờ Duyệt', icon: ClipboardList },
     { id: 'revenue-reports', label: 'Báo cáo doanh thu', icon: PieChart },
     { id: 'dashboard', label: 'Tổng quan Metric', icon: BarChart3 },
     { id: 'transactions', label: 'Lịch sử doanh thu', icon: Table, count: '1,890+' },

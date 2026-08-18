@@ -67,7 +67,10 @@ const apiMap_ = {
   addClient: addClient_,
   editClient: editClient_,
   addPlan: addPlan_,
-  changePassword: changePassword_
+  changePassword: changePassword_,
+  saveOrder: saveOrder_,
+  getOrders: getOrders_,
+  updateOrderLine: updateOrderLine_
 };
 
 function ping_() {
@@ -263,7 +266,31 @@ function loadTransactions_() {
 // There is no dedicated product-catalogue tab in this Sheet — Materials is a
 // month-by-SKU pivot, not a catalogue — so materials are derived from
 // transactions, same as the old sheetService.js did.
-function deriveMaterials_(transactions) {
+// AI Order Agent "learning" loop: every order line saved to the Orders tab carries
+// an "Update alias" value whenever Sale used a free-text term the matcher didn't
+// already know for that SKU (see saveOrder_). Reading it back here and handing it
+// to the frontend as material.learnedAliases lets future free-text orders match
+// correctly on the first try instead of repeating the same manual SKU correction.
+function loadOrderAliasHints_() {
+  const map = {};
+  let sheet;
+  try {
+    sheet = getOrdersSheet_();
+  } catch (e) {
+    return map; // "Orders" tab not present yet — no hints, not fatal
+  }
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    const sku = String(rows[i][1] || '');
+    const alias = String(rows[i][11] || '').trim();
+    if (!sku || !alias) continue;
+    if (!map[sku]) map[sku] = [];
+    if (map[sku].indexOf(alias) === -1 && map[sku].length < 8) map[sku].push(alias);
+  }
+  return map;
+}
+
+function deriveMaterials_(transactions, aliasHints) {
   const map = {};
   transactions.forEach(function (t) {
     if (!t.sku) return;
@@ -295,7 +322,8 @@ function deriveMaterials_(transactions) {
       : 0;
     return {
       sku: m.sku, name: m.name, alias: m.alias, unit: m.unit, group: m.group,
-      totalQty: m.totalQty, avgPrice: avgPrice, minPrice: minPrice, maxPrice: maxPrice
+      totalQty: m.totalQty, avgPrice: avgPrice, minPrice: minPrice, maxPrice: maxPrice,
+      learnedAliases: (aliasHints && aliasHints[sku]) || []
     };
   });
 }
@@ -347,13 +375,101 @@ function load2025Baselines_() {
 function getBootstrap_(token) {
   requireSession_(token); // any authenticated user may read — role-based UI filtering stays client-side
   const transactions = loadTransactions_();
+  const aliasHints = loadOrderAliasHints_();
   return {
     clients: loadClients_(),
     transactions: transactions,
-    materials: deriveMaterials_(transactions),
+    materials: deriveMaterials_(transactions, aliasHints),
     plans: loadSalesPlans_(),
     baselines2025: load2025Baselines_()
   };
+}
+
+// ---------- Orders (AI Order Agent → SAP staging tab) ----------
+// "Orders" is a flat order-lines tab created directly in the Sheet by the user
+// (not tracked here by gid, unlike the tabs above — its columns are: STT, Mã VT,
+// Tên Vật Tư, Số Lượng, Đơn Giá, Thành Tiền, Mã tham chiếu SAP SO, Mã KH, Mã KH
+// Chữ, Ngày tạo, PIC, Update alias).
+
+function getOrdersSheet_() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Orders');
+  if (!sheet) throw new Error('Không tìm thấy tab "Orders" trên Google Sheet.');
+  return sheet;
+}
+
+function saveOrder_(token, order) {
+  const user = requireSession_(token);
+  if (!order || !order.items || !order.items.length) {
+    throw new Error('Đơn hàng trống, không có gì để lưu.');
+  }
+  const sheet = getOrdersSheet_();
+  const lastRow = sheet.getLastRow();
+  const dataRowCount = Math.max(0, lastRow - 1); // row 1 = header
+  const now = Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH:mm');
+
+  const rows = order.items.map(function (item, idx) {
+    return [
+      dataRowCount + idx + 1,
+      item.sku || '',
+      item.name || '',
+      item.qty || 0,
+      item.price || 0,
+      Math.round(item.total || 0),
+      order.orderNo || '',
+      order.client ? (order.client.code || '') : '',
+      order.client ? (order.client.codeSearch || '') : '',
+      now,
+      user.name,
+      item.matchedAlias || ''
+    ];
+  });
+
+  sheet.getRange(lastRow + 1, 1, rows.length, 12).setValues(rows);
+  return { ok: true, savedCount: rows.length };
+}
+
+function getOrders_(token) {
+  requireSession_(token); // role-based filtering (Sale sees own PIC) stays client-side, same as bootstrap
+  const sheet = getOrdersSheet_();
+  const rows = sheet.getDataRange().getValues();
+  const out = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r[1] && !r[2]) continue; // skip blank rows
+    out.push({
+      rowIndex: i + 1, // 1-based real sheet row — used by updateOrderLine_
+      stt: r[0],
+      sku: String(r[1] || ''),
+      name: String(r[2] || ''),
+      qty: parseNum_(r[3]),
+      price: parseNum_(r[4]),
+      total: parseNum_(r[5]),
+      orderNo: String(r[6] || ''),
+      clientCode: String(r[7] || ''),
+      clientCodeSearch: String(r[8] || ''),
+      createdAt: normalizeDateStr_(r[9]) || String(r[9] || ''),
+      pic: String(r[10] || ''),
+      updateAlias: String(r[11] || '')
+    });
+  }
+  return out;
+}
+
+function updateOrderLine_(token, rowIndex, updates) {
+  requireSession_(token);
+  const sheet = getOrdersSheet_();
+  const idx = parseInt(rowIndex, 10);
+  if (!idx || idx < 2) throw new Error('rowIndex không hợp lệ.');
+
+  const existing = sheet.getRange(idx, 1, 1, 12).getValues()[0];
+  const sku = updates.sku != null ? updates.sku : existing[1];
+  const name = updates.name != null ? updates.name : existing[2];
+  const qty = updates.qty != null ? updates.qty : existing[3];
+  const price = updates.price != null ? updates.price : existing[4];
+  const total = updates.total != null ? updates.total : (qty * price);
+
+  sheet.getRange(idx, 2, 1, 5).setValues([[sku, name, qty, price, Math.round(total)]]);
+  return { ok: true };
 }
 
 // ---------- Writers ----------
