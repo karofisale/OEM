@@ -46,6 +46,16 @@ export function materialMatchesQuery(material, query) {
   return tokens.every(t => haystack.includes(t));
 }
 
+// Free-type search for the "sửa mã khách" comboboxes (AI Order Agent's client field,
+// Orders Chờ Duyệt page's Mã KH column) — same unordered-token rule as
+// materialMatchesQuery, applied to code/codeSearch/name/alias instead of sku/name/alias.
+export function clientMatchesQuery(client, query) {
+  const tokens = String(query || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return true;
+  const haystack = `${client.code || ''} ${client.codeSearch || ''} ${client.name || ''} ${client.alias || ''}`.toLowerCase();
+  return tokens.every(t => haystack.includes(t));
+}
+
 // Match material from catalog
 export function findMatchingMaterial(queryText, materialsCatalog) {
   if (!queryText || !materialsCatalog.length) return null;

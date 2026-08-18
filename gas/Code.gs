@@ -471,6 +471,13 @@ function updateOrderLine_(token, rowIndex, updates) {
   const total = updates.total != null ? updates.total : (qty * price);
 
   sheet.getRange(idx, 2, 1, 5).setValues([[sku, name, qty, price, Math.round(total)]]);
+
+  if (updates.clientCode != null || updates.clientCodeSearch != null) {
+    const clientCode = updates.clientCode != null ? updates.clientCode : existing[7];
+    const clientCodeSearch = updates.clientCodeSearch != null ? updates.clientCodeSearch : existing[8];
+    sheet.getRange(idx, 8, 1, 2).setValues([[clientCode, clientCodeSearch]]);
+  }
+
   return { ok: true };
 }
 

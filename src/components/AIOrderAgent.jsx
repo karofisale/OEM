@@ -22,6 +22,7 @@ import {
 } from '../services/aiAgent';
 import * as api from '../services/api';
 import SkuPickerCell from './SkuPickerCell';
+import ClientPickerCell from './ClientPickerCell';
 import RowActionButtons from './RowActionButtons';
 
 const createBlankItem = () => ({
@@ -122,6 +123,19 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
 
     const newGrandTotal = updatedItems.reduce((sum, i) => sum + i.total, 0);
     setOrderResult({ ...orderResult, items: updatedItems, grandTotal: newGrandTotal });
+    setSaved(false);
+  };
+
+  // Manual client correction — mirrors the "chưa xác định khách hàng" placeholder
+  // findMatchingClient can leave behind; re-prices every item against the newly
+  // picked client's history since Đơn Giá is client-specific (see handleSkuChange).
+  const handleClientChange = (client) => {
+    const updatedItems = orderResult.items.map(item => {
+      const price = getHistoricalUnitPrice(client.name, item.sku, transactions, item.price);
+      return { ...item, price, total: item.qty * price * VAT_RATE };
+    });
+    const newGrandTotal = updatedItems.reduce((sum, i) => sum + i.total, 0);
+    setOrderResult({ ...orderResult, client, items: updatedItems, grandTotal: newGrandTotal });
     setSaved(false);
   };
 
@@ -340,8 +354,12 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
               }}>
                 <div>
                   <span style={{ color: 'var(--text-dim)' }}>Khách hàng OEM:</span>
-                  <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{orderResult.client.name}</div>
-                  <span style={{ fontSize: '0.725rem', color: 'var(--accent-cyan)' }}>Mã KH: {orderResult.client.code}</span>
+                  <ClientPickerCell
+                    code={orderResult.client.code}
+                    name={orderResult.client.name}
+                    clients={clients}
+                    onSelect={handleClientChange}
+                  />
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-dim)' }}>Mã tham chiếu SAP SO:</span>

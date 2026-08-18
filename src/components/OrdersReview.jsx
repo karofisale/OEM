@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ClipboardList, RefreshCw, Copy, Check, Save, AlertCircle, Loader2 } from 'lucide-react';
 import * as api from '../services/api';
 import SkuPickerCell from './SkuPickerCell';
+import ClientPickerCell from './ClientPickerCell';
 import RowActionButtons from './RowActionButtons';
 
-export default function OrdersReview({ token, activeUser, materials }) {
+export default function OrdersReview({ token, activeUser, materials, clients }) {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -64,10 +65,12 @@ export default function OrdersReview({ token, activeUser, materials }) {
     const price = parseFloat(getValue(row, 'price')) || 0;
     const sku = String(getValue(row, 'sku') || '').trim();
     const name = String(getValue(row, 'name') || '').trim();
+    const clientCode = String(getValue(row, 'clientCode') || '').trim();
+    const clientCodeSearch = String(getValue(row, 'clientCodeSearch') || '').trim();
     const total = qty * price;
     try {
-      await api.updateOrderLine(token, row.rowIndex, { sku, name, qty, price, total });
-      setOrders(prev => prev.map(o => o.rowIndex === row.rowIndex ? { ...o, sku, name, qty, price, total } : o));
+      await api.updateOrderLine(token, row.rowIndex, { sku, name, qty, price, total, clientCode, clientCodeSearch });
+      setOrders(prev => prev.map(o => o.rowIndex === row.rowIndex ? { ...o, sku, name, qty, price, total, clientCode, clientCodeSearch } : o));
       setEditedRows(prev => { const next = { ...prev }; delete next[row.rowIndex]; return next; });
     } catch (err) {
       alert('Không lưu được thay đổi: ' + err.message);
@@ -82,6 +85,15 @@ export default function OrdersReview({ token, activeUser, materials }) {
     setEditedRows(prev => ({
       ...prev,
       [row.rowIndex]: { ...(prev[row.rowIndex] || {}), sku: material.sku, name: material.name }
+    }));
+  };
+
+  // Same pattern for correcting a wrongly-detected client on one line — pending
+  // edit until "Lưu" is clicked, doesn't touch the other rows of the same order.
+  const handleClientSelect = (row, client) => {
+    setEditedRows(prev => ({
+      ...prev,
+      [row.rowIndex]: { ...(prev[row.rowIndex] || {}), clientCode: client.code, clientCodeSearch: client.codeSearch }
     }));
   };
 
@@ -187,6 +199,7 @@ export default function OrdersReview({ token, activeUser, materials }) {
                     <th style={{ width: '90px', textAlign: 'right' }}>Số Lượng</th>
                     <th style={{ width: '120px', textAlign: 'right' }}>Đơn Giá</th>
                     <th style={{ width: '130px', textAlign: 'right' }}>Thành Tiền</th>
+                    <th style={{ width: '150px' }}>Mã KH</th>
                     <th style={{ width: '160px' }}>Update Alias</th>
                     {canEdit && <th style={{ width: '150px' }}></th>}
                   </tr>
@@ -244,6 +257,16 @@ export default function OrdersReview({ token, activeUser, materials }) {
                       </td>
                       <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald)', whiteSpace: 'nowrap' }}>
                         {Math.round((parseFloat(getValue(row, 'qty')) || 0) * (parseFloat(getValue(row, 'price')) || 0)).toLocaleString('vi-VN')} ₫
+                      </td>
+                      <td>
+                        {canEdit ? (
+                          <ClientPickerCell
+                            code={getValue(row, 'clientCode')}
+                            name={getValue(row, 'clientCodeSearch')}
+                            clients={clients}
+                            onSelect={(c) => handleClientSelect(row, c)}
+                          />
+                        ) : (row.clientCodeSearch || row.clientCode)}
                       </td>
                       <td style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>{row.updateAlias}</td>
                       {canEdit && (

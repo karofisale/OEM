@@ -165,6 +165,7 @@ export default function App() {
               token={session.token}
               activeUser={activeUser}
               materials={materials}
+              clients={clients}
             />
           )}
 
