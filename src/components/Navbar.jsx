@@ -1,7 +1,7 @@
 import React from 'react';
-import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut } from 'lucide-react';
+import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut, Menu } from 'lucide-react';
 
-export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSyncing, onRefreshData }) {
+export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSyncing, onRefreshData, onOpenMobileMenu }) {
   const getRoleLabel = (role) => {
     switch (role) {
       case 'creator': return { text: '👑 Creator', badge: 'badge-amber' };
@@ -29,6 +29,15 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
     }}>
       {/* Brand & Logo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <button
+          onClick={onOpenMobileMenu}
+          className="btn btn-secondary btn-sm mobile-menu-toggle"
+          style={{ padding: '8px', borderRadius: '50%', width: '36px', height: '36px' }}
+          title="Mở Menu"
+        >
+          <Menu size={18} color="#00a0e9" />
+        </button>
+
         <div style={{
           width: '42px',
           height: '42px',

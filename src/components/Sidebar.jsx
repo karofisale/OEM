@@ -14,7 +14,16 @@ import {
   ChevronRight
 } from 'lucide-react';
 
-export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse }) {
+export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile }) {
+  // The mobile drawer always shows full labels — icon-only collapse is a
+  // desktop-only space-saving mode, not something worth doing in an overlay.
+  const effectiveCollapsed = isMobileOpen ? false : isCollapsed;
+
+  const handleSelect = (id) => {
+    setActiveTab(id);
+    if (onCloseMobile) onCloseMobile();
+  };
+
   const menuItems = [
     { id: 'ai-agent', label: 'AI Agent Đặt Hàng SAP', icon: Bot },
     { id: 'revenue-reports', label: 'Báo cáo doanh thu', icon: PieChart },
@@ -28,13 +37,15 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
   ];
 
   return (
-    <aside style={{
-      width: isCollapsed ? '72px' : '250px',
+    <>
+    {isMobileOpen && <div className="sidebar-backdrop" onClick={onCloseMobile} />}
+    <aside className={`app-sidebar ${isMobileOpen ? 'mobile-open' : ''}`} style={{
+      width: effectiveCollapsed ? '72px' : '250px',
       background: '#ffffff',
       borderRight: '1px solid var(--border-color)',
       display: 'flex',
       flexDirection: 'column',
-      padding: isCollapsed ? '16px 8px' : '16px 12px',
+      padding: effectiveCollapsed ? '16px 8px' : '16px 12px',
       gap: '6px',
       transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
       boxShadow: 'var(--shadow-sm)',
@@ -44,28 +55,28 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
       overflowY: 'auto',
       zIndex: 90
     }}>
-      {/* Sidebar Header & Collapse Toggle */}
+      {/* Sidebar Header & Collapse/Close Toggle */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: isCollapsed ? 'center' : 'space-between',
+        justifyContent: effectiveCollapsed ? 'center' : 'space-between',
         padding: '0 8px 12px 8px',
         borderBottom: '1px solid var(--border-color)',
         marginBottom: '4px'
       }}>
-        {!isCollapsed && (
+        {!effectiveCollapsed && (
           <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#004e89', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             Menu Chức Năng
           </span>
         )}
 
-        <button 
-          onClick={onToggleCollapse}
+        <button
+          onClick={isMobileOpen ? onCloseMobile : onToggleCollapse}
           className="btn btn-secondary btn-sm"
           style={{ padding: '6px', borderRadius: '50%', width: '30px', height: '30px' }}
-          title={isCollapsed ? 'Mở rộng Menu' : 'Thu gọn Menu'}
+          title={isMobileOpen ? 'Đóng Menu' : (isCollapsed ? 'Mở rộng Menu' : 'Thu gọn Menu')}
         >
-          {isCollapsed ? <ChevronRight size={16} color="#00a0e9" /> : <ChevronLeft size={16} color="#00a0e9" />}
+          {effectiveCollapsed ? <ChevronRight size={16} color="#00a0e9" /> : <ChevronLeft size={16} color="#00a0e9" />}
         </button>
       </div>
 
@@ -76,14 +87,14 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
         return (
           <button
             key={item.id}
-            onClick={() => setActiveTab(item.id)}
-            title={isCollapsed ? item.label : ''}
+            onClick={() => handleSelect(item.id)}
+            title={effectiveCollapsed ? item.label : ''}
             style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: isCollapsed ? 'center' : 'space-between',
+              justifyContent: effectiveCollapsed ? 'center' : 'space-between',
               width: '100%',
-              padding: isCollapsed ? '12px' : '11px 14px',
+              padding: effectiveCollapsed ? '12px' : '11px 14px',
               borderRadius: 'var(--radius-md)',
               border: isActive ? '1px solid var(--karofi-cyan-border)' : '1px solid transparent',
               background: isActive ? 'var(--karofi-cyan-light)' : 'transparent',
@@ -96,10 +107,10 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <Icon size={18} color={isActive ? '#00a0e9' : '#64748b'} />
-              {!isCollapsed && <span>{item.label}</span>}
+              {!effectiveCollapsed && <span>{item.label}</span>}
             </div>
 
-            {!isCollapsed && item.count && (
+            {!effectiveCollapsed && item.count && (
               <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
                 {item.count}
               </span>
@@ -108,7 +119,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
         );
       })}
 
-      {!isCollapsed && (
+      {!effectiveCollapsed && (
         <div style={{ marginTop: 'auto', padding: '12px 10px', background: 'var(--bg-main)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
             <Sparkles size={14} color="#00a0e9" />
@@ -120,5 +131,6 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
         </div>
       )}
     </aside>
+    </>
   );
 }

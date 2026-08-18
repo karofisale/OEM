@@ -116,12 +116,13 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
                   baseline = baselines2025.get(row.clientCode) || (row.totalRevenue * 0.85);
                   compareLabel = 'vs 2025';
                 } else {
-                  baseline = row.priorMonthRevenue || 1;
+                  baseline = row.priorMonthRevenue || 0;
                   compareLabel = `vs ${getPriorMonth(thangFilterMonth)}`;
                 }
 
                 const diff = row.totalRevenue - baseline;
-                const percentChange = baseline > 0 ? Math.round((diff / baseline) * 100) : 10;
+                // Kỳ trước không có doanh thu (baseline = 0) → coi là tăng 100%, thay vì chia cho 0.
+                const percentChange = baseline > 0 ? Math.round((diff / baseline) * 100) : 100;
                 const isPositive = percentChange >= 0;
 
                 return (

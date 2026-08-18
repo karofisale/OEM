@@ -17,6 +17,7 @@ import * as api from './services/api';
 export default function App() {
   const [activeTab, setActiveTab] = useState('ai-agent');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [session, setSession] = useState(() => api.loadSession());
   const [showLoginModal, setShowLoginModal] = useState(false);
 
@@ -115,6 +116,8 @@ export default function App() {
         setActiveTab={setActiveTab}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
       {/* Main Container */}
@@ -125,6 +128,7 @@ export default function App() {
           onLogout={handleLogout}
           isSyncing={isSyncing}
           onRefreshData={fetchAllData}
+          onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
         />
 
         {bootstrapError && (
