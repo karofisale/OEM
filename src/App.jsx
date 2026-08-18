@@ -89,6 +89,15 @@ export default function App() {
     }
   };
 
+  const handleEditClient = async (updatedClient) => {
+    setClients(prev => prev.map(c => c.code === updatedClient.code ? updatedClient : c));
+    try {
+      await api.editClient(session.token, updatedClient);
+    } catch (err) {
+      alert('Không cập nhật được khách hàng lên Google Sheet: ' + err.message);
+    }
+  };
+
   const handleAddPlan = async (newPlan) => {
     setPlans(prev => [newPlan, ...prev]);
     try {
@@ -179,10 +188,11 @@ export default function App() {
           )}
 
           {activeTab === 'clients' && (
-            <ClientManagement 
+            <ClientManagement
               clients={clients}
               activeUser={activeUser}
-              onAddClient={handleAddClient} 
+              onAddClient={handleAddClient}
+              onEditClient={handleEditClient}
             />
           )}
 

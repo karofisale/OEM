@@ -53,7 +53,7 @@ export default function LoginModal({ onLoginSuccess, onClose, closable }) {
       background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
     }}>
-      <div className="glass-card animate-fade-in" style={{ width: '480px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid var(--karofi-cyan-border)' }}>
+      <div className="glass-card animate-fade-in" style={{ width: '480px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid var(--karofi-cyan-border)' }}>
 
         {/* Modal Header */}
         <div style={{ textAlign: 'center' }}>

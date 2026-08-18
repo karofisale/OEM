@@ -65,6 +65,7 @@ const apiMap_ = {
   login: login_,
   getBootstrap: getBootstrap_,
   addClient: addClient_,
+  editClient: editClient_,
   addPlan: addPlan_
 };
 
@@ -349,6 +350,30 @@ function addClient_(token, client) {
     client.address || '',
     client.status || 'Active'
   ]);
+  return { ok: true };
+}
+
+function editClient_(token, client) {
+  requireSession_(token);
+  const sheet = getSheetByGid_(GIDS.CLIENTS);
+  const rows = sheet.getDataRange().getValues();
+  let rowIndex = -1;
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][1]) === String(client.code)) { rowIndex = i; break; }
+  }
+  if (rowIndex === -1) throw new Error('Không tìm thấy khách hàng với mã ' + client.code + ' để sửa.');
+
+  const existing = rows[rowIndex];
+  sheet.getRange(rowIndex + 1, 2, 1, 8).setValues([[
+    existing[1],
+    client.codeSearch || existing[2],
+    client.name || existing[3],
+    client.alias != null ? client.alias : existing[4],
+    client.type || existing[5],
+    client.sale || existing[6],
+    client.address != null ? client.address : existing[7],
+    client.status || existing[8]
+  ]]);
   return { ok: true };
 }
 

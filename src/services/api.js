@@ -66,6 +66,10 @@ export async function addClient(token, client) {
   return callApi('addClient', [token, client]);
 }
 
+export async function editClient(token, client) {
+  return callApi('editClient', [token, client]);
+}
+
 export async function addPlan(token, plan) {
   return callApi('addPlan', [token, plan]);
 }

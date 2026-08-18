@@ -297,9 +297,17 @@ body {
 }
 
 /* Animations */
+/* NOTE: deliberately opacity-only. Animating `transform` here (even to a
+   0px/none end value) makes every ".animate-fade-in" element a CSS
+   containing block for its position:fixed descendants — which broke every
+   modal in the app: the modal ended up centered inside the page's own
+   (very tall) content box instead of the viewport, rendering it thousands
+   of pixels below the visible screen (just a dark blurred backdrop was
+   visible). Confirmed live: a fixed-position modal's containing block was
+   the page wrapper, giving it a ~62000px-tall box. */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .animate-fade-in {
@@ -357,5 +365,17 @@ body {
 
   .page-container {
     padding: 16px;
+  }
+
+  .app-navbar {
+    padding: 0 12px !important;
+  }
+
+  .hide-mobile-xs {
+    display: none !important;
+  }
+
+  .ai-agent-grid {
+    grid-template-columns: 1fr !important;
   }
 }

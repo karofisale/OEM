@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
-import { Users, Plus, Edit3, Search, MapPin, UserCheck, Lock } from 'lucide-react';
+import { Users, Plus, Edit3, Search, MapPin, UserCheck, Lock, Table, LayoutGrid } from 'lucide-react';
 
-export default function ClientManagement({ clients, activeUser, onAddClient }) {
+export default function ClientManagement({ clients, activeUser, onAddClient, onEditClient }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState('table');
   const [showModal, setShowModal] = useState(false);
+  const [editingClient, setEditingClient] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editAlias, setEditAlias] = useState('');
+  const [editSale, setEditSale] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editStatus, setEditStatus] = useState('Active');
 
   const isLeader = activeUser.role === 'leader';
   const isSale = activeUser.role === 'sale';
@@ -55,6 +62,30 @@ export default function ClientManagement({ clients, activeUser, onAddClient }) {
     setName('');
   };
 
+  const openEditModal = (client) => {
+    setEditingClient(client);
+    setEditName(client.name);
+    setEditAlias(client.alias || '');
+    setEditSale(client.sale);
+    setEditAddress(client.address || '');
+    setEditStatus(client.status || 'Active');
+  };
+
+  const handleUpdateClient = (e) => {
+    e.preventDefault();
+    if (!editingClient || !editName) return;
+
+    onEditClient({
+      ...editingClient,
+      name: editName,
+      alias: editAlias,
+      sale: editSale,
+      address: editAddress,
+      status: editStatus
+    });
+    setEditingClient(null);
+  };
+
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
@@ -83,10 +114,10 @@ export default function ClientManagement({ clients, activeUser, onAddClient }) {
       </div>
 
       {/* Search */}
-      <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
+      <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: '220px', maxWidth: '400px' }}>
           <Search size={18} color="var(--text-dim)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-          <input 
+          <input
             type="text"
             className="input-field"
             style={{ paddingLeft: '38px' }}
@@ -96,11 +127,55 @@ export default function ClientManagement({ clients, activeUser, onAddClient }) {
           />
         </div>
 
-        <span className="badge badge-purple">Hiển thị {filteredClients.length} Đối tác</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span className="badge badge-purple">Hiển thị {filteredClients.length} Đối tác</span>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-main)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+            <button onClick={() => setViewMode('table')} className={`btn btn-sm ${viewMode === 'table' ? 'btn-primary' : 'btn-secondary'}`}>
+              <Table size={14} /> Dạng Bảng
+            </button>
+            <button onClick={() => setViewMode('grid')} className={`btn btn-sm ${viewMode === 'grid' ? 'btn-primary' : 'btn-secondary'}`}>
+              <LayoutGrid size={14} /> Dạng Lưới
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }}>
+      {viewMode === 'table' ? (
+      <div className="table-container animate-fade-in" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+        <table className="custom-table">
+          <thead>
+            <tr>
+              <th>Search Code</th>
+              <th>Tên Khách Hàng</th>
+              <th>Sale phụ trách</th>
+              <th>Địa chỉ</th>
+              <th>Trạng thái</th>
+              {canEditExisting && <th style={{ width: '110px' }}></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {filteredClients.map((client) => (
+              <tr key={client.code || client.name}>
+                <td className="code-font" style={{ fontWeight: 800, color: '#00a0e9', fontSize: '0.8rem' }}>{client.codeSearch}</td>
+                <td style={{ fontWeight: 700 }}>{client.name}</td>
+                <td style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>{client.sale}</td>
+                <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{client.address || 'Hà Nội'}</td>
+                <td><span className="badge badge-emerald">{client.status}</span></td>
+                {canEditExisting && (
+                  <td>
+                    <button onClick={() => openEditModal(client)} className="btn btn-secondary btn-sm">
+                      <Edit3 size={14} /> Sửa
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      ) : (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }} className="animate-fade-in">
         {filteredClients.map((client) => (
           <div key={client.code || client.name} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -126,7 +201,7 @@ export default function ClientManagement({ clients, activeUser, onAddClient }) {
 
             {canEditExisting && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
-                <button className="btn btn-secondary btn-sm">
+                <button onClick={() => openEditModal(client)} className="btn btn-secondary btn-sm">
                   <Edit3 size={14} /> Chỉnh Sửa
                 </button>
               </div>
@@ -134,6 +209,7 @@ export default function ClientManagement({ clients, activeUser, onAddClient }) {
           </div>
         ))}
       </div>
+      )}
 
       {/* Modal */}
       {showModal && (
@@ -142,7 +218,7 @@ export default function ClientManagement({ clients, activeUser, onAddClient }) {
           background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(6px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
         }}>
-          <div className="glass-card animate-fade-in" style={{ width: '460px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="glass-card animate-fade-in" style={{ width: '460px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Thêm Khách Hàng OEM Mới</h3>
 
             <form onSubmit={handleSaveClient} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -157,6 +233,49 @@ export default function ClientManagement({ clients, activeUser, onAddClient }) {
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
                 <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary">Hủy</button>
                 <button type="submit" className="btn btn-primary">Lưu Khách Hàng</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingClient && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+          <div className="glass-card animate-fade-in" style={{ width: '460px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Chỉnh Sửa Khách Hàng — {editingClient.codeSearch}</h3>
+
+            <form onSubmit={handleUpdateClient} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Tên Công Ty / Khách Hàng:</label>
+                <input type="text" required className="input-field" value={editName} onChange={(e) => setEditName(e.target.value)} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Alias / Tên viết tắt:</label>
+                <input type="text" className="input-field" value={editAlias} onChange={(e) => setEditAlias(e.target.value)} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Sale phụ trách:</label>
+                <input type="text" className="input-field" value={editSale} onChange={(e) => setEditSale(e.target.value)} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Địa chỉ:</label>
+                <input type="text" className="input-field" value={editAddress} onChange={(e) => setEditAddress(e.target.value)} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Trạng thái:</label>
+                <select className="input-field" value={editStatus} onChange={(e) => setEditStatus(e.target.value)}>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+                <button type="button" onClick={() => setEditingClient(null)} className="btn btn-secondary">Hủy</button>
+                <button type="submit" className="btn btn-primary">Lưu Thay Đổi</button>
               </div>
             </form>
           </div>

@@ -14,7 +14,7 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
   const roleInfo = getRoleLabel(activeUser.role);
 
   return (
-    <header style={{
+    <header className="app-navbar" style={{
       height: '68px',
       background: '#ffffff',
       borderBottom: '1px solid var(--border-color)',
@@ -55,11 +55,11 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
             <h1 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#00a0e9', letterSpacing: '-0.03em' }}>
               KAROFI
             </h1>
-            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#004e89', letterSpacing: '0.05em' }}>
+            <span className="hide-mobile-xs" style={{ fontSize: '0.85rem', fontWeight: 800, color: '#004e89', letterSpacing: '0.05em' }}>
               OEM PORTAL
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.725rem', color: 'var(--text-muted)' }}>
+          <div className="hide-mobile-xs" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.725rem', color: 'var(--text-muted)' }}>
             <span className="pulse-dot"></span>
             <span>Backend API</span>
           </div>
@@ -75,7 +75,7 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
           title="Tải lại dữ liệu mới nhất từ Google Sheet"
         >
           <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
-          {isSyncing ? 'Đang tải...' : 'Đồng bộ Sheet'}
+          <span className="hide-mobile-xs">{isSyncing ? 'Đang tải...' : 'Đồng bộ Sheet'}</span>
         </button>
 
         {/* Profile Card & Switcher Button */}
@@ -102,7 +102,7 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
             {activeUser.name[0].toUpperCase()}
           </div>
 
-          <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
+          <div className="hide-mobile-xs" style={{ textAlign: 'left', lineHeight: 1.2 }}>
             <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>
               {activeUser.name.split('@')[0]}
             </div>
@@ -111,7 +111,7 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
             </span>
           </div>
 
-          <span style={{ fontSize: '0.725rem', color: 'var(--karofi-cyan)', fontWeight: 700, marginLeft: '4px' }}>
+          <span className="hide-mobile-xs" style={{ fontSize: '0.725rem', color: 'var(--karofi-cyan)', fontWeight: 700, marginLeft: '4px' }}>
             Đổi
           </span>
         </button>
@@ -121,7 +121,7 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
           className="btn btn-secondary btn-sm"
           title="Đăng xuất"
         >
-          <LogOut size={14} /> Đăng xuất
+          <LogOut size={14} /> <span className="hide-mobile-xs">Đăng xuất</span>
         </button>
       </div>
     </header>

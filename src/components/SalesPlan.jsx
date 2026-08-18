@@ -13,6 +13,11 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
 
   // Form states
   const [selectedClient, setSelectedClient] = useState(clients[0]?.name || '');
+  const [clientQuery, setClientQuery] = useState(() => {
+    const c = clients[0];
+    return c ? `${c.codeSearch} - ${c.name}` : '';
+  });
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [planKpiInput, setPlanKpiInput] = useState('');
   const [planUpdateInput, setPlanUpdateInput] = useState('');
   const [w1Input, setW1Input] = useState('');
@@ -40,6 +45,23 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
     const set = new Set(activePlanList.map(p => p.sale).filter(Boolean));
     return Array.from(set);
   }, [activePlanList]);
+
+  // Free-type search over client name / codeSearch / mã KH số for the proposal form
+  const clientMatches = useMemo(() => {
+    const q = clientQuery.trim().toLowerCase();
+    if (!q) return clients.slice(0, 50);
+    return clients.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      (c.codeSearch || '').toLowerCase().includes(q) ||
+      String(c.code || '').toLowerCase().includes(q)
+    ).slice(0, 50);
+  }, [clients, clientQuery]);
+
+  const handleSelectClient = (c) => {
+    setSelectedClient(c.name);
+    setClientQuery(`${c.codeSearch} - ${c.name}`);
+    setShowClientDropdown(false);
+  };
 
   // Filtered plans (By Sale + Default Plan_Update > 0)
   const filteredPlans = useMemo(() => {
@@ -304,15 +326,39 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
           background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(6px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
         }}>
-          <div className="glass-card animate-fade-in" style={{ width: '520px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="glass-card animate-fade-in" style={{ width: '520px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Đề Xuất Kế Hoạch Kinh Doanh Tháng & Tuần</h3>
 
             <form onSubmit={handleCreateProposal} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div className="form-group" style={{ margin: 0 }}>
+              <div className="form-group" style={{ margin: 0, position: 'relative' }}>
                 <label className="form-label">Client:</label>
-                <select className="input-field" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
-                  {clients.map(c => <option key={c.name} value={c.name}>{c.codeSearch} - {c.name}</option>)}
-                </select>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Gõ tên, mã KH chữ (TECOM...) hoặc mã KH số..."
+                  value={clientQuery}
+                  onChange={(e) => { setClientQuery(e.target.value); setShowClientDropdown(true); }}
+                  onFocus={() => setShowClientDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowClientDropdown(false), 150)}
+                />
+                {showClientDropdown && clientMatches.length > 0 && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '4px',
+                    maxHeight: '220px', overflowY: 'auto', background: '#fff',
+                    border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)',
+                    boxShadow: 'var(--shadow-md)', zIndex: 10
+                  }}>
+                    {clientMatches.map(c => (
+                      <div
+                        key={c.code || c.name}
+                        onMouseDown={() => handleSelectClient(c)}
+                        style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '0.85rem', borderBottom: '1px solid var(--border-color)' }}
+                      >
+                        <span className="code-font" style={{ color: '#00a0e9', fontWeight: 700 }}>{c.codeSearch}</span> — {c.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>

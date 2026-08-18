@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Package, Plus, Edit3, DollarSign, Search, Sparkles, Tag, Check, ArrowUpRight, Lock, AlertCircle } from 'lucide-react';
+import { Package, Plus, Edit3, DollarSign, Search, Sparkles, Tag, Check, ArrowUpRight, Lock, AlertCircle, Table, LayoutGrid } from 'lucide-react';
 
 export default function ProductManagement({ materials, clients, transactions, activeUser, onAddMaterial }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState('table');
   const [selectedClientForPrice, setSelectedClientForPrice] = useState(clients[0]?.name || '');
   const [showAddModal, setShowAddModal] = useState(false);
   const [proposeModalMat, setProposeModalMat] = useState(null);
@@ -105,7 +106,7 @@ export default function ProductManagement({ materials, clients, transactions, ac
         {/* Client Pricing Selector */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Đề xuất giá theo KH:</span>
-          <select 
+          <select
             className="input-field"
             style={{ width: '240px' }}
             value={selectedClientForPrice}
@@ -114,10 +115,57 @@ export default function ProductManagement({ materials, clients, transactions, ac
             {clients.map(c => <option key={c.code || c.name} value={c.name}>{c.name}</option>)}
           </select>
         </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-main)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+          <button onClick={() => setViewMode('table')} className={`btn btn-sm ${viewMode === 'table' ? 'btn-primary' : 'btn-secondary'}`}>
+            <Table size={14} /> Dạng Bảng
+          </button>
+          <button onClick={() => setViewMode('grid')} className={`btn btn-sm ${viewMode === 'grid' ? 'btn-primary' : 'btn-secondary'}`}>
+            <LayoutGrid size={14} /> Dạng Lưới
+          </button>
+        </div>
       </div>
 
-      {/* Material Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+      {viewMode === 'table' ? (
+      <div className="table-container animate-fade-in" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+        <table className="custom-table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Tên Vật Tư</th>
+              <th>Nhóm</th>
+              <th style={{ textAlign: 'right' }}>Giá Thấp Nhất</th>
+              <th style={{ textAlign: 'right' }}>Giá Trung Bình</th>
+              <th style={{ textAlign: 'right' }}>Giá Cao Nhất</th>
+              <th style={{ textAlign: 'right' }}>Tổng Bán</th>
+              <th style={{ width: '140px' }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredMaterials.map((mat) => (
+              <tr key={mat.sku}>
+                <td className="code-font" style={{ fontWeight: 700, color: '#00a0e9', fontSize: '0.8rem' }}>{mat.sku}</td>
+                <td style={{ fontWeight: 600 }}>{mat.name}{mat.alias && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}> ({mat.alias})</span>}</td>
+                <td><span className="badge badge-purple">{mat.group}</span></td>
+                <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.8rem' }}>{mat.minPrice ? mat.minPrice.toLocaleString('vi-VN') + ' ₫' : '-'}</td>
+                <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-emerald)' }}>{mat.avgPrice ? mat.avgPrice.toLocaleString('vi-VN') + ' ₫' : '-'}</td>
+                <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.8rem' }}>{mat.maxPrice ? mat.maxPrice.toLocaleString('vi-VN') + ' ₫' : '-'}</td>
+                <td style={{ textAlign: 'right', fontSize: '0.8rem' }}>{mat.totalQty?.toLocaleString('vi-VN') || 0} {mat.unit}</td>
+                <td>
+                  <button
+                    onClick={() => { setProposeModalMat(mat); setProposedPriceInput(mat.avgPrice || ''); }}
+                    className="btn btn-secondary btn-sm"
+                  >
+                    <DollarSign size={14} color="#00a0e9" /> Đề Xuất Giá
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      ) : (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }} className="animate-fade-in">
         {filteredMaterials.map((mat) => (
           <div key={mat.sku} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -178,6 +226,7 @@ export default function ProductManagement({ materials, clients, transactions, ac
           </div>
         ))}
       </div>
+      )}
 
       {/* Proposal Price Modal */}
       {proposeModalMat && (
@@ -186,7 +235,7 @@ export default function ProductManagement({ materials, clients, transactions, ac
           background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(6px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
         }}>
-          <div className="glass-card animate-fade-in" style={{ width: '440px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="glass-card animate-fade-in" style={{ width: '440px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Đề Xuất Giá Bán Sản Phẩm</h3>
             <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
               Mã SP: <strong>{proposeModalMat.sku}</strong> - {proposeModalMat.name}
@@ -225,7 +274,7 @@ export default function ProductManagement({ materials, clients, transactions, ac
           background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(6px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
         }}>
-          <div className="glass-card animate-fade-in" style={{ width: '460px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="glass-card animate-fade-in" style={{ width: '460px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Thêm Vật Tư / Sản Phẩm OEM Mới</h3>
 
             <div style={{ fontSize: '0.75rem', color: '#b45309', background: 'rgba(245, 158, 11, 0.12)', padding: '8px 10px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
