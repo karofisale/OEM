@@ -94,6 +94,56 @@ export function isNewAliasWorthLearning(queryText, material) {
   return !known.some(term => similarityScore(q, term) >= 0.6);
 }
 
+// Locate the client mentioned in free text. Only ever considers Status = Active
+// clients, and besides exact name/alias/code substring matches, also looks for
+// mentions introduced by a common Vietnamese addressing prefix ("anh Long",
+// "nhà Minh Anh", "cty ABC"...) since Sale rarely types a client's full formal
+// registered name. Returns null (never a silent "first client in the list"
+// guess) when nothing reasonably matches — that guess was the reported bug.
+function findMatchingClient(textInput, clientList) {
+  const activeClients = (clientList || []).filter(
+    c => String(c.status || 'Active').toLowerCase().trim() === 'active'
+  );
+  const lowerInput = String(textInput || '').toLowerCase();
+
+  // 1. Direct substring match on full name / alias / codeSearch — prefer the longest hit
+  let best = null;
+  let bestLen = 0;
+  activeClients.forEach(client => {
+    [client.name, client.alias, client.codeSearch].filter(Boolean).forEach(candidate => {
+      const c = candidate.toLowerCase().trim();
+      if (c.length >= 2 && lowerInput.includes(c) && c.length > bestLen) {
+        bestLen = c.length;
+        best = client;
+      }
+    });
+  });
+  if (best) return best;
+
+  // 2. Vietnamese addressing-prefix snippets: "nhà X", "anh X", "chị X", "cty X", "công ty X"
+  const PREFIX_RE = /(?:nhà|anh|chị|cty|công ty|doanh nghiệp)\s+([^\d,;.\n+]{2,40})/gi;
+  const snippets = [];
+  let m;
+  while ((m = PREFIX_RE.exec(lowerInput)) !== null) {
+    snippets.push(m[1].trim());
+  }
+
+  let bestScore = 0;
+  snippets.forEach(snippet => {
+    activeClients.forEach(client => {
+      [client.name, client.alias].filter(Boolean).forEach(candidate => {
+        const score = similarityScore(snippet, candidate);
+        if (score > bestScore && score >= 0.4) {
+          bestScore = score;
+          best = client;
+        }
+      });
+    });
+  });
+
+  return best;
+}
+
 // Find historical price for client and material
 export function getHistoricalUnitPrice(clientName, sku, transactions, fallbackPrice = 0) {
   if (!transactions || !transactions.length) return fallbackPrice;
@@ -120,24 +170,42 @@ export function getHistoricalUnitPrice(clientName, sku, transactions, fallbackPr
 // Process Order Prompt or OCR text into SAP-structured Order Lines
 export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, transactions }) {
   const lines = textInput.split(/\n|,|;/).map(l => l.trim()).filter(Boolean);
-  
-  // 1. Identify Client
-  let matchedClient = clientList[0] || { name: 'CT CP TM VÀ XNK MAKXIM VIỆT NAM', code: '1000512' };
-  const lowerInput = textInput.toLowerCase();
-  
-  for (const client of clientList) {
-    if (
-      lowerInput.includes(client.name.toLowerCase()) || 
-      (client.alias && lowerInput.includes(client.alias.toLowerCase())) ||
-      (client.codeSearch && lowerInput.includes(client.codeSearch.toLowerCase()))
-    ) {
-      matchedClient = client;
-      break;
-    }
-  }
+
+  // 1. Identify Client — Active only; never silently default to the first client
+  // in the Clients sheet (that was the reported bug: an order for one client
+  // could land under whichever client happened to be row 1).
+  const matchedClient = findMatchingClient(textInput, clientList) || {
+    name: '⚠️ Chưa xác định khách hàng — vui lòng ghi rõ tên/alias KH trong lệnh',
+    code: '',
+    codeSearch: '',
+    alias: '',
+    status: 'Active'
+  };
 
   // 2. Identify Product items & Quantities
   const orderItems = [];
+
+  const pushOrAccumulate = (matchedMaterial, qty, sourceQuery) => {
+    const price = getHistoricalUnitPrice(matchedClient.name, matchedMaterial.sku, transactions, matchedMaterial.avgPrice);
+    const existing = orderItems.find(item => item.sku === matchedMaterial.sku);
+    if (existing) {
+      existing.qty += qty;
+      existing.total = existing.qty * existing.price * VAT_RATE;
+    } else {
+      orderItems.push({
+        id: 'ITEM-' + Math.random().toString(36).substr(2, 6),
+        sku: matchedMaterial.sku,
+        name: matchedMaterial.name,
+        unit: matchedMaterial.unit || 'PC',
+        qty: qty,
+        price: price,
+        total: qty * price * VAT_RATE,
+        confidence: 'High (Mapped)',
+        sourceQuery: sourceQuery,
+        matchedAlias: isNewAliasWorthLearning(sourceQuery, matchedMaterial) ? sourceQuery : ''
+      });
+    }
+  };
 
   // Patterns for number/quantity extraction (e.g. "300 cái", "300 bộ", "x300", "300")
   lines.forEach((line) => {
@@ -157,35 +225,34 @@ export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, t
 
     if (qty <= 0) qty = 100; // default estimate
 
+    // "bộ" = a product set: pull in every material sharing the same alias as the
+    // best match, not just the single closest one (a "bộ" order line usually means
+    // several related SKUs, e.g. a filter + housing sold as one kit).
+    // Note: JS's \b treats accented letters as non-word chars, so \bbộ\b would
+    // silently fail to match Vietnamese text — anchor on whitespace/string edges instead.
+    const isProductSet = /(^|\s)bộ(\s|$)/i.test(line);
+
     // Clean line from quantity numbers to match product
     const productQuery = line.replace(/\d+[\d,.]*/g, '').replace(/cái|bộ|chiếc|bao|cuộn|chủ|khái|pc|pcs|đơn|giá|cho|lấy|cần/gi, '').trim();
-    
+
     const sourceQuery = productQuery || line;
-    const matchedMaterial = findMatchingMaterial(sourceQuery, materialsCatalog);
 
-    if (matchedMaterial) {
-      const price = getHistoricalUnitPrice(matchedClient.name, matchedMaterial.sku, transactions, matchedMaterial.avgPrice);
+    // "+" joins accompanying products requested together on the same line
+    // (e.g. "van xả + phin lọc") — each side needs its own lookup, not just
+    // whichever one scores highest for the whole line.
+    const segments = sourceQuery.split('+').map(s => s.trim()).filter(Boolean);
+    if (!segments.length) segments.push(sourceQuery);
 
-      // Check if already added
-      const existing = orderItems.find(item => item.sku === matchedMaterial.sku);
-      if (existing) {
-        existing.qty += qty;
-        existing.total = existing.qty * existing.price * VAT_RATE;
-      } else {
-        orderItems.push({
-          id: 'ITEM-' + Math.random().toString(36).substr(2, 6),
-          sku: matchedMaterial.sku,
-          name: matchedMaterial.name,
-          unit: matchedMaterial.unit || 'PC',
-          qty: qty,
-          price: price,
-          total: qty * price * VAT_RATE,
-          confidence: 'High (Mapped)',
-          sourceQuery: sourceQuery,
-          matchedAlias: isNewAliasWorthLearning(sourceQuery, matchedMaterial) ? sourceQuery : ''
-        });
-      }
-    }
+    segments.forEach((segment) => {
+      const primaryMatch = findMatchingMaterial(segment, materialsCatalog);
+      if (!primaryMatch) return;
+
+      const matchedMaterials = (isProductSet && primaryMatch.alias)
+        ? materialsCatalog.filter(m => m.alias && m.alias === primaryMatch.alias)
+        : [primaryMatch];
+
+      matchedMaterials.forEach(mat => pushOrAccumulate(mat, qty, segment));
+    });
   });
 
   // Fallback demo order items if prompt was vague

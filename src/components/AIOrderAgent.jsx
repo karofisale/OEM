@@ -222,10 +222,11 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
         </span>
       </div>
 
-      {/* Main 2-Column Grid */}
-      <div className="ai-agent-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '24px' }}>
+      {/* Stacked layout: input command up top (full width), SAP order table below
+          gets full width too so Số Lượng/Đơn Giá/Thành Tiền have room to breathe. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
-        {/* Left Column: Input Prompt & OCR */}
+        {/* Input Prompt & OCR */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -299,7 +300,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
           </button>
         </div>
 
-        {/* Right Column: Generated SAP Order Preview & Review */}
+        {/* Generated SAP Order Preview & Review — full width */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>

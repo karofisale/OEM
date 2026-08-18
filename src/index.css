@@ -374,8 +374,4 @@ body {
   .hide-mobile-xs {
     display: none !important;
   }
-
-  .ai-agent-grid {
-    grid-template-columns: 1fr !important;
-  }
 }
