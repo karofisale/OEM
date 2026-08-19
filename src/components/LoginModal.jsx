@@ -1,20 +1,35 @@
-import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Lock, Check, AlertCircle, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ShieldCheck, Lock, Check, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import * as api from '../services/api';
+import LoadingScreen from './LoadingScreen';
+
+const LOGIN_TIPS = [
+  'Đang tải danh sách tài khoản...',
+  'Máy chủ Google Apps Script đôi khi cần vài giây để "khởi động" — vui lòng chờ chút.',
+  'Nếu quá lâu, mạng có thể đang chập chờn — hệ thống sẽ tự thử lại vài lần trước khi báo lỗi.',
+];
 
 export default function LoginModal({ onLoginSuccess, onClose, closable }) {
   const [users, setUsers] = useState([]);
   const [usersError, setUsersError] = useState('');
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [pinInput, setPinInput] = useState('');
   const [selectedUserIndex, setSelectedUserIndex] = useState(0);
   const [loginError, setLoginError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
+  const loadUsers = useCallback(() => {
+    setIsLoadingUsers(true);
+    setUsersError('');
     api.getUserList()
       .then(setUsers)
-      .catch(err => setUsersError(err.message || String(err)));
+      .catch(err => setUsersError(err.message || String(err)))
+      .finally(() => setIsLoadingUsers(false));
   }, []);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   const getRoleBadge = (role) => {
     switch (role) {
@@ -74,12 +89,20 @@ export default function LoginModal({ onLoginSuccess, onClose, closable }) {
         </div>
 
         {usersError && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '0.8rem', fontWeight: 600 }}>
-            <AlertCircle size={14} /> Không tải được danh sách tài khoản: {usersError}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '0.8rem', fontWeight: 600 }}>
+              <AlertCircle size={14} /> Không tải được danh sách tài khoản: {usersError}
+            </div>
+            <button type="button" onClick={loadUsers} className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}>
+              <RefreshCw size={14} /> Thử lại
+            </button>
           </div>
         )}
 
-        {/* User Selection List */}
+        {isLoadingUsers ? (
+          <LoadingScreen compact tips={LOGIN_TIPS} />
+        ) : (
+        /* User Selection List */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto' }}>
           {users.map((u, idx) => {
             const badge = getRoleBadge(u.role);
@@ -130,6 +153,7 @@ export default function LoginModal({ onLoginSuccess, onClose, closable }) {
             );
           })}
         </div>
+        )}
 
         {/* PIN Input */}
         <form onSubmit={handleConfirmLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>

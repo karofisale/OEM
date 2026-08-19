@@ -8,20 +8,60 @@ export const API_URL = 'https://script.google.com/macros/s/AKfycbwLO-qCFQr-UWKYw
 const SESSION_KEY = 'oem_session_v1';
 const SESSION_TTL_MS = 6 * 60 * 60 * 1000; // 6h, matches the backend's cache TTL
 
+// The Apps Script Web App round-trip has been observed taking anywhere from
+// ~3s to 40+s, and occasionally comes back as a non-JSON error page (a
+// network hop between here and script.google.com misbehaving/intercepting
+// the request) instead of a real response — neither is something this app's
+// code caused, but both are worth automatically retrying once or twice
+// before surfacing an error, since a second attempt usually just goes
+// through. We deliberately do NOT retry a clean {error: "..."} response from
+// our own backend (e.g. wrong PIN, "not found") — that's a real answer, not
+// a network fluke.
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1500;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function callApi(fn, args = []) {
   if (!API_URL) {
     throw new Error('Backend chưa được cấu hình (API_URL trống trong src/services/api.js). Xem gas/SETUP.md.');
   }
-  const response = await fetch(API_URL, {
-    method: 'POST',
-    // text/plain avoids the CORS preflight request Apps Script Web Apps can't answer
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ fn, args })
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const json = await response.json();
-  if (json.error) throw new Error(json.error);
+  return callApiAttempt(fn, args, 0);
+}
+
+async function callApiAttempt(fn, args, attempt) {
+  let response;
+  try {
+    response = await fetch(API_URL, {
+      method: 'POST',
+      // text/plain avoids the CORS preflight request Apps Script Web Apps can't answer
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ fn, args })
+    });
+  } catch (networkErr) {
+    return retryOrThrow(fn, args, attempt, new Error('Không kết nối được tới máy chủ — mạng có thể đang chập chờn.'));
+  }
+
+  if (!response.ok) {
+    return retryOrThrow(fn, args, attempt, new Error(`HTTP ${response.status} — máy chủ phản hồi bất thường (có thể do mạng/proxy chặn giữa đường).`));
+  }
+
+  let json;
+  try {
+    json = await response.json();
+  } catch (parseErr) {
+    return retryOrThrow(fn, args, attempt, new Error('Phản hồi không đúng định dạng — có thể do mạng chặn giữa đường.'));
+  }
+
+  if (json.error) throw new Error(json.error); // real answer from our backend — never retry
   return json.result;
+}
+
+async function retryOrThrow(fn, args, attempt, err) {
+  if (attempt < MAX_RETRIES) {
+    await sleep(RETRY_DELAY_MS * (attempt + 1));
+    return callApiAttempt(fn, args, attempt + 1);
+  }
+  throw err;
 }
 
 export function loadSession() {

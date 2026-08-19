@@ -13,6 +13,7 @@ import ClientManagement from './components/ClientManagement';
 import SalesPlan from './components/SalesPlan';
 import DebtImporter from './components/DebtImporter';
 import GoogleSheetSettings from './components/GoogleSheetSettings';
+import LoadingScreen from './components/LoadingScreen';
 
 import * as api from './services/api';
 
@@ -31,6 +32,11 @@ export default function App() {
   const [baselines2025, setBaselines2025] = useState(new Map());
   const [isSyncing, setIsSyncing] = useState(false);
   const [bootstrapError, setBootstrapError] = useState('');
+  // Tracks whether the FIRST bootstrap fetch has finished (success or fail) —
+  // used to show a full loading screen only for that initial wait, not for
+  // every background "Đồng bộ Sheet" refresh afterwards (that one already
+  // has its own small spinner in the Navbar).
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const activeUser = session?.user || { name: '', role: 'sale', saleId: '' };
 
@@ -56,6 +62,7 @@ export default function App() {
       }
     } finally {
       setIsSyncing(false);
+      setHasLoadedOnce(true);
     }
   };
 
@@ -157,11 +164,17 @@ export default function App() {
         />
 
         {bootstrapError && (
-          <div style={{ margin: '16px 32px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(220, 38, 38, 0.12)', color: '#dc2626', fontSize: '0.85rem' }}>
-            Lỗi tải dữ liệu từ backend: {bootstrapError}
+          <div style={{ margin: '16px 32px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(220, 38, 38, 0.12)', color: '#dc2626', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+            <span>Lỗi tải dữ liệu từ backend: {bootstrapError}</span>
+            <button onClick={fetchAllData} className="btn btn-secondary btn-sm" disabled={isSyncing}>
+              Thử lại
+            </button>
           </div>
         )}
 
+        {!hasLoadedOnce ? (
+          <LoadingScreen label="Đang tải dữ liệu OEM App..." />
+        ) : (
         <main className="page-container">
           {activeTab === 'ai-agent' && (
             <AIOrderAgent
@@ -241,6 +254,7 @@ export default function App() {
             <GoogleSheetSettings />
           )}
         </main>
+        )}
       </div>
 
       {/* Switch-user modal — reuses the same login form, but is closable since we already have a session */}
