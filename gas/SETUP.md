@@ -1,21 +1,16 @@
 # Deploy OEM App Backend (Google Apps Script)
 
-**Cập nhật 2026-08-18**: backend của app này giờ **dùng chung** Apps Script project đã có sẵn với 2 skill `up-dt-oem` và `cong-no-oem` (không tạo project mới) — chỉ 1 tài khoản Google cần quyền Editor trên Sheet `OEM`. Code nguồn thật (đã gộp) nằm ở:
+**Cập nhật 2026-08-19**: backend của app này giờ là **project Apps Script ĐỘC LẬP**, tách khỏi project dùng chung với 2 skill `up-dt-oem`/`cong-no-oem` (gộp chung hôm 2026-08-18, tách lại hôm nay). Lý do tách: đo thử cho thấy project dùng chung (gắn trực tiếp vào Sheet "OEM" khổng lồ làm container) chậm hơn 5-10 lần so với 1 project độc lập cho cùng 1 lệnh gọi đơn giản, ngay cả khi không bị lỗi mạng — xem ghi chú trong file `Code.gs`. File `gas/Code.gs` trong repo này **giờ LÀ bản deploy thật**, không còn là bản tham khảo lịch sử nữa.
 
-```
-D:\Operation\Claude\Scripts\up-dt-oem\Code.gs
-```
+## 1. Tạo project Apps Script mới (chỉ 1 lần)
 
-File `gas/Code.gs` trong repo này **chỉ còn là bản tham khảo lịch sử**, không dùng để deploy nữa.
-
-## 1. Dán code mới & deploy "New version" (không tạo deployment mới)
-
-1. Mở Apps Script project đang chạy Web App của `up-dt-oem`/`cong-no-oem` (từ Google Sheet `OEM` → Extensions → Apps Script).
-2. Xoá hết nội dung `Code.gs` cũ, dán toàn bộ nội dung file `D:\Operation\Claude\Scripts\up-dt-oem\Code.gs` (đã gộp sẵn phần OEM App vào cuối file, đánh dấu `===== OEM APP BACKEND =====`).
+1. Mở Google Sheet `OEM` (1lSeQyfHmd-H0s7Qu7n9b8LAJ3Deap9hHFLEKf6F0Cnk) → **Extensions → Apps Script**.
+   - Tạo project MỚI (không phải project đang dùng chung với up-dt-oem/cong-no-oem) — dùng đúng tài khoản Google đang có quyền Editor trên Sheet này.
+2. Xoá nội dung mặc định của `Code.gs`, dán toàn bộ nội dung file `gas/Code.gs` trong repo này.
 3. Lưu (Ctrl+S).
-4. **Deploy → Manage deployments** → bấm bút chì (Edit) trên deployment Web App đang dùng → **Version: New version** → Deploy.
-   - **KHÔNG** tạo "New deployment" — làm vậy sẽ ra URL mới, phá vỡ `up-dt-oem/config.json` và `cong-no-oem` đang trỏ URL cũ.
-5. URL không đổi — đã điền sẵn trong `src/services/api.js` (`API_URL`), lấy từ `D:\Operation\Claude\Scripts\up-dt-oem\config.json`.
+4. **Deploy → New deployment** → chọn loại **Web app** → Execute as: **Me** → Who has access: **Anyone** → Deploy.
+   - Lần đầu deploy sẽ có màn hình xin cấp quyền (Authorize) — chọn đúng tài khoản, bấm "Advanced" → "Go to (tên project) (unsafe)" nếu Google cảnh báo app chưa xác minh (bình thường với Apps Script tự viết).
+5. Copy **Web app URL** ra — báo cho Claude để cập nhật `API_URL` trong `src/services/api.js`, build lại và push.
 
 ## 2. Build + test trước khi push
 
@@ -23,21 +18,32 @@ File `gas/Code.gs` trong repo này **chỉ còn là bản tham khảo lịch s�
 npm run build
 ```
 
-Mở app, thử đăng nhập (PIN đúng ở tab Users của Sheet) — nếu vẫn báo lỗi "Unknown function: login" nghĩa là bước 4 ở trên chưa deploy đúng deployment/version.
+Mở app, thử đăng nhập (PIN đúng ở tab Users của Sheet) — nếu báo lỗi khác "Unknown function" thì có thể do URL chưa đúng hoặc chưa Authorize đủ quyền (Sheets/Drive) cho project mới.
 
-## 3. Chỉ sau khi đã xác nhận app chạy tốt — khoá Sheet public
+## 3. Sau khi xác nhận project mới chạy tốt — dọn project cũ
+
+Trong project Apps Script CŨ (dùng chung với up-dt-oem/cong-no-oem, `D:\Operation\Claude\Scripts\up-dt-oem\`):
+1. Xoá file `OemAppBackend.gs`.
+2. Trong `Code.gs`, xoá đoạn:
+   ```js
+   if (body.fn) {
+     return oemAppDoPost_(body);
+   }
+   ```
+3. Deploy → Manage deployments → Edit → New version → Deploy (để up-dt-oem/cong-no-oem tiếp tục chạy bình thường, gọn lại không còn gánh thêm OEM App).
+
+## 4. Chỉ sau khi mọi thứ đã ổn định — khoá Sheet public
 
 Đây là bước **thực sự** chặn rò rỉ dữ liệu qua URL public:
 
-1. Mở Google Sheet `OEM` (1lSeQyfHmd-H0s7Qu7n9b8LAJ3Deap9hHFLEKf6F0Cnk) → **Share**.
+1. Mở Google Sheet `OEM` → **Share**.
 2. Đổi "Anyone with the link" → **Restricted** (chỉ những người/nhóm cụ thể).
-3. Đảm bảo tài khoản Google chạy Apps Script này ("Execute as: Me" lúc deploy) vẫn còn quyền Editor trên Sheet — nếu không, cả OEM App lẫn `up-dt-oem`/`cong-no-oem` sẽ lỗi theo (giờ dùng chung 1 project nên chỉ cần kiểm tra đúng 1 tài khoản).
+3. Đảm bảo tài khoản Google chạy project OEM App MỚI (Execute as: Me) vẫn còn quyền Editor trên Sheet.
 
 ## Khi sửa lại Code.gs sau này
 
-Luôn sửa trực tiếp `D:\Operation\Claude\Scripts\up-dt-oem\Code.gs` (không sửa `gas/Code.gs` trong repo React — file đó chỉ để tham khảo). Sau khi sửa: dán vào Apps Script editor, Save, rồi **Deploy → Manage deployments → Edit → New version → Deploy** (như bước 1.4 ở trên).
+Sửa trực tiếp `D:\Antigravity\OEM App\gas\Code.gs` (giờ LÀ bản deploy thật) — dán vào Apps Script editor của project ĐỘC LẬP mới (không phải project up-dt-oem/cong-no-oem nữa), Save, rồi **Deploy → Manage deployments → Edit → New version → Deploy**.
 
 ## Những gì backend này CHƯA làm (có chủ đích)
 
-- **Thêm sản phẩm mới** (`ProductManagement.jsx`) vẫn chỉ lưu tạm trên trình duyệt — Sheet không có tab danh mục sản phẩm riêng (tab `Materials` hiện tại là pivot số lượng bán theo tháng, không phải danh mục).
 - **Đồng bộ Công Nợ Excel** (`DebtImporter.jsx`) vẫn chỉ lưu tạm — tab `Debt_Tracking`/`Debt` đã có quy trình cập nhật riêng qua skill `cong-no-oem` (đối chiếu Mã KH/Tên KH); một luồng ghi tự động thứ 2 từ app này rủi ro làm hai luồng đá nhau.

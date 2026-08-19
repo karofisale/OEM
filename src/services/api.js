@@ -1,9 +1,13 @@
 // Client for the OEM App Apps Script backend (see gas/Code.gs + gas/SETUP.md).
 // Replaces the old direct-to-public-Sheet fetching in sheetService.js.
 
-// Shared Apps Script Web App — same deployment used by the up-dt-oem/cong-no-oem
-// skills (D:\Operation\Claude\Scripts\up-dt-oem\Code.gs). See gas/SETUP.md.
-export const API_URL = 'https://script.google.com/macros/s/AKfycbwLO-qCFQr-UWKYwSlhAvCiTOyG8rtMGw5orOfNiPemEJjnlNoU2TPnHOHif_BuoMI/exec';
+// Standalone Apps Script Web App (2026-08-19) — separated from the shared
+// up-dt-oem/cong-no-oem project (D:\Operation\Claude\Scripts\up-dt-oem\) after
+// a controlled latency test showed the container-bound-to-a-huge-Sheet setup
+// there was consistently ~5-10x slower per call. Source: gas/Code.gs (+
+// Helpers/Auth/Clients/Products/SalesData/Orders.gs in this folder). See
+// gas/SETUP.md for deploy steps.
+export const API_URL = 'https://script.google.com/macros/s/AKfycbyUJeeWip_QTpEHTG-5-h4JaOLR9kL9fO6MkoIX0P86YibuqaEo8qAI_X62XZuU9yQi3g/exec';
 
 const SESSION_KEY = 'oem_session_v1';
 const SESSION_TTL_MS = 6 * 60 * 60 * 1000; // 6h, matches the backend's cache TTL
