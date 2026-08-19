@@ -8,16 +8,22 @@ export const API_URL = 'https://script.google.com/macros/s/AKfycbwLO-qCFQr-UWKYw
 const SESSION_KEY = 'oem_session_v1';
 const SESSION_TTL_MS = 6 * 60 * 60 * 1000; // 6h, matches the backend's cache TTL
 
-// The Apps Script Web App round-trip has been observed taking anywhere from
-// ~3s to 40+s, and occasionally comes back as a non-JSON error page (a
-// network hop between here and script.google.com misbehaving/intercepting
-// the request) instead of a real response — neither is something this app's
-// code caused, but both are worth automatically retrying once or twice
-// before surfacing an error, since a second attempt usually just goes
-// through. We deliberately do NOT retry a clean {error: "..."} response from
-// our own backend (e.g. wrong PIN, "not found") — that's a real answer, not
-// a network fluke.
-const MAX_RETRIES = 2;
+// The Apps Script Web App round-trip has been measured taking anywhere from
+// ~3s to over 3 MINUTES for the exact same trivial call, and about 1 in 3
+// calls comes back as a non-JSON HTML page (a network hop between here and
+// script.google.com — likely a corporate proxy/security gateway — misbehaving
+// or intercepting the request) instead of a real response. Neither is
+// something this app's code controls, but both are worth bounding/retrying
+// automatically rather than leaving the caller to hang indefinitely:
+// - REQUEST_TIMEOUT_MS aborts a single attempt that's taking too long (kept
+//   above the ~47s worst-case legitimate response we've observed, so it
+//   doesn't cut off a slow-but-real answer).
+// - One retry with a short backoff, since a second attempt usually goes
+//   through when the first one didn't.
+// We deliberately do NOT retry a clean {error: "..."} response from our own
+// backend (e.g. wrong PIN, "not found") — that's a real answer, not a fluke.
+const REQUEST_TIMEOUT_MS = 60000;
+const MAX_RETRIES = 1;
 const RETRY_DELAY_MS = 1500;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -29,16 +35,25 @@ async function callApi(fn, args = []) {
 }
 
 async function callApiAttempt(fn, args, attempt) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   let response;
   try {
     response = await fetch(API_URL, {
       method: 'POST',
       // text/plain avoids the CORS preflight request Apps Script Web Apps can't answer
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ fn, args })
+      body: JSON.stringify({ fn, args }),
+      signal: controller.signal
     });
   } catch (networkErr) {
-    return retryOrThrow(fn, args, attempt, new Error('Không kết nối được tới máy chủ — mạng có thể đang chập chờn.'));
+    const message = networkErr.name === 'AbortError'
+      ? `Máy chủ không phản hồi sau ${REQUEST_TIMEOUT_MS / 1000}s — mạng có thể đang chập chờn.`
+      : 'Không kết nối được tới máy chủ — mạng có thể đang chập chờn.';
+    return retryOrThrow(fn, args, attempt, new Error(message));
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (!response.ok) {
@@ -53,6 +68,17 @@ async function callApiAttempt(fn, args, attempt) {
   }
 
   if (json.error) throw new Error(json.error); // real answer from our backend — never retry
+
+  // A response that parses as valid JSON but is neither {result: ...} nor
+  // {error: ...} isn't actually our backend talking — most likely something
+  // on the network path (proxy/gateway) returning its own valid-but-empty
+  // JSON body with a 200 status. Silently returning `undefined` here is what
+  // caused "Cannot read properties of undefined" crashes downstream — treat
+  // it as a fluke and retry instead.
+  if (!json || typeof json !== 'object' || !('result' in json)) {
+    return retryOrThrow(fn, args, attempt, new Error('Phản hồi từ máy chủ không hợp lệ — có thể do mạng chặn giữa đường.'));
+  }
+
   return json.result;
 }
 
