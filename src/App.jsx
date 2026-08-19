@@ -14,6 +14,7 @@ import SalesPlan from './components/SalesPlan';
 import DebtImporter from './components/DebtImporter';
 import GoogleSheetSettings from './components/GoogleSheetSettings';
 import LoadingScreen from './components/LoadingScreen';
+import { RefreshCw } from 'lucide-react';
 
 import * as api from './services/api';
 
@@ -162,6 +163,17 @@ export default function App() {
           onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
           onOpenChangePassword={() => setShowChangePasswordModal(true)}
         />
+
+        {/* isSyncing with no error yet showing (first attempt, or right after
+            clicking "Thu lai" which clears bootstrapError before retrying) —
+            without this, a retry that takes a while (backend round-trips have
+            been measured up to ~45s+ per attempt, x4 attempts) looked like
+            "the error just vanished and nothing happened". */}
+        {isSyncing && hasLoadedOnce && !bootstrapError && (
+          <div style={{ margin: '16px 32px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--karofi-navy)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <RefreshCw size={14} className="animate-spin" /> Đang tải lại dữ liệu từ backend — có thể mất khá lâu nếu mạng đang chập chờn, vui lòng chờ...
+          </div>
+        )}
 
         {bootstrapError && (
           <div style={{ margin: '16px 32px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(220, 38, 38, 0.12)', color: '#dc2626', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
