@@ -8,22 +8,26 @@ export const API_URL = 'https://script.google.com/macros/s/AKfycbwLO-qCFQr-UWKYw
 const SESSION_KEY = 'oem_session_v1';
 const SESSION_TTL_MS = 6 * 60 * 60 * 1000; // 6h, matches the backend's cache TTL
 
-// The Apps Script Web App round-trip has been measured taking anywhere from
-// ~3s to over 3 MINUTES for the exact same trivial call, and about 1 in 3
-// calls comes back as a non-JSON HTML page (a network hop between here and
-// script.google.com — likely a corporate proxy/security gateway — misbehaving
-// or intercepting the request) instead of a real response. Neither is
-// something this app's code controls, but both are worth bounding/retrying
-// automatically rather than leaving the caller to hang indefinitely:
+// The Apps Script Web App round-trip has been measured (12-call controlled
+// test, alternating this backend with a brand-new Apps Script that isn't
+// even bound to a Sheet) taking anywhere from ~1.4s to over 3 MINUTES, with
+// roughly HALF of all calls — to either script — coming back as a non-JSON
+// HTML page (a network hop between here and script.google.com misbehaving/
+// intercepting the request) instead of a real response. Since the OTHER
+// script saw the same ~50% failure rate, this is a general property of the
+// network path, not something caused by this app's code — but at a 50%
+// per-attempt failure rate, a single retry still fails ~25% of the time
+// (both attempts unlucky). Bumped to 3 retries (4 attempts total) to bring
+// that down to roughly 6%, which is what actually fixed the
+// "Loi tai du lieu tu backend: HTTP 404" users kept hitting even with the
+// 1-retry version.
 // - REQUEST_TIMEOUT_MS aborts a single attempt that's taking too long (kept
 //   above the ~47s worst-case legitimate response we've observed, so it
 //   doesn't cut off a slow-but-real answer).
-// - One retry with a short backoff, since a second attempt usually goes
-//   through when the first one didn't.
 // We deliberately do NOT retry a clean {error: "..."} response from our own
 // backend (e.g. wrong PIN, "not found") — that's a real answer, not a fluke.
 const REQUEST_TIMEOUT_MS = 60000;
-const MAX_RETRIES = 1;
+const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1500;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
