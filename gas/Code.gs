@@ -398,94 +398,113 @@ function deriveMaterials_(transactions, aliasHints, catalogMap) {
   return out;
 }
 
-// ---------- Material catalogue overrides (Alias/Nhóm SP/Giá bán đề xuất) ----------
-// Sheet tab this app owns outright (auto-created if missing, unlike "Orders"
-// which the user creates by hand) — columns: SKU, Tên Vật Tư, Alias, Nhóm SP,
-// Giá bán đề xuất, Cập nhật lúc, Cập nhật bởi.
-const MATERIAL_CATALOG_SHEET = 'Material_Catalog';
+// ---------- Product catalogue (tab "Products", already exists in the Sheet -
+// user-created, same precedent as "Orders": found by name, NOT auto-created,
+// throws if missing) ----------
+// Columns (1-indexed): CateID, Ma LK (SKU), Ten LK, Nhom SP, Alias, Gia ban,
+// Duyet gia, Ngay duyet. CateID is a per-Nhom-SP lookup number (19 existing
+// groups = CateID 1..19) - NOT touched by "Duyet gia"/"Ngay duyet", which stay
+// reserved for a future price-approval flow (out of scope here; the existing
+// "De Xuat Gia" button in ProductManagement.jsx is a separate, still-unwired
+// UI stub - this Sua/Them flow only ever writes CateID/SKU/Ten/Nhom/Alias/Gia ban).
+const PRODUCTS_SHEET = 'Products';
 
-function getMaterialCatalogSheet_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(MATERIAL_CATALOG_SHEET);
-  if (!sheet) {
-    sheet = ss.insertSheet(MATERIAL_CATALOG_SHEET);
-    sheet.getRange(1, 1, 1, 7).setValues([[
-      'SKU', 'Tên Vật Tư', 'Alias', 'Nhóm SP', 'Giá bán đề xuất', 'Cập nhật lúc', 'Cập nhật bởi'
-    ]]);
-  }
+function getProductsSheet_() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PRODUCTS_SHEET);
+  if (!sheet) throw new Error('Khong tim thay tab "Products" tren Google Sheet.');
   return sheet;
 }
 
+// Returns { bySku: {sku: {cateId, name, group, alias, suggestedPrice}},
+// maxCateId, groupToCateId } - the latter two let add/edit resolve a CateID
+// for a Nhom SP by name (reuse the existing id, or hand out the next one for
+// a brand-new group) without the caller needing to know the lookup table.
 function loadMaterialCatalog_() {
-  const sheet = getMaterialCatalogSheet_();
+  const sheet = getProductsSheet_();
   const rows = sheet.getDataRange().getValues();
-  const map = {};
+  const bySku = {};
+  let maxCateId = 0;
+  const groupToCateId = {};
   for (let i = 1; i < rows.length; i++) {
-    const sku = String(rows[i][0] || '');
+    const sku = String(rows[i][1] || '');
     if (!sku) continue;
-    map[sku] = {
-      name: String(rows[i][1] || ''),
-      alias: String(rows[i][2] || ''),
-      group: String(rows[i][3] || ''),
-      suggestedPrice: parseNum_(rows[i][4])
+    const cateId = parseNum_(rows[i][0]);
+    const group = String(rows[i][3] || '');
+    if (cateId > maxCateId) maxCateId = cateId;
+    if (group && !groupToCateId[group.toLowerCase()]) groupToCateId[group.toLowerCase()] = cateId;
+    bySku[sku] = {
+      cateId: cateId,
+      name: String(rows[i][2] || ''),
+      group: group,
+      alias: String(rows[i][4] || ''),
+      suggestedPrice: parseNum_(rows[i][5])
     };
   }
-  return map;
+  return { bySku: bySku, maxCateId: maxCateId, groupToCateId: groupToCateId };
 }
 
-function findMaterialCatalogRow_(sheet, sku) {
+function resolveCateId_(catalog, group) {
+  if (!group) return catalog.maxCateId + 1;
+  const existing = catalog.groupToCateId[String(group).toLowerCase()];
+  return existing || catalog.maxCateId + 1;
+}
+
+function findProductRow_(sheet, sku) {
   const rows = sheet.getDataRange().getValues();
   for (let i = 1; i < rows.length; i++) {
-    if (String(rows[i][0]) === String(sku)) return i + 1; // 1-based sheet row
+    if (String(rows[i][1]) === String(sku)) return i + 1; // 1-based sheet row
   }
   return -1;
 }
 
-// Sale/Admin/Creator — same permission tier as addClient/addPlan (Sale can add
+// Sale/Admin/Creator - same permission tier as addClient/addPlan (Sale can add
 // their own new SKUs; see canEditCatalogue in ProductManagement.jsx).
 function addMaterial_(token, material) {
   const user = requireSession_(token);
   if (!['creator', 'admin', 'sale'].includes(user.role)) {
-    throw new Error('Không có quyền thêm sản phẩm mới.');
+    throw new Error('Khong co quyen them san pham moi.');
   }
-  if (!material || !material.sku) throw new Error('Thiếu mã SKU.');
-  const sheet = getMaterialCatalogSheet_();
-  if (findMaterialCatalogRow_(sheet, material.sku) !== -1) {
-    throw new Error('Mã SKU ' + material.sku + ' đã có trong danh mục — dùng nút "Sửa" để cập nhật.');
+  if (!material || !material.sku) throw new Error('Thieu ma SKU.');
+  const sheet = getProductsSheet_();
+  if (findProductRow_(sheet, material.sku) !== -1) {
+    throw new Error('Ma SKU ' + material.sku + ' da co trong tab Products - dung nut "Sua" de cap nhat.');
   }
-  const now = Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH:mm');
+  const catalog = loadMaterialCatalog_();
+  const cateId = resolveCateId_(catalog, material.group);
   sheet.appendRow([
-    material.sku, material.name || '', material.alias || '', material.group || '',
-    material.suggestedPrice || 0, now, user.name
+    cateId, material.sku, material.name || '', material.group || '',
+    material.alias || '', material.suggestedPrice || 0, '', ''
   ]);
   return { ok: true };
 }
 
-// Admin/Creator only — editing Alias/Nhóm SP/Giá bán of a material that may
-// already exist purely from transaction history (no catalog row yet), hence
+// Admin/Creator only - editing Alias/Nhom SP/Gia ban of a material that may
+// already exist purely from transaction history (no Products row yet), hence
 // the append-if-missing branch instead of throwing.
 function editMaterial_(token, sku, updates) {
   const user = requireSession_(token);
   if (!['creator', 'admin'].includes(user.role)) {
-    throw new Error('Chỉ Admin mới có quyền sửa danh mục sản phẩm.');
+    throw new Error('Chi Admin moi co quyen sua danh muc san pham.');
   }
-  if (!sku) throw new Error('Thiếu mã SKU.');
+  if (!sku) throw new Error('Thieu ma SKU.');
   updates = updates || {};
-  const sheet = getMaterialCatalogSheet_();
-  const rowIndex = findMaterialCatalogRow_(sheet, sku);
-  const now = Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH:mm');
+  const sheet = getProductsSheet_();
+  const rowIndex = findProductRow_(sheet, sku);
+  const catalog = loadMaterialCatalog_();
   if (rowIndex === -1) {
+    const newCateId = resolveCateId_(catalog, updates.group);
     sheet.appendRow([
-      sku, updates.name || '', updates.alias || '', updates.group || '',
-      updates.suggestedPrice || 0, now, user.name
+      newCateId, sku, updates.name || '', updates.group || '',
+      updates.alias || '', updates.suggestedPrice || 0, '', ''
     ]);
   } else {
-    const existing = sheet.getRange(rowIndex, 1, 1, 7).getValues()[0];
-    const name = updates.name != null ? updates.name : existing[1];
-    const alias = updates.alias != null ? updates.alias : existing[2];
+    const existing = sheet.getRange(rowIndex, 1, 1, 8).getValues()[0];
+    const name = updates.name != null ? updates.name : existing[2];
     const group = updates.group != null ? updates.group : existing[3];
-    const suggestedPrice = updates.suggestedPrice != null ? updates.suggestedPrice : existing[4];
-    sheet.getRange(rowIndex, 2, 1, 6).setValues([[name, alias, group, suggestedPrice, now, user.name]]);
+    const alias = updates.alias != null ? updates.alias : existing[4];
+    const suggestedPrice = updates.suggestedPrice != null ? updates.suggestedPrice : existing[5];
+    const cateId = updates.group != null ? resolveCateId_(catalog, group) : existing[0];
+    sheet.getRange(rowIndex, 1, 1, 6).setValues([[cateId, sku, name, group, alias, suggestedPrice]]);
   }
   return { ok: true };
 }
@@ -538,11 +557,11 @@ function getBootstrap_(token) {
   requireSession_(token); // any authenticated user may read — role-based UI filtering stays client-side
   const transactions = loadTransactions_();
   const aliasHints = loadOrderAliasHints_();
-  const catalogMap = loadMaterialCatalog_();
+  const catalog = loadMaterialCatalog_();
   return {
     clients: loadClients_(),
     transactions: transactions,
-    materials: deriveMaterials_(transactions, aliasHints, catalogMap),
+    materials: deriveMaterials_(transactions, aliasHints, catalog.bySku),
     plans: loadSalesPlans_(),
     baselines2025: load2025Baselines_()
   };

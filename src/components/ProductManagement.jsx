@@ -166,7 +166,7 @@ export default function ProductManagement({ materials, clients, transactions, ac
               <th>Tên Vật Tư</th>
               <th>Nhóm</th>
               <th style={{ textAlign: 'right' }}>Giá Mới Nhất (VAT)</th>
-              <th style={{ textAlign: 'right' }}>Giá Bán Đề Xuất</th>
+              <th style={{ textAlign: 'right' }}>Giá Bán</th>
               <th style={{ textAlign: 'right' }}>Tổng Bán</th>
               <th style={{ width: '190px' }}></th>
             </tr>
@@ -230,7 +230,7 @@ export default function ProductManagement({ materials, clients, transactions, ac
                 </div>
               </div>
               <div>
-                <span style={{ fontSize: '0.675rem', color: 'var(--text-dim)' }}>Giá Bán Đề Xuất</span>
+                <span style={{ fontSize: '0.675rem', color: 'var(--text-dim)' }}>Giá Bán</span>
                 <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--karofi-navy)' }}>
                   {fmtPrice(mat.suggestedPrice)}
                 </div>
@@ -324,7 +324,7 @@ export default function ProductManagement({ materials, clients, transactions, ac
               </div>
 
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Giá Bán Đề Xuất (VND):</label>
+                <label className="form-label">Giá Bán (VND):</label>
                 <input type="number" className="input-field" value={editSuggestedPrice} onChange={(e) => setEditSuggestedPrice(e.target.value)} />
               </div>
 
@@ -369,7 +369,7 @@ export default function ProductManagement({ materials, clients, transactions, ac
               </div>
 
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Giá Bán Đề Xuất (VND):</label>
+                <label className="form-label">Giá Bán (VND):</label>
                 <input type="number" className="input-field" value={newSuggestedPrice} onChange={(e) => setNewSuggestedPrice(e.target.value)} />
               </div>
 
