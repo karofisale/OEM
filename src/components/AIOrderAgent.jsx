@@ -66,15 +66,15 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
     }, 400);
   };
 
-  // Handle Image Upload & OCR
+  // Handle Image Upload & OCR — shared by the file-picker button and pasting
+  // an image directly into the textarea (Ctrl+V), so both paths run the same
+  // size check + OCR + parse flow.
   const MAX_OCR_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB — larger images can hang the tab during OCR
 
-  const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
+  const processImageFile = async (file) => {
     if (!file) return;
     if (file.size > MAX_OCR_IMAGE_BYTES) {
       alert(`Ảnh quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Vui lòng chọn ảnh dưới 8MB để tránh treo trình duyệt khi quét OCR.`);
-      e.target.value = '';
       return;
     }
     setImageFile(file);
@@ -98,6 +98,29 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
     } finally {
       setIsProcessing(false);
       setOcrStatus('');
+    }
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > MAX_OCR_IMAGE_BYTES) e.target.value = '';
+    processImageFile(file);
+  };
+
+  // Ctrl+V into the textarea with an image on the clipboard (screenshot, or
+  // copied straight from Zalo/Messenger) skips the file-picker entirely —
+  // same OCR pipeline as "Tải Ảnh". Falls through to normal text paste when
+  // the clipboard holds no image.
+  const handlePasteImage = (e) => {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type && items[i].type.startsWith('image/')) {
+        e.preventDefault();
+        processImageFile(items[i].getAsFile());
+        return;
+      }
     }
   };
 
@@ -226,7 +249,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
           <div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>AI Agent Đặt Hàng Thông Minh (SAP Order Builder)</h2>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Nhập lệnh văn bản tự nhiên hoặc tải ảnh chụp chữ viết tay ➔ AI tự tra cứu Mã SP, Alias & Giá lịch sử ➔ Tạo bảng đơn hàng SAP.
+              Nhập lệnh văn bản tự nhiên, tải ảnh chụp chữ viết tay, hoặc dán ảnh trực tiếp (Ctrl+V) ➔ AI tự tra cứu Mã SP, Alias & Giá lịch sử ➔ Tạo bảng đơn hàng SAP.
             </p>
           </div>
         </div>
@@ -246,7 +269,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
             <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <FileText size={18} color="#3b82f6" /> 1. Lệnh Đặt Hàng từ Sale
             </h3>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Text / Ảnh viết tay</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Text / Ảnh viết tay (dán Ctrl+V hoặc tải lên)</span>
           </div>
 
           {/* Prompt textarea + compact tải ảnh/phân tích actions side by side —
@@ -260,7 +283,8 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
                 className="input-field"
                 value={promptText}
                 onChange={(e) => setPromptText(e.target.value)}
-                placeholder="VD: Lên đơn cho khách hàng Tecom 500 cái màng RO 100G và 100 phin lọc 2 đầu..."
+                onPaste={handlePasteImage}
+                placeholder="VD: Lên đơn cho khách hàng Tecom 500 cái màng RO 100G và 100 phin lọc 2 đầu... (hoặc dán ảnh trực tiếp bằng Ctrl+V)"
                 style={{ resize: 'vertical', fontFamily: 'inherit', border: '1.5px solid #94a3b8' }}
               />
             </div>
