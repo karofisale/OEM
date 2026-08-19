@@ -56,8 +56,11 @@ export function clientMatchesQuery(client, query) {
   return tokens.every(t => haystack.includes(t));
 }
 
-// Match material from catalog
-export function findMatchingMaterial(queryText, materialsCatalog) {
+// Match material from catalog. clientOrderedSkus (optional Set<sku>) boosts the
+// score of SKUs this specific client has ordered before (see getClientOrderedSkus)
+// — the same free-text wording ("phin lọc", "block"...) often maps to a different
+// SKU per client's product line, so prior purchase history is a strong tiebreaker.
+export function findMatchingMaterial(queryText, materialsCatalog, clientOrderedSkus) {
   if (!queryText || !materialsCatalog.length) return null;
   const q = queryText.toLowerCase().trim();
 
@@ -70,6 +73,7 @@ export function findMatchingMaterial(queryText, materialsCatalog) {
   if (skuInText) return skuInText;
 
   // 3. Name or Alias match with highest score
+  const HISTORY_BOOST = 0.15;
   let bestMatch = null;
   let highestScore = 0;
 
@@ -82,7 +86,8 @@ export function findMatchingMaterial(queryText, materialsCatalog) {
     const learnedScore = (mat.learnedAliases || []).reduce(
       (best, term) => Math.max(best, similarityScore(q, term)), 0
     );
-    const maxScore = Math.max(nameScore, aliasScore, learnedScore);
+    let maxScore = Math.max(nameScore, aliasScore, learnedScore);
+    if (clientOrderedSkus && clientOrderedSkus.has(mat.sku)) maxScore += HISTORY_BOOST;
 
     if (maxScore > highestScore && maxScore >= 0.25) {
       highestScore = maxScore;
@@ -91,6 +96,26 @@ export function findMatchingMaterial(queryText, materialsCatalog) {
   });
 
   return bestMatch;
+}
+
+// SKUs a given client has ordered before, per the Data tab's transaction history —
+// matched by Code/Code_search first (stable identifier), falling back to a fuzzy
+// name match for clients whose transactions predate a code being assigned.
+export function getClientOrderedSkus(client, transactions) {
+  const skus = new Set();
+  if (!client || !transactions || !transactions.length) return skus;
+  const codeKey = String(client.codeSearch || client.code || '').toLowerCase().trim();
+  const nameKey = String(client.name || '').toLowerCase().trim();
+
+  transactions.forEach(t => {
+    const tCode = String(t.clientCode || '').toLowerCase().trim();
+    const matchByCode = codeKey && tCode === codeKey;
+    const matchByName = !matchByCode && nameKey && t.clientName &&
+      (t.clientName.toLowerCase().includes(nameKey) || nameKey.includes(t.clientName.toLowerCase()));
+    if ((matchByCode || matchByName) && t.sku) skus.add(t.sku);
+  });
+
+  return skus;
 }
 
 // Whether queryText is different/specific enough from what the matcher already knows
@@ -192,7 +217,9 @@ export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, t
     status: 'Active'
   };
 
-  // 2. Identify Product items & Quantities
+  // 2. Identify Product items & Quantities — boost matching against this client's
+  // own order history (Data tab), see findMatchingMaterial/getClientOrderedSkus.
+  const clientOrderedSkus = getClientOrderedSkus(matchedClient, transactions);
   const orderItems = [];
 
   const pushOrAccumulate = (matchedMaterial, qty, sourceQuery) => {
@@ -254,7 +281,7 @@ export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, t
     if (!segments.length) segments.push(sourceQuery);
 
     segments.forEach((segment) => {
-      const primaryMatch = findMatchingMaterial(segment, materialsCatalog);
+      const primaryMatch = findMatchingMaterial(segment, materialsCatalog, clientOrderedSkus);
       if (!primaryMatch) return;
 
       const matchedMaterials = (isProductSet && primaryMatch.alias)

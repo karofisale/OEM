@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ClipboardList, RefreshCw, Copy, Check, Save, AlertCircle, Loader2, Trash2 } from 'lucide-react';
+import { ClipboardList, RefreshCw, Copy, Check, Save, AlertCircle, Loader2, Trash2, FileSpreadsheet } from 'lucide-react';
 import * as api from '../services/api';
 import SkuPickerCell from './SkuPickerCell';
 import ClientPickerCell from './ClientPickerCell';
@@ -14,6 +14,16 @@ export default function OrdersReview({ token, activeUser, materials, clients }) 
   const [busyRowIndex, setBusyRowIndex] = useState(null); // insert/delete in flight
   const [copiedOrderNo, setCopiedOrderNo] = useState('');
   const [deletingOrderNo, setDeletingOrderNo] = useState('');
+  const [exportingOrderNo, setExportingOrderNo] = useState('');
+  const [exportingAll, setExportingAll] = useState(false);
+
+  // Orders sheet only stores Mã KH (code) + Mã KH Chữ (codeSearch) — resolve the
+  // full display name by looking the code up against the loaded client list.
+  const clientByCode = useMemo(() => {
+    const map = new Map();
+    (clients || []).forEach(c => map.set(String(c.code), c));
+    return map;
+  }, [clients]);
 
   const canEdit = ['creator', 'admin', 'sale'].includes(activeUser.role);
   // Whole-order delete is more destructive than a single-row delete (already
@@ -156,6 +166,57 @@ export default function OrdersReview({ token, activeUser, materials, clients }) 
     setTimeout(() => setCopiedOrderNo(''), 2000);
   };
 
+  const buildExportRows = (rows) => rows.map(r => {
+    const client = clientByCode.get(String(r.clientCode));
+    return {
+      'Mã Tham Chiếu SAP SO': r.orderNo,
+      'Mã VT': r.sku,
+      'Tên Vật Tư': r.name,
+      'Số Lượng': r.qty,
+      'Đơn Giá VND': r.price,
+      'Thành Tiền VND': r.total,
+      'Mã KH': r.clientCode,
+      'Mã KH Chữ': r.clientCodeSearch,
+      'Tên Khách Hàng': client ? client.name : '',
+      'Ngày Tạo': r.createdAt,
+      'PIC': r.pic
+    };
+  });
+
+  // xlsx is lazy-loaded (large dependency) — only worth the download when an
+  // export is actually requested, same pattern as DebtImporter's Excel import.
+  const handleExportOrder = async (orderNo, rows) => {
+    setExportingOrderNo(orderNo);
+    try {
+      const XLSX = await import('xlsx');
+      const ws = XLSX.utils.json_to_sheet(buildExportRows(rows));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, String(orderNo).slice(0, 31) || 'Don hang');
+      XLSX.writeFile(wb, `Don_${orderNo}.xlsx`);
+    } catch (err) {
+      alert('Không xuất được file Excel: ' + err.message);
+    } finally {
+      setExportingOrderNo('');
+    }
+  };
+
+  const handleExportAll = async () => {
+    if (!visibleOrders.length) return;
+    setExportingAll(true);
+    try {
+      const XLSX = await import('xlsx');
+      const ws = XLSX.utils.json_to_sheet(buildExportRows(visibleOrders));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Don Hang Cho Duyet');
+      const today = new Date().toLocaleDateString('vi-VN').replace(/\//g, '-');
+      XLSX.writeFile(wb, `Don_Hang_Cho_Duyet_${today}.xlsx`);
+    } catch (err) {
+      alert('Không xuất được file Excel: ' + err.message);
+    } finally {
+      setExportingAll(false);
+    }
+  };
+
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
@@ -168,9 +229,20 @@ export default function OrdersReview({ token, activeUser, materials, clients }) 
             Rà soát các đơn AI Agent đã tạo, chỉnh sửa nếu cần, rồi copy mã dán vào SAP.
           </p>
         </div>
-        <button onClick={fetchOrders} disabled={isLoading} className="btn btn-secondary btn-sm">
-          <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} /> Tải lại
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={handleExportAll}
+            disabled={exportingAll || !visibleOrders.length}
+            className="btn btn-secondary btn-sm"
+            title="Xuất toàn bộ các đơn đang hiển thị ra 1 file Excel"
+          >
+            {exportingAll ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
+            Xuất Excel Tất Cả
+          </button>
+          <button onClick={fetchOrders} disabled={isLoading} className="btn btn-secondary btn-sm">
+            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} /> Tải lại
+          </button>
+        </div>
       </div>
 
       {loadError && (
@@ -207,6 +279,15 @@ export default function OrdersReview({ token, activeUser, materials, clients }) 
                   {copiedOrderNo === orderNo ? <Check size={14} /> : <Copy size={14} />}
                   {copiedOrderNo === orderNo ? 'Đã Sao Chép!' : 'Copy Dán SAP'}
                 </button>
+                <button
+                  onClick={() => handleExportOrder(orderNo, rows)}
+                  disabled={exportingOrderNo === orderNo}
+                  className="btn btn-secondary btn-sm"
+                  title="Xuất riêng đơn này ra file Excel"
+                >
+                  {exportingOrderNo === orderNo ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
+                  Xuất Excel
+                </button>
                 {canDeleteOrder && (
                   <button
                     onClick={() => handleDeleteOrder(orderNo)}
@@ -231,8 +312,7 @@ export default function OrdersReview({ token, activeUser, materials, clients }) 
                     <th style={{ width: '90px', textAlign: 'right' }}>Số Lượng</th>
                     <th style={{ width: '120px', textAlign: 'right' }}>Đơn Giá</th>
                     <th style={{ width: '130px', textAlign: 'right' }}>Thành Tiền</th>
-                    <th style={{ width: '150px' }}>Mã KH</th>
-                    <th style={{ width: '160px' }}>Update Alias</th>
+                    <th style={{ width: '220px' }}>Khách Hàng OEM (Mã KH / Mã KH Chữ)</th>
                     {canEdit && <th style={{ width: '150px' }}></th>}
                   </tr>
                 </thead>
@@ -298,9 +378,17 @@ export default function OrdersReview({ token, activeUser, materials, clients }) 
                             clients={clients}
                             onSelect={(c) => handleClientSelect(row, c)}
                           />
-                        ) : (row.clientCodeSearch || row.clientCode)}
+                        ) : (
+                          <span className="code-font" style={{ fontWeight: 700, color: '#0369a1' }}>{row.clientCode}</span>
+                        )}
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                          {getValue(row, 'clientCodeSearch')}
+                          {(() => {
+                            const fullName = clientByCode.get(String(getValue(row, 'clientCode')))?.name;
+                            return fullName ? ` — ${fullName}` : '';
+                          })()}
+                        </div>
                       </td>
-                      <td style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>{row.updateAlias}</td>
                       {canEdit && (
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

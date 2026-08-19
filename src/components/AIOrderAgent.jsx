@@ -371,13 +371,16 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
                 fontSize: '0.825rem'
               }}>
                 <div>
-                  <span style={{ color: 'var(--text-dim)' }}>Khách hàng OEM:</span>
+                  <span style={{ color: 'var(--text-dim)' }}>Khách hàng OEM (Mã KH):</span>
                   <ClientPickerCell
                     code={orderResult.client.code}
                     name={orderResult.client.name}
                     clients={clients}
                     onSelect={handleClientChange}
                   />
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '4px' }}>
+                    {orderResult.client.name}
+                  </div>
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-dim)' }}>Mã tham chiếu SAP SO:</span>
