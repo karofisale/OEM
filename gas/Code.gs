@@ -66,6 +66,8 @@ const apiMap_ = {
   getBootstrap: getBootstrap_,
   addClient: addClient_,
   editClient: editClient_,
+  addMaterial: addMaterial_,
+  editMaterial: editMaterial_,
   addPlan: addPlan_,
   changePassword: changePassword_,
   saveOrder: saveOrder_,
@@ -100,6 +102,29 @@ function parseNum_(val) {
   if (typeof val === 'number') return val;
   const clean = String(val).replace(/,/g, '').replace(/\s/g, '').replace(/-/g, '0');
   return parseFloat(clean) || 0;
+}
+
+// Cột "Thuế suất" (BG) có thể đọc về dạng number thuần (0.08), number phần trăm
+// Sheet đã tự quy đổi (0.08 luôn, KHÔNG phải 8) hoặc text "8%" tuỳ định dạng ô —
+// chuẩn hoá về dạng phân số (0.08) cho mọi trường hợp, mặc định 8% nếu ô trống.
+function parseTaxRate_(val) {
+  if (val === '' || val === null || val === undefined) return 0.08;
+  if (typeof val === 'number') return val > 1 ? val / 100 : val;
+  const s = String(val).trim();
+  const n = parseFloat(s.replace('%', '').replace(',', '.'));
+  if (isNaN(n)) return 0.08;
+  return n > 1 ? n / 100 : n;
+}
+
+// dd/MM/yyyy -> số nguyên có thể so sánh (yyyymmdd), dùng để tìm giao dịch gần
+// nhất theo SKU khi tính "Giá mới nhất" (thay vì trung bình mọi lần bán).
+function dateSortValue_(dateStr) {
+  if (!dateStr) return -1;
+  const parts = String(dateStr).split(/[\/.\-]/);
+  if (parts.length < 3) return -1;
+  const d = parseInt(parts[0], 10), m = parseInt(parts[1], 10), y = parseInt(parts[2], 10);
+  if (!d || !m || !y) return -1;
+  return y * 10000 + m * 100 + d;
 }
 
 // Sheet cells formatted as dates come back from getValues() as JS Date
@@ -261,7 +286,8 @@ function loadTransactions_() {
       week: week,
       sale: String(row[61] || row[36] || 'KH Đình Hoan'),
       group: String(row[62] || row[27] || 'Linh kiện OEM'),
-      netVat: parseNum_(row[59])
+      netVat: parseNum_(row[59]),
+      taxRate: parseTaxRate_(row[58])
     };
   }).filter(function (t) { return t.clientName && t.skuName; });
 }
@@ -293,7 +319,15 @@ function loadOrderAliasHints_() {
   return map;
 }
 
-function deriveMaterials_(transactions, aliasHints) {
+// There is no dedicated product-catalogue tab in the ORIGINAL Sheet — "Materials"
+// there is a month-by-SKU pivot, not a catalogue — so materials are still derived
+// from transactions primarily. Alias/Nhóm SP/Giá bán đề xuất edits (added
+// 2026-08-19, "Sửa" button for admin) now persist on a small sheet this app
+// owns and auto-creates — see getMaterialCatalogSheet_ — whose values override
+// the transaction-derived alias/group per SKU, and which also seeds brand-new
+// SKUs that have no transaction history yet (added via "Thêm Sản Phẩm Mới",
+// previously local-only/lost-on-refresh).
+function deriveMaterials_(transactions, aliasHints, catalogMap) {
   const map = {};
   transactions.forEach(function (t) {
     if (!t.sku) return;
@@ -307,28 +341,153 @@ function deriveMaterials_(transactions, aliasHints) {
         group: t.group || 'Linh kiện OEM',
         totalQty: 0,
         totalRevenue: 0,
-        prices: []
+        prices: [],
+        latestPrice: 0,
+        latestTaxRate: 0.08,
+        latestDateSort: -1
       };
     }
     const mat = map[t.sku];
     mat.totalQty += t.qty;
     mat.totalRevenue += t.netRevenue;
-    if (t.price > 0) mat.prices.push(t.price);
+    if (t.price > 0) {
+      mat.prices.push(t.price);
+      const dateSort = dateSortValue_(t.date);
+      if (dateSort >= mat.latestDateSort) {
+        mat.latestDateSort = dateSort;
+        mat.latestPrice = t.price;
+        mat.latestTaxRate = t.taxRate > 0 ? t.taxRate : 0.08;
+      }
+    }
   });
 
-  return Object.keys(map).map(function (sku) {
+  catalogMap = catalogMap || {};
+  const out = Object.keys(map).map(function (sku) {
     const m = map[sku];
-    const minPrice = m.prices.length ? Math.min.apply(null, m.prices) : 0;
-    const maxPrice = m.prices.length ? Math.max.apply(null, m.prices) : 0;
     const avgPrice = m.prices.length
       ? Math.round(m.prices.reduce(function (a, b) { return a + b; }, 0) / m.prices.length)
       : 0;
+    const override = catalogMap[sku] || {};
     return {
-      sku: m.sku, name: m.name, alias: m.alias, unit: m.unit, group: m.group,
-      totalQty: m.totalQty, avgPrice: avgPrice, minPrice: minPrice, maxPrice: maxPrice,
+      sku: m.sku,
+      name: override.name || m.name,
+      alias: override.alias || m.alias,
+      unit: m.unit,
+      group: override.group || m.group,
+      totalQty: m.totalQty,
+      avgPrice: avgPrice,
+      latestPrice: m.latestPrice,
+      latestPriceVat: Math.round(m.latestPrice * (1 + m.latestTaxRate)),
+      suggestedPrice: override.suggestedPrice || 0,
       learnedAliases: (aliasHints && aliasHints[sku]) || []
     };
   });
+
+  // Brand-new SKUs added only via "Thêm Sản Phẩm Mới" (no transaction history yet)
+  // don't appear in `map` above — add them here so they still show up in the list.
+  Object.keys(catalogMap).forEach(function (sku) {
+    if (map[sku]) return;
+    const c = catalogMap[sku];
+    out.push({
+      sku: sku, name: c.name || sku, alias: c.alias || '', unit: 'PC', group: c.group || 'Linh kiện OEM',
+      totalQty: 0, avgPrice: 0, latestPrice: 0, latestPriceVat: 0, suggestedPrice: c.suggestedPrice || 0,
+      learnedAliases: (aliasHints && aliasHints[sku]) || []
+    });
+  });
+
+  return out;
+}
+
+// ---------- Material catalogue overrides (Alias/Nhóm SP/Giá bán đề xuất) ----------
+// Sheet tab this app owns outright (auto-created if missing, unlike "Orders"
+// which the user creates by hand) — columns: SKU, Tên Vật Tư, Alias, Nhóm SP,
+// Giá bán đề xuất, Cập nhật lúc, Cập nhật bởi.
+const MATERIAL_CATALOG_SHEET = 'Material_Catalog';
+
+function getMaterialCatalogSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(MATERIAL_CATALOG_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(MATERIAL_CATALOG_SHEET);
+    sheet.getRange(1, 1, 1, 7).setValues([[
+      'SKU', 'Tên Vật Tư', 'Alias', 'Nhóm SP', 'Giá bán đề xuất', 'Cập nhật lúc', 'Cập nhật bởi'
+    ]]);
+  }
+  return sheet;
+}
+
+function loadMaterialCatalog_() {
+  const sheet = getMaterialCatalogSheet_();
+  const rows = sheet.getDataRange().getValues();
+  const map = {};
+  for (let i = 1; i < rows.length; i++) {
+    const sku = String(rows[i][0] || '');
+    if (!sku) continue;
+    map[sku] = {
+      name: String(rows[i][1] || ''),
+      alias: String(rows[i][2] || ''),
+      group: String(rows[i][3] || ''),
+      suggestedPrice: parseNum_(rows[i][4])
+    };
+  }
+  return map;
+}
+
+function findMaterialCatalogRow_(sheet, sku) {
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) === String(sku)) return i + 1; // 1-based sheet row
+  }
+  return -1;
+}
+
+// Sale/Admin/Creator — same permission tier as addClient/addPlan (Sale can add
+// their own new SKUs; see canEditCatalogue in ProductManagement.jsx).
+function addMaterial_(token, material) {
+  const user = requireSession_(token);
+  if (!['creator', 'admin', 'sale'].includes(user.role)) {
+    throw new Error('Không có quyền thêm sản phẩm mới.');
+  }
+  if (!material || !material.sku) throw new Error('Thiếu mã SKU.');
+  const sheet = getMaterialCatalogSheet_();
+  if (findMaterialCatalogRow_(sheet, material.sku) !== -1) {
+    throw new Error('Mã SKU ' + material.sku + ' đã có trong danh mục — dùng nút "Sửa" để cập nhật.');
+  }
+  const now = Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH:mm');
+  sheet.appendRow([
+    material.sku, material.name || '', material.alias || '', material.group || '',
+    material.suggestedPrice || 0, now, user.name
+  ]);
+  return { ok: true };
+}
+
+// Admin/Creator only — editing Alias/Nhóm SP/Giá bán of a material that may
+// already exist purely from transaction history (no catalog row yet), hence
+// the append-if-missing branch instead of throwing.
+function editMaterial_(token, sku, updates) {
+  const user = requireSession_(token);
+  if (!['creator', 'admin'].includes(user.role)) {
+    throw new Error('Chỉ Admin mới có quyền sửa danh mục sản phẩm.');
+  }
+  if (!sku) throw new Error('Thiếu mã SKU.');
+  updates = updates || {};
+  const sheet = getMaterialCatalogSheet_();
+  const rowIndex = findMaterialCatalogRow_(sheet, sku);
+  const now = Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH:mm');
+  if (rowIndex === -1) {
+    sheet.appendRow([
+      sku, updates.name || '', updates.alias || '', updates.group || '',
+      updates.suggestedPrice || 0, now, user.name
+    ]);
+  } else {
+    const existing = sheet.getRange(rowIndex, 1, 1, 7).getValues()[0];
+    const name = updates.name != null ? updates.name : existing[1];
+    const alias = updates.alias != null ? updates.alias : existing[2];
+    const group = updates.group != null ? updates.group : existing[3];
+    const suggestedPrice = updates.suggestedPrice != null ? updates.suggestedPrice : existing[4];
+    sheet.getRange(rowIndex, 2, 1, 6).setValues([[name, alias, group, suggestedPrice, now, user.name]]);
+  }
+  return { ok: true };
 }
 
 function loadSalesPlans_() {
@@ -379,10 +538,11 @@ function getBootstrap_(token) {
   requireSession_(token); // any authenticated user may read — role-based UI filtering stays client-side
   const transactions = loadTransactions_();
   const aliasHints = loadOrderAliasHints_();
+  const catalogMap = loadMaterialCatalog_();
   return {
     clients: loadClients_(),
     transactions: transactions,
-    materials: deriveMaterials_(transactions, aliasHints),
+    materials: deriveMaterials_(transactions, aliasHints, catalogMap),
     plans: loadSalesPlans_(),
     baselines2025: load2025Baselines_()
   };

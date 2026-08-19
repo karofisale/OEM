@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Users, Plus, Edit3, Search, MapPin, UserCheck, Lock, Table, LayoutGrid } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Users, Plus, Edit3, Search, MapPin, UserCheck, Lock, Table, LayoutGrid, Filter } from 'lucide-react';
 
 export default function ClientManagement({ clients, activeUser, onAddClient, onEditClient }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -12,12 +12,20 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
   const [editAddress, setEditAddress] = useState('');
   const [editStatus, setEditStatus] = useState('Active');
 
+  // Default to Active only — most day-to-day lookups don't want inactive
+  // clients cluttering the list; "Tất cả" is one click away.
+  const [statusFilter, setStatusFilter] = useState('Active');
+  const [saleFilter, setSaleFilter] = useState('ALL');
+
   const isLeader = activeUser.role === 'leader';
   const isSale = activeUser.role === 'sale';
   // Sales can add their own leads (same pattern as propose-price/propose-plan);
   // only Creator/Admin can edit existing records. Leader stays view-only.
   const canAdd = ['creator', 'admin', 'sale'].includes(activeUser.role);
   const canEditExisting = ['creator', 'admin'].includes(activeUser.role);
+  // Sale accounts already only ever see their own clients (scopedClients below) —
+  // a Sale filter dropdown is only useful for roles that see everyone.
+  const canFilterAllSales = ['creator', 'admin', 'leader'].includes(activeUser.role);
 
   // Form state
   const [codeSearch, setCodeSearch] = useState('');
@@ -34,12 +42,21 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
     return true; // Creator, Admin, Leader see all
   });
 
-  const filteredClients = scopedClients.filter(c => 
-    !searchTerm ||
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.codeSearch.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (c.alias && c.alias.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const salesList = useMemo(() => {
+    const set = new Set(clients.map(c => c.sale).filter(Boolean));
+    return Array.from(set);
+  }, [clients]);
+
+  const filteredClients = scopedClients.filter(c => {
+    const matchSearch =
+      !searchTerm ||
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.codeSearch.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.alias && c.alias.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchStatus = statusFilter === 'ALL' || (c.status || 'Active') === statusFilter;
+    const matchSale = !canFilterAllSales || saleFilter === 'ALL' || c.sale === saleFilter;
+    return matchSearch && matchStatus && matchSale;
+  });
 
   const handleSaveClient = (e) => {
     e.preventDefault();
@@ -125,6 +142,25 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+        </div>
+
+        {canFilterAllSales && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <UserCheck size={15} color="var(--text-muted)" />
+            <select className="input-field" style={{ width: '160px' }} value={saleFilter} onChange={(e) => setSaleFilter(e.target.value)}>
+              <option value="ALL">Tất cả Sale</option>
+              {salesList.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Filter size={15} color="var(--text-muted)" />
+          <select className="input-field" style={{ width: '150px' }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+            <option value="ALL">Tất cả trạng thái</option>
+          </select>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

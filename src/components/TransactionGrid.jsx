@@ -48,6 +48,14 @@ export default function TransactionGrid({ transactions }) {
     return filteredData.slice(start, start + pageSize);
   }, [filteredData, currentPage]);
 
+  const totals = useMemo(() => {
+    return filteredData.reduce((acc, t) => {
+      acc.qty += t.qty || 0;
+      acc.netRevenue += t.netRevenue || 0;
+      return acc;
+    }, { qty: 0, netRevenue: 0 });
+  }, [filteredData]);
+
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
@@ -123,6 +131,22 @@ export default function TransactionGrid({ transactions }) {
             <option value="ALL">Tất cả Tháng</option>
             {monthsList.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
+        </div>
+      </div>
+
+      {/* Totals Bar */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+        <div className="glass-card" style={{ flex: '1', minWidth: '200px', padding: '12px 18px' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tổng Số Lượng</span>
+          <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: 'JetBrains Mono', color: 'var(--karofi-navy)' }}>
+            {totals.qty.toLocaleString('vi-VN')}
+          </div>
+        </div>
+        <div className="glass-card" style={{ flex: '1', minWidth: '200px', padding: '12px 18px' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tổng DT Thuần (VND)</span>
+          <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: 'JetBrains Mono', color: 'var(--accent-emerald)' }}>
+            {totals.netRevenue.toLocaleString('vi-VN')}
+          </div>
         </div>
       </div>
 

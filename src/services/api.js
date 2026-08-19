@@ -70,6 +70,14 @@ export async function editClient(token, client) {
   return callApi('editClient', [token, client]);
 }
 
+export async function addMaterial(token, material) {
+  return callApi('addMaterial', [token, material]);
+}
+
+export async function editMaterial(token, sku, updates) {
+  return callApi('editMaterial', [token, sku, updates]);
+}
+
 export async function addPlan(token, plan) {
   return callApi('addPlan', [token, plan]);
 }

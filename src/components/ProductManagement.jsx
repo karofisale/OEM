@@ -1,19 +1,31 @@
-import React, { useState } from 'react';
-import { Package, Plus, Edit3, DollarSign, Search, Sparkles, Tag, Check, ArrowUpRight, Lock, AlertCircle, Table, LayoutGrid } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Package, Plus, Edit3, DollarSign, Search, Sparkles, Tag, Check, ArrowUpRight, Lock, Table, LayoutGrid } from 'lucide-react';
 
-export default function ProductManagement({ materials, clients, transactions, activeUser, onAddMaterial }) {
+const fmtPrice = (v) => (v ? v.toLocaleString('vi-VN') : '-');
+
+export default function ProductManagement({ materials, clients, transactions, activeUser, onAddMaterial, onEditMaterial }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('table');
   const [selectedClientForPrice, setSelectedClientForPrice] = useState(clients[0]?.name || '');
   const [showAddModal, setShowAddModal] = useState(false);
   const [proposeModalMat, setProposeModalMat] = useState(null);
   const [proposedPriceInput, setProposedPriceInput] = useState('');
+  const [editingMat, setEditingMat] = useState(null);
+  const [editAlias, setEditAlias] = useState('');
+  const [editGroup, setEditGroup] = useState('');
+  const [editSuggestedPrice, setEditSuggestedPrice] = useState('');
 
   // Permission flags
   const isLeader = activeUser.role === 'leader';
   const isSale = activeUser.role === 'sale';
   // Sales can add new SKUs too (same pattern as propose-price/propose-plan/add-client).
   const canEditCatalogue = ['creator', 'admin', 'sale'].includes(activeUser.role);
+  const isAdmin = ['creator', 'admin'].includes(activeUser.role);
+
+  const groupsList = useMemo(() => {
+    const set = new Set(materials.map(m => m.group).filter(Boolean));
+    return Array.from(set).sort();
+  }, [materials]);
 
   // New Material form state
   const [newSku, setNewSku] = useState('');
@@ -21,10 +33,10 @@ export default function ProductManagement({ materials, clients, transactions, ac
   const [newAlias, setNewAlias] = useState('');
   const [newGroup, setNewGroup] = useState('LK nóng lạnh');
   const [newUnit, setNewUnit] = useState('PC');
-  const [newPrice, setNewPrice] = useState('');
+  const [newSuggestedPrice, setNewSuggestedPrice] = useState('');
 
-  const filteredMaterials = materials.filter(m => 
-    !searchTerm || 
+  const filteredMaterials = materials.filter(m =>
+    !searchTerm ||
     m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     m.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (m.alias && m.alias.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -33,16 +45,17 @@ export default function ProductManagement({ materials, clients, transactions, ac
   const handleCreateMaterial = (e) => {
     e.preventDefault();
     if (!newSku || !newName) return;
-    
+
     const mat = {
       sku: newSku,
       name: newName,
       alias: newAlias || newName.split(' ')[0],
       group: newGroup,
       unit: newUnit,
-      avgPrice: parseFloat(newPrice) || 100000,
-      minPrice: parseFloat(newPrice) || 90000,
-      maxPrice: parseFloat(newPrice) || 110000,
+      suggestedPrice: parseFloat(newSuggestedPrice) || 0,
+      avgPrice: parseFloat(newSuggestedPrice) || 0,
+      latestPrice: 0,
+      latestPriceVat: 0,
       totalQty: 0
     };
 
@@ -51,7 +64,7 @@ export default function ProductManagement({ materials, clients, transactions, ac
     setNewSku('');
     setNewName('');
     setNewAlias('');
-    setNewPrice('');
+    setNewSuggestedPrice('');
   };
 
   const handleSavePriceProposal = (e) => {
@@ -62,9 +75,27 @@ export default function ProductManagement({ materials, clients, transactions, ac
     setProposedPriceInput('');
   };
 
+  const openEditModal = (mat) => {
+    setEditingMat(mat);
+    setEditAlias(mat.alias || '');
+    setEditGroup(mat.group || '');
+    setEditSuggestedPrice(mat.suggestedPrice || '');
+  };
+
+  const handleSaveEditMaterial = (e) => {
+    e.preventDefault();
+    if (!editingMat) return;
+    onEditMaterial(editingMat.sku, {
+      alias: editAlias,
+      group: editGroup,
+      suggestedPrice: parseFloat(editSuggestedPrice) || 0
+    });
+    setEditingMat(null);
+  };
+
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      
+
       {/* Header Banner */}
       <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
         <div>
@@ -72,7 +103,7 @@ export default function ProductManagement({ materials, clients, transactions, ac
             <Package size={22} color="#00a0e9" /> Danh Mục Sản Phẩm & Đề Xuất Giá Karofi
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-            Quản lý mã vật tư, alias tên viết tắt. {isSale ? '💡 Sale được quyền đề xuất giá bán cho toàn bộ 440+ mã sản phẩm.' : 'Tra cứu lịch sử giá min/max/trung bình.'}
+            Quản lý mã vật tư, alias tên viết tắt. {isSale ? '💡 Sale được quyền đề xuất giá bán cho toàn bộ 440+ mã sản phẩm.' : 'Tra cứu giá bán mới nhất theo dữ liệu SAP.'}
           </p>
         </div>
 
@@ -93,7 +124,7 @@ export default function ProductManagement({ materials, clients, transactions, ac
       <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: '260px' }}>
           <Search size={18} color="var(--text-dim)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-          <input 
+          <input
             type="text"
             className="input-field"
             style={{ paddingLeft: '38px' }}
@@ -134,11 +165,10 @@ export default function ProductManagement({ materials, clients, transactions, ac
               <th>SKU</th>
               <th>Tên Vật Tư</th>
               <th>Nhóm</th>
-              <th style={{ textAlign: 'right' }}>Giá Thấp Nhất</th>
-              <th style={{ textAlign: 'right' }}>Giá Trung Bình</th>
-              <th style={{ textAlign: 'right' }}>Giá Cao Nhất</th>
+              <th style={{ textAlign: 'right' }}>Giá Mới Nhất (VAT)</th>
+              <th style={{ textAlign: 'right' }}>Giá Bán Đề Xuất</th>
               <th style={{ textAlign: 'right' }}>Tổng Bán</th>
-              <th style={{ width: '140px' }}></th>
+              <th style={{ width: '190px' }}></th>
             </tr>
           </thead>
           <tbody>
@@ -147,17 +177,21 @@ export default function ProductManagement({ materials, clients, transactions, ac
                 <td className="code-font" style={{ fontWeight: 700, color: '#00a0e9', fontSize: '0.8rem' }}>{mat.sku}</td>
                 <td style={{ fontWeight: 600 }}>{mat.name}{mat.alias && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}> ({mat.alias})</span>}</td>
                 <td><span className="badge badge-purple">{mat.group}</span></td>
-                <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.8rem' }}>{mat.minPrice ? mat.minPrice.toLocaleString('vi-VN') + ' ₫' : '-'}</td>
-                <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-emerald)' }}>{mat.avgPrice ? mat.avgPrice.toLocaleString('vi-VN') + ' ₫' : '-'}</td>
-                <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.8rem' }}>{mat.maxPrice ? mat.maxPrice.toLocaleString('vi-VN') + ' ₫' : '-'}</td>
+                <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-emerald)' }}>{fmtPrice(mat.latestPriceVat)}</td>
+                <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.8rem' }}>{fmtPrice(mat.suggestedPrice)}</td>
                 <td style={{ textAlign: 'right', fontSize: '0.8rem' }}>{mat.totalQty?.toLocaleString('vi-VN') || 0} {mat.unit}</td>
-                <td>
+                <td style={{ display: 'flex', gap: '6px' }}>
                   <button
-                    onClick={() => { setProposeModalMat(mat); setProposedPriceInput(mat.avgPrice || ''); }}
+                    onClick={() => { setProposeModalMat(mat); setProposedPriceInput(mat.suggestedPrice || mat.latestPriceVat || ''); }}
                     className="btn btn-secondary btn-sm"
                   >
                     <DollarSign size={14} color="#00a0e9" /> Đề Xuất Giá
                   </button>
+                  {isAdmin && (
+                    <button onClick={() => openEditModal(mat)} className="btn btn-secondary btn-sm">
+                      <Edit3 size={14} /> Sửa
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -184,27 +218,21 @@ export default function ProductManagement({ materials, clients, transactions, ac
               </div>
             )}
 
-            {/* Price Historical Metrics */}
+            {/* Price Metrics */}
             <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px',
+              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px',
               background: '#f8fafc', border: '1px solid var(--border-color)', padding: '10px', borderRadius: 'var(--radius-md)', textAlign: 'center'
             }}>
               <div>
-                <span style={{ fontSize: '0.675rem', color: 'var(--text-dim)' }}>Giá Thấp Nhất</span>
-                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--karofi-navy)' }}>
-                  {mat.minPrice ? mat.minPrice.toLocaleString('vi-VN') + ' ₫' : '-'}
-                </div>
-              </div>
-              <div>
-                <span style={{ fontSize: '0.675rem', color: 'var(--text-dim)' }}>Giá Trung Bình</span>
+                <span style={{ fontSize: '0.675rem', color: 'var(--text-dim)' }}>Giá Mới Nhất (VAT)</span>
                 <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-emerald)' }}>
-                  {mat.avgPrice ? mat.avgPrice.toLocaleString('vi-VN') + ' ₫' : '-'}
+                  {fmtPrice(mat.latestPriceVat)}
                 </div>
               </div>
               <div>
-                <span style={{ fontSize: '0.675rem', color: 'var(--text-dim)' }}>Giá Cao Nhất</span>
-                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-amber)' }}>
-                  {mat.maxPrice ? mat.maxPrice.toLocaleString('vi-VN') + ' ₫' : '-'}
+                <span style={{ fontSize: '0.675rem', color: 'var(--text-dim)' }}>Giá Bán Đề Xuất</span>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--karofi-navy)' }}>
+                  {fmtPrice(mat.suggestedPrice)}
                 </div>
               </div>
             </div>
@@ -215,13 +243,19 @@ export default function ProductManagement({ materials, clients, transactions, ac
                 Tổng bán: <strong>{mat.totalQty?.toLocaleString('vi-VN') || 0} {mat.unit}</strong>
               </span>
 
-              {/* Proposal button available for ALL Sales & Admins */}
-              <button 
-                onClick={() => { setProposeModalMat(mat); setProposedPriceInput(mat.avgPrice || ''); }}
-                className="btn btn-secondary btn-sm"
-              >
-                <DollarSign size={14} color="#00a0e9" /> Đề Xuất Giá
-              </button>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  onClick={() => { setProposeModalMat(mat); setProposedPriceInput(mat.suggestedPrice || mat.latestPriceVat || ''); }}
+                  className="btn btn-secondary btn-sm"
+                >
+                  <DollarSign size={14} color="#00a0e9" /> Đề Xuất Giá
+                </button>
+                {isAdmin && (
+                  <button onClick={() => openEditModal(mat)} className="btn btn-secondary btn-sm">
+                    <Edit3 size={14} /> Sửa
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))}
@@ -251,7 +285,7 @@ export default function ProductManagement({ materials, clients, transactions, ac
 
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Đơn Giá Đề Xuất Mới (VND):</label>
-                <input 
+                <input
                   type="number" required className="input-field"
                   value={proposedPriceInput}
                   onChange={(e) => setProposedPriceInput(e.target.value)}
@@ -267,6 +301,42 @@ export default function ProductManagement({ materials, clients, transactions, ac
         </div>
       )}
 
+      {/* Admin Edit Modal (Alias / Nhóm SP / Giá bán đề xuất) */}
+      {editingMat && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+          <div className="glass-card animate-fade-in" style={{ width: '440px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Sửa Sản Phẩm — {editingMat.sku}</h3>
+            <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>{editingMat.name}</p>
+
+            <form onSubmit={handleSaveEditMaterial} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Alias / Tên Viết Tắt (Dùng cho AI):</label>
+                <input type="text" className="input-field" value={editAlias} onChange={(e) => setEditAlias(e.target.value)} />
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Nhóm SP:</label>
+                <input type="text" list="product-group-options" className="input-field" value={editGroup} onChange={(e) => setEditGroup(e.target.value)} />
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Giá Bán Đề Xuất (VND):</label>
+                <input type="number" className="input-field" value={editSuggestedPrice} onChange={(e) => setEditSuggestedPrice(e.target.value)} />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+                <button type="button" onClick={() => setEditingMat(null)} className="btn btn-secondary">Hủy</button>
+                <button type="submit" className="btn btn-primary">Lưu Thay Đổi</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Add Product Modal */}
       {showAddModal && (
         <div style={{
@@ -276,11 +346,6 @@ export default function ProductManagement({ materials, clients, transactions, ac
         }}>
           <div className="glass-card animate-fade-in" style={{ width: '460px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Thêm Vật Tư / Sản Phẩm OEM Mới</h3>
-
-            <div style={{ fontSize: '0.75rem', color: '#b45309', background: 'rgba(245, 158, 11, 0.12)', padding: '8px 10px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-              <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '1px' }} />
-              Sản phẩm này chỉ lưu tạm trên trình duyệt — Google Sheet chưa có tab danh mục sản phẩm riêng để ghi vào (tab "Materials" hiện tại là bảng số lượng bán theo tháng, không phải danh mục).
-            </div>
 
             <form onSubmit={handleCreateMaterial} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div className="form-group" style={{ margin: 0 }}>
@@ -298,6 +363,16 @@ export default function ProductManagement({ materials, clients, transactions, ac
                 <input type="text" className="input-field" value={newAlias} onChange={(e) => setNewAlias(e.target.value)} />
               </div>
 
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Nhóm SP:</label>
+                <input type="text" list="product-group-options" className="input-field" value={newGroup} onChange={(e) => setNewGroup(e.target.value)} />
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Giá Bán Đề Xuất (VND):</label>
+                <input type="number" className="input-field" value={newSuggestedPrice} onChange={(e) => setNewSuggestedPrice(e.target.value)} />
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
                 <button type="button" onClick={() => setShowAddModal(false)} className="btn btn-secondary">Hủy</button>
                 <button type="submit" className="btn btn-primary">Lưu Sản Phẩm</button>
@@ -306,6 +381,10 @@ export default function ProductManagement({ materials, clients, transactions, ac
           </div>
         </div>
       )}
+
+      <datalist id="product-group-options">
+        {groupsList.map(g => <option key={g} value={g} />)}
+      </datalist>
 
     </div>
   );

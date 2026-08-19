@@ -77,10 +77,22 @@ export default function App() {
     setPlans([]);
   };
 
-  const handleAddMaterial = (newMat) => {
-    // No product-catalogue tab exists in the Sheet yet — kept local-only.
-    // See gas/SETUP.md for why this isn't wired to the backend.
+  const handleAddMaterial = async (newMat) => {
     setMaterials(prev => [newMat, ...prev]);
+    try {
+      await api.addMaterial(session.token, newMat);
+    } catch (err) {
+      alert('Không ghi được sản phẩm mới lên Google Sheet: ' + err.message);
+    }
+  };
+
+  const handleEditMaterial = async (sku, updates) => {
+    setMaterials(prev => prev.map(m => m.sku === sku ? { ...m, ...updates } : m));
+    try {
+      await api.editMaterial(session.token, sku, updates);
+    } catch (err) {
+      alert('Không cập nhật được sản phẩm lên Google Sheet: ' + err.message);
+    }
   };
 
   const handleAddClient = async (newClient) => {
@@ -198,6 +210,7 @@ export default function App() {
               transactions={transactions}
               activeUser={activeUser}
               onAddMaterial={handleAddMaterial}
+              onEditMaterial={handleEditMaterial}
             />
           )}
 
