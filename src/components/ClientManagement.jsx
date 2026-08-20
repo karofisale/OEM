@@ -1,8 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { Users, Plus, Edit3, Search, MapPin, UserCheck, Lock, Table, LayoutGrid, Filter } from 'lucide-react';
+import Pagination, { usePagedSlice } from './Pagination';
+
+const PAGE_SIZE = 25;
 
 export default function ClientManagement({ clients, activeUser, onAddClient, onEditClient }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState('table');
   const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
@@ -35,28 +39,35 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
   const [address, setAddress] = useState('');
 
   // Scoped clients list if Sale role
-  const scopedClients = clients.filter(c => {
+  const scopedClients = useMemo(() => clients.filter(c => {
     if (isSale) {
       return c.sale.toLowerCase().includes((activeUser.saleId || '').toLowerCase());
     }
     return true; // Creator, Admin, Leader see all
-  });
+  }), [clients, isSale, activeUser.saleId]);
 
   const salesList = useMemo(() => {
     const set = new Set(clients.map(c => c.sale).filter(Boolean));
     return Array.from(set);
   }, [clients]);
 
-  const filteredClients = scopedClients.filter(c => {
-    const matchSearch =
-      !searchTerm ||
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.codeSearch.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (c.alias && c.alias.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchStatus = statusFilter === 'ALL' || (c.status || 'Active') === statusFilter;
-    const matchSale = !canFilterAllSales || saleFilter === 'ALL' || c.sale === saleFilter;
-    return matchSearch && matchStatus && matchSale;
-  });
+  // Memoised, and the search term is lowercased once rather than once per client
+  // per keystroke — this reran on every render, including typing in a modal.
+  const filteredClients = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return scopedClients.filter(c => {
+      const matchSearch =
+        !q ||
+        c.name.toLowerCase().includes(q) ||
+        c.codeSearch.toLowerCase().includes(q) ||
+        (c.alias && c.alias.toLowerCase().includes(q));
+      const matchStatus = statusFilter === 'ALL' || (c.status || 'Active') === statusFilter;
+      const matchSale = !canFilterAllSales || saleFilter === 'ALL' || c.sale === saleFilter;
+      return matchSearch && matchStatus && matchSale;
+    });
+  }, [scopedClients, searchTerm, statusFilter, saleFilter, canFilterAllSales]);
+
+  const { safePage, pageItems: pagedClients } = usePagedSlice(filteredClients, page, PAGE_SIZE);
 
   const handleSaveClient = (e) => {
     e.preventDefault();
@@ -140,14 +151,15 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
             style={{ paddingLeft: '38px' }}
             placeholder="Tìm theo Mã (TECOM, MAKXIM), tên khách..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+            aria-label="Tìm khách hàng"
           />
         </div>
 
         {canFilterAllSales && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <UserCheck size={15} color="var(--text-muted)" />
-            <select className="input-field" style={{ width: '160px' }} value={saleFilter} onChange={(e) => setSaleFilter(e.target.value)}>
+            <select className="input-field" style={{ width: '160px' }} value={saleFilter} onChange={(e) => { setSaleFilter(e.target.value); setPage(1); }} aria-label='Lọc theo sale'>
               <option value="ALL">Tất cả Sale</option>
               {salesList.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -156,7 +168,7 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Filter size={15} color="var(--text-muted)" />
-          <select className="input-field" style={{ width: '150px' }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select className="input-field" style={{ width: '150px' }} value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} aria-label='Lọc theo trạng thái'>
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
             <option value="ALL">Tất cả trạng thái</option>
@@ -191,13 +203,13 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
             </tr>
           </thead>
           <tbody>
-            {filteredClients.map((client) => (
+            {pagedClients.map((client) => (
               <tr key={client.code || client.name}>
                 <td className="code-font" style={{ fontWeight: 800, color: '#00a0e9', fontSize: '0.8rem' }}>{client.codeSearch}</td>
                 <td style={{ fontWeight: 700 }}>{client.name}</td>
                 <td style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>{client.sale}</td>
                 <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{client.address || 'Hà Nội'}</td>
-                <td><span className="badge badge-emerald">{client.status}</span></td>
+                <td><span className={`badge ${(client.status || "Active") === "Active" ? "badge-emerald" : "badge-rose"}`}>{client.status}</span></td>
                 {canEditExisting && (
                   <td>
                     <button onClick={() => openEditModal(client)} className="btn btn-secondary btn-sm">
@@ -212,7 +224,7 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
       </div>
       ) : (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }} className="animate-fade-in">
-        {filteredClients.map((client) => (
+        {pagedClients.map((client) => (
           <div key={client.code || client.name} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <div>
@@ -221,7 +233,7 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
                 </span>
                 <h4 style={{ fontSize: '0.95rem', fontWeight: 700, marginTop: '2px', color: 'var(--text-main)' }}>{client.name}</h4>
               </div>
-              <span className="badge badge-emerald">{client.status}</span>
+              <span className={`badge ${(client.status || "Active") === "Active" ? "badge-emerald" : "badge-rose"}`}>{client.status}</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -246,6 +258,21 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
         ))}
       </div>
       )}
+
+      {filteredClients.length === 0 && (
+        <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '32px 16px' }}>
+          Không tìm thấy khách hàng nào khớp với bộ lọc hiện tại
+          {searchTerm && <> (từ khóa "<strong>{searchTerm}</strong>")</>}.
+        </div>
+      )}
+
+      <Pagination
+        page={safePage}
+        pageSize={PAGE_SIZE}
+        totalItems={filteredClients.length}
+        onPageChange={setPage}
+        itemLabel="khách hàng"
+      />
 
       {/* Modal */}
       {showModal && (

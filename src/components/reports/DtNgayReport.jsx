@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { Filter } from 'lucide-react';
 import { monthsFromTransactions, latestMonthKey, weeksFromTransactions } from '../../utils/period';
+import Pagination, { usePagedSlice } from '../Pagination';
+
+const PAGE_SIZE = 50;
 
 export default function DtNgayReport({ transactions, salesList, canFilterAllSales, viewMode }) {
   const [ngayFilterSale, setNgayFilterSale] = useState('ALL');
@@ -8,6 +11,7 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
   // with an option literally labelled "Tháng hiện tại (T08)".
   const [ngayFilterMonth, setNgayFilterMonth] = useState(null);
   const [ngayFilterWeek, setNgayFilterWeek] = useState('ALL');
+  const [page, setPage] = useState(1);
 
   const monthsList = useMemo(() => monthsFromTransactions(transactions), [transactions]);
   const weeksList = useMemo(() => weeksFromTransactions(transactions), [transactions]);
@@ -41,6 +45,12 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
 
     return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
   }, [transactions, ngayFilterSale, effectiveMonth, ngayFilterWeek, canFilterAllSales]);
+
+  // The table used to render dtNgayData.slice(0, 50) and the grid .slice(0, 30),
+  // with no count and no pager — a sale checking yesterday's revenue could simply
+  // not see their order and have no way to know rows had been dropped. Totals
+  // below are still computed over the FULL filtered set, not the visible page.
+  const { safePage, pageItems: pagedRows } = usePagedSlice(dtNgayData, page, PAGE_SIZE);
 
   const dtNgayTotals = useMemo(() => {
     return dtNgayData.reduce((acc, i) => {
@@ -104,7 +114,7 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
                 </td>
               </tr>
 
-              {dtNgayData.slice(0, 50).map((row) => (
+              {pagedRows.map((row) => (
                 <tr key={`${row.date}_${row.clientCode}`}>
                   <td style={{ fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8rem' }}>{row.date}</td>
                   <td className="code-font" style={{ fontWeight: 800, color: '#00a0e9' }}>{row.clientCode}</td>
@@ -120,7 +130,7 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }} className="animate-fade-in">
-          {dtNgayData.slice(0, 30).map((row) => (
+          {pagedRows.map((row) => (
             <div key={`${row.date}_${row.clientCode}`} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{row.date}</span>
@@ -133,6 +143,20 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
             </div>
           ))}
         </div>
+      )}
+
+      {dtNgayData.length === 0 ? (
+        <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '28px 16px' }}>
+          Không có phát sinh doanh thu nào khớp với bộ lọc đang chọn.
+        </div>
+      ) : (
+        <Pagination
+          page={safePage}
+          pageSize={PAGE_SIZE}
+          totalItems={dtNgayData.length}
+          onPageChange={setPage}
+          itemLabel="dòng phát sinh"
+        />
       )}
     </div>
   );

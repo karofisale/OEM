@@ -1,11 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { CalendarRange, Plus, Clock, Filter, User } from 'lucide-react';
+import Pagination, { usePagedSlice } from './Pagination';
+
+const PAGE_SIZE = 25;
 
 export default function SalesPlan({ plans, clients, transactions, activeUser, onAddPlan }) {
   const [selectedSale, setSelectedSale] = useState('ALL');
   const [showModal, setShowModal] = useState(false);
   const [planStateList, setPlanStateList] = useState(plans);
   const [onlyShowActivePlan, setOnlyShowActivePlan] = useState(true);
+  const [page, setPage] = useState(1);
 
   const canFilterAllSales = ['creator', 'admin', 'leader'].includes(activeUser.role);
 
@@ -84,6 +88,9 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
       return true;
     });
   }, [activePlanList, selectedSale, onlyShowActivePlan, activeUser, canFilterAllSales]);
+
+  // Totals below stay over the FULL filtered set, not just the visible page.
+  const { safePage, pageItems: pagedPlans } = usePagedSlice(filteredPlans, page, PAGE_SIZE);
 
   // Top Totals Calculation (EXACT FORMULA: Chênh = Done - Plan Update)
   const planTotals = useMemo(() => {
@@ -245,7 +252,7 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
             </tr>
 
             {/* DATA ROWS */}
-            {filteredPlans.map((plan, idx) => {
+            {pagedPlans.map((plan, idx) => {
               const chenh = (plan.done || 0) - (plan.planUpdate || 0);
 
               return (
@@ -319,6 +326,20 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
           </tbody>
         </table>
       </div>
+
+      {filteredPlans.length === 0 ? (
+        <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '28px 16px' }}>
+          Không có kế hoạch nào khớp với bộ lọc đang chọn.
+        </div>
+      ) : (
+        <Pagination
+          page={safePage}
+          pageSize={PAGE_SIZE}
+          totalItems={filteredPlans.length}
+          onPageChange={setPage}
+          itemLabel="kế hoạch"
+        />
+      )}
 
       {/* Modal */}
       {showModal && (

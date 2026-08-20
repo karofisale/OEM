@@ -1,12 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { Package, Plus, Edit3, DollarSign, Search, Sparkles, Tag, Check, ArrowUpRight, Lock, Table, LayoutGrid, AlertTriangle } from 'lucide-react';
+import Pagination, { usePagedSlice } from './Pagination';
 
 const fmtPrice = (v) => (v ? v.toLocaleString('vi-VN') : '-');
+const PAGE_SIZE = 25;
 
 // `transactions` used to be passed in and destructured here but was never read —
 // dropped, so this component no longer re-renders when the transaction list changes.
 export default function ProductManagement({ materials, clients, activeUser, onAddMaterial, onEditMaterial }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState('table');
   const [selectedClientForPrice, setSelectedClientForPrice] = useState(clients[0]?.name || '');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -37,12 +40,21 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
   const [newUnit, setNewUnit] = useState('PC');
   const [newSuggestedPrice, setNewSuggestedPrice] = useState('');
 
-  const filteredMaterials = materials.filter(m =>
-    !searchTerm ||
-    m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (m.alias && m.alias.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Memoised: this ran on every render, including every keystroke in an
+  // unrelated modal input, and lowercased the search term once per material.
+  const filteredMaterials = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return materials;
+    return materials.filter(m =>
+      m.name.toLowerCase().includes(q) ||
+      m.sku.toLowerCase().includes(q) ||
+      (m.alias && m.alias.toLowerCase().includes(q))
+    );
+  }, [materials, searchTerm]);
+
+  // Every one of the 440 SKUs used to be rendered at once — ~8,000 DOM elements,
+  // each row carrying one or two icon buttons.
+  const { safePage, pageItems: pagedMaterials } = usePagedSlice(filteredMaterials, page, PAGE_SIZE);
 
   const handleCreateMaterial = (e) => {
     e.preventDefault();
@@ -136,7 +148,8 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
             style={{ paddingLeft: '38px' }}
             placeholder="Tìm theo mã SKU, tên vật tư, hoặc alias..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+            aria-label="Tìm sản phẩm"
           />
         </div>
 
@@ -178,7 +191,7 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
             </tr>
           </thead>
           <tbody>
-            {filteredMaterials.map((mat) => (
+            {pagedMaterials.map((mat) => (
               <tr key={mat.sku}>
                 <td className="code-font" style={{ fontWeight: 700, color: '#00a0e9', fontSize: '0.8rem' }}>{mat.sku}</td>
                 <td style={{ fontWeight: 600 }}>{mat.name}{mat.alias && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}> ({mat.alias})</span>}</td>
@@ -186,7 +199,10 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
                 <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-emerald)' }}>{fmtPrice(mat.latestPriceVat)}</td>
                 <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.8rem' }}>{fmtPrice(mat.suggestedPrice)}</td>
                 <td style={{ textAlign: 'right', fontSize: '0.8rem' }}>{mat.totalQty?.toLocaleString('vi-VN') || 0} {mat.unit}</td>
-                <td style={{ display: 'flex', gap: '6px' }}>
+                {/* display:flex on a <td> takes the cell out of table layout, so it
+                    stopped honouring the 190px <th> width and broke row alignment. */}
+                <td>
+                  <div style={{ display: 'flex', gap: '6px' }}>
                   <button
                     onClick={() => { setProposeModalMat(mat); setProposedPriceInput(mat.suggestedPrice || mat.latestPriceVat || ''); }}
                     className="btn btn-secondary btn-sm"
@@ -198,6 +214,7 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
                       <Edit3 size={14} /> Sửa
                     </button>
                   )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -206,7 +223,7 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
       </div>
       ) : (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }} className="animate-fade-in">
-        {filteredMaterials.map((mat) => (
+        {pagedMaterials.map((mat) => (
           <div key={mat.sku} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <div>
@@ -267,6 +284,22 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
         ))}
       </div>
       )}
+
+      {/* None of the searchable tables told the user when a search matched
+          nothing — a typo just produced an empty grid. */}
+      {filteredMaterials.length === 0 && (
+        <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '32px 16px' }}>
+          Không tìm thấy sản phẩm nào khớp với "<strong>{searchTerm}</strong>".
+        </div>
+      )}
+
+      <Pagination
+        page={safePage}
+        pageSize={PAGE_SIZE}
+        totalItems={filteredMaterials.length}
+        onPageChange={setPage}
+        itemLabel="sản phẩm"
+      />
 
       {/* Proposal Price Modal */}
       {proposeModalMat && (
