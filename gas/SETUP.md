@@ -20,17 +20,16 @@ npm run build
 
 Mở app, thử đăng nhập (PIN đúng ở tab Users của Sheet) — nếu báo lỗi khác "Unknown function" thì có thể do URL chưa đúng hoặc chưa Authorize đủ quyền (Sheets/Drive) cho project mới.
 
-## 3. Sau khi xác nhận project mới chạy tốt — dọn project cũ
+## 3. Dọn project cũ — ĐÃ LÀM (2026-08-20)
 
-Trong project Apps Script CŨ (dùng chung với up-dt-oem/cong-no-oem, `D:\Operation\Claude\Scripts\up-dt-oem\`):
-1. Xoá file `OemAppBackend.gs`.
-2. Trong `Code.gs`, xoá đoạn:
-   ```js
-   if (body.fn) {
-     return oemAppDoPost_(body);
-   }
-   ```
-3. Deploy → Manage deployments → Edit → New version → Deploy (để up-dt-oem/cong-no-oem tiếp tục chạy bình thường, gọn lại không còn gánh thêm OEM App).
+Phần OEM App đã được gỡ khỏi project dùng chung với up-dt-oem/cong-no-oem
+(`D:\Operation\Claude\Scripts\up-dt-oem\`): file `OemAppBackend.gs` đã xoá, nhánh route `if (body.fn)` trong
+`doPost` đã gỡ. Project đó giờ chỉ còn `Code.gs`, `UpDtOem.gs`, `CongNoOem.gs`
+và chỉ phục vụ 2 skill.
+
+**Việc còn phải làm bằng tay**: dán lại `Code.gs` đã sửa vào editor của project CŨ
+rồi Deploy → New version. Nếu không, project cũ vẫn chạy bản có nhánh route trỏ tới
+`oemAppDoPost_` — hàm nay đã bị xoá, nên request nào kèm `body.fn` sẽ lỗi.
 
 ## 4. Chỉ sau khi mọi thứ đã ổn định — khoá Sheet public
 

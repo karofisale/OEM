@@ -89,26 +89,66 @@ function oemAppLoad2025Baselines_() {
 }
 
 
-// Bootstrap cache. The payload is currently IDENTICAL for every user (role-based
-// filtering is still done client-side, see the note in oemAppBuildBootstrap_), so
-// one shared script-cache entry serves everyone — the first user of the day pays
-// the full cost and everyone after them gets a near-instant response.
+// Bootstrap cache, keyed per permission scope (see oemAppScopeOf_) so a Sale can
+// never be handed another Sale's payload out of the shared script cache.
+// Admin/Leader share one 'all' entry; each Sale gets their own.
 //
 // TTL is safe at 10 minutes: tab "Data" is written by the separate up-dt-oem
 // import skill on a daily/weekly cadence, not continuously. The tabs this app
-// writes itself (Clients, Plan_Thang, Products) explicitly drop the cache on
-// write, so a user never sees their own edit missing.
-//
-// IMPORTANT: if per-Sale server-side filtering is ever added, this key MUST gain
-// a per-user component, otherwise one Sale would be served another Sale's data.
-var OEMAPP_BOOTSTRAP_CACHE_KEY_ = 'oemapp_bootstrap_v1';
+// writes itself (Clients, Plan_Thang, Products) drop the cache on write, so a
+// user never sees their own edit missing.
+var OEMAPP_BOOTSTRAP_CACHE_KEY_ = 'oemapp_bootstrap_v2';
 var OEMAPP_BOOTSTRAP_TTL_ = 600; // 10 minutes
+var OEMAPP_BOOTSTRAP_VER_KEY_ = 'oemapp_bootstrap_ver';
+
+
+// Which slice of the data this user is allowed to see. A Sale only ever gets
+// their own rows; Creator/Admin/Leader get everything.
+//
+// This is a real permission boundary now, not a display filter. Until 2026-08-20
+// the backend returned every transaction to everyone and the frontend hid the
+// other Sales' rows — except the "Lịch sử doanh thu" tab, which never filtered at
+// all, so one Sale could simply read another's revenue there. Even where the UI
+// did hide it, the data still sat in the browser.
+function oemAppScopeOf_(user) {
+  var role = String(user.role || '').toLowerCase();
+  if (role !== 'sale') return { all: true, key: 'all' };
+
+  // Fail CLOSED. An empty saleId used to make the frontend's
+  // `includes('')` test true for every row, i.e. a Sale with no saleId saw
+  // everything. If the Users tab is missing a saleId we return nothing rather
+  // than everything — visible immediately, instead of silently over-sharing.
+  var saleId = String(user.saleId || '').trim();
+  return { all: false, saleId: saleId.toLowerCase(), key: 'sale:' + saleId.toLowerCase() };
+}
+
+
+function oemAppMatchesSale_(rowSale, scope) {
+  if (scope.all) return true;
+  if (!scope.saleId) return false; // fail closed, see oemAppScopeOf_
+  return String(rowSale || '').toLowerCase().indexOf(scope.saleId) !== -1;
+}
+
+
+// Cache entries are per-scope, so a Sale can never be served another Sale's
+// payload out of the shared script cache.
+function oemAppBootstrapVersion_() {
+  var cache = CacheService.getScriptCache();
+  var v = cache.get(OEMAPP_BOOTSTRAP_VER_KEY_);
+  if (!v) {
+    v = Utilities.getUuid().slice(0, 8);
+    cache.put(OEMAPP_BOOTSTRAP_VER_KEY_, v, 21600);
+  }
+  return v;
+}
 
 
 function oemAppGetBootstrap_(token) {
-  oemAppRequireSession_(token); // any authenticated user may read — role-based UI filtering stays client-side
+  var user = oemAppRequireSession_(token);
+  var scope = oemAppScopeOf_(user);
+  var cacheKey = OEMAPP_BOOTSTRAP_CACHE_KEY_ + '_' + oemAppBootstrapVersion_() + '_' + scope.key;
 
-  var cached = oemAppCacheGetBig_(OEMAPP_BOOTSTRAP_CACHE_KEY_);
+  var cached = oemAppCacheGetBig_(cacheKey);
   if (cached) {
     try {
       return JSON.parse(cached);
@@ -117,36 +157,51 @@ function oemAppGetBootstrap_(token) {
     }
   }
 
-  var payload = oemAppBuildBootstrap_();
+  var payload = oemAppBuildBootstrap_(scope);
 
   // A cache write failing (quota, size) must never break the actual request.
   try {
-    oemAppCachePutBig_(OEMAPP_BOOTSTRAP_CACHE_KEY_, JSON.stringify(payload), OEMAPP_BOOTSTRAP_TTL_);
+    oemAppCachePutBig_(cacheKey, JSON.stringify(payload), OEMAPP_BOOTSTRAP_TTL_);
   } catch (err) {}
 
   return payload;
 }
 
 
-function oemAppBuildBootstrap_() {
-  var transactions = oemAppLoadTransactions_();
+function oemAppBuildBootstrap_(scope) {
+  var allTransactions = oemAppLoadTransactions_();
   var aliasHints = oemAppLoadOrderAliasHints_();
   var catalog = oemAppLoadMaterialCatalog_();
+
+  // Materials are derived from the FULL history on purpose: the product
+  // catalogue and its historical pricing are not per-Sale data, and scoping it
+  // would leave a Sale unable to order any SKU they had not personally sold.
+  var materials = oemAppDeriveMaterials_(allTransactions, aliasHints, catalog.bySku);
+
+  var transactions = scope.all ? allTransactions : allTransactions.filter(function (t) {
+    return oemAppMatchesSale_(t.sale, scope);
+  });
+
+  var plans = oemAppLoadSalesPlans_().filter(function (p) {
+    return oemAppMatchesSale_(p.sale, scope);
+  });
+
   return {
     clients: oemAppLoadClients_(),
     transactions: transactions,
-    materials: oemAppDeriveMaterials_(transactions, aliasHints, catalog.bySku),
-    plans: oemAppLoadSalesPlans_(),
+    materials: materials,
+    plans: plans,
     baselines2025: oemAppLoad2025Baselines_()
   };
 }
 
 
 // Called by every writer so a user always sees their own edit immediately
-// instead of waiting out the TTL.
+// instead of waiting out the TTL. Bumps a version rather than hunting down every
+// per-scope key: the old entries become unreachable and expire on their own.
 function oemAppInvalidateBootstrap_() {
   try {
-    oemAppCacheDropBig_(OEMAPP_BOOTSTRAP_CACHE_KEY_);
+    CacheService.getScriptCache().put(OEMAPP_BOOTSTRAP_VER_KEY_, Utilities.getUuid().slice(0, 8), 21600);
   } catch (err) {}
 }
 

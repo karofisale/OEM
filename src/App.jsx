@@ -247,6 +247,18 @@ export default function App() {
           </div>
         )}
 
+        {/* The backend now scopes data per Sale and deliberately fails CLOSED when a
+            Sale account has no saleId — returning nothing rather than everything.
+            Without this notice that looks like a broken app instead of a
+            misconfigured Users row. */}
+        {activeUser.role === 'sale' && !activeUser.saleId && hasLoadedOnce && (
+          <div style={{ margin: '16px 32px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--warning-bg)', color: 'var(--warning-text)', fontSize: '0.85rem' }}>
+            Tài khoản của bạn chưa được gán mã Sale trong tab <strong>Users</strong> của Google Sheet,
+            nên hệ thống chưa xác định được dữ liệu nào thuộc về bạn và tạm thời không hiển thị số liệu.
+            Vui lòng liên hệ Admin để bổ sung.
+          </div>
+        )}
+
         {bootstrapError && (
           <div style={{ margin: '16px 32px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(220, 38, 38, 0.12)', color: 'var(--danger)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
             <span>Lỗi tải dữ liệu từ backend: {bootstrapError}</span>
