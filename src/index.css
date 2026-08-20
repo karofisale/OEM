@@ -41,7 +41,171 @@
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
   --shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.03);
   --shadow-glow: 0 4px 20px rgba(0, 160, 233, 0.15);
+
+  /* ---- Semantic tokens ----
+     Added because 148 hardcoded hex values were scattered through the JSX, many
+     of them duplicating a token that already existed three lines above (#00a0e9
+     appeared 43 times while --karofi-cyan sat unused). Colours that carry
+     meaning get a name, so they can be redefined once for dark mode. */
+
+  /* Danger had NO token at all: --accent-rose is #ef4444, a different red, and
+     SalesPlan used #dc2626 and #ef4444 for the same meaning twelve lines apart. */
+  --danger: #dc2626;
+  --danger-strong: #b91c1c;
+  --danger-bg: rgba(220, 38, 38, 0.12);
+
+  --warning-text: #b45309;
+  --warning-bg: rgba(245, 158, 11, 0.15);
+
+  --success-text: #047857;
+  --success-bg: rgba(16, 185, 129, 0.12);
+
+  --info-text: #1d4ed8;
+  --info-bg: rgba(59, 130, 246, 0.12);
+
+  /* Readable emerald for TEXT. #34d399 was used for the order grand total and
+     measures about 1.9:1 on white — the badge styles already used #059669. */
+  --accent-emerald-text: #059669;
+
+  /* Referenced as var(--accent-cyan) in AIOrderAgent's OCR status line but never
+     defined anywhere, so that text silently inherited its parent colour. */
+  --accent-cyan: #0e7490;
+
+  /* Deeper navy used for the sticky summary row in the three reports. */
+  --summary-navy: #005fa7;
+
+  /* SKU / code text in tables. */
+  --code-blue: #0369a1;
+
+  --text-strong: #1e293b;
+  --surface-sunk: #f1f5f9;
+  --summary-row-bg: #e0f2fe;
+
+  /* Text drawn ON a saturated accent fill (avatar circles, filled chips). */
+  --on-accent: #0b1620;
+
+  /* Badge ink, measured against each badge's own 10% tint over the card. */
+  --badge-blue-ink: #0369a1;
+  --badge-emerald-ink: #047857;
+  --badge-amber-ink: #b45309;
+  --badge-purple-ink: #6d28d9;
+  --badge-rose-ink: #b91c1c;
 }
+
+
+/* ---- Dark theme ----
+   Only the tokens are redefined; no component rule lives inside these blocks.
+   A colour whose only definition sat behind a media query would never apply in
+   the un-stamped "system" state, which is the classic half-dark artifact bug.
+
+   Three states, not two: an explicit choice stamps data-theme on <html>, while
+   the default "system" setting stamps nothing and is separated only by
+   prefers-color-scheme. The media query is guarded with :not([data-theme="light"])
+   so an explicit light choice still beats a dark OS. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-main: #0e1620;
+    --bg-card: #16212e;
+    --bg-card-hover: #1c2938;
+    --bg-input: #16212e;
+    --surface-sunk: #111c27;
+    --border-color: #27384a;
+
+    --text-main: #e8eff5;
+    --text-strong: #f1f5f9;
+    --text-muted: #a6bacd;
+    --text-dim: #7690a8;
+
+    /* Brand blues are too dark to read on a dark ground — lift them. */
+    --karofi-cyan: #35b9f5;
+    --karofi-cyan-hover: #5cc8f8;
+    --karofi-navy: #6bb4e8;
+    --summary-navy: #8ac6ee;
+    --summary-row-bg: #16303f;
+    --code-blue: #62b6e8;
+    --border-focus: #35b9f5;
+    --primary: #35b9f5;
+    --primary-hover: #5cc8f8;
+
+    --accent-emerald: #34d399;
+    --accent-emerald-text: #52c99f;
+    --accent-amber: #fbbf24;
+    --accent-rose: #f87171;
+    --accent-purple: #a78bfa;
+    --accent-cyan: #4dd0e1;
+
+    --danger: #ff8a90;
+    --danger-strong: #ffa8ac;
+    --danger-bg: rgba(255, 138, 144, 0.16);
+    --warning-text: #f0b357;
+    --warning-bg: rgba(240, 179, 87, 0.16);
+    --success-text: #52c99f;
+    --success-bg: rgba(82, 201, 159, 0.16);
+    --info-text: #8fb2dd;
+    --info-bg: rgba(143, 178, 221, 0.16);
+
+    --badge-blue-ink: #7cc9f5;
+    --badge-emerald-ink: #5ed4a8;
+    --badge-amber-ink: #f2c46b;
+    --badge-purple-ink: #bda6fb;
+    --badge-rose-ink: #ff9ea3;
+
+    --badge-blue-ink: #7cc9f5;
+  --badge-emerald-ink: #5ed4a8;
+  --badge-amber-ink: #f2c46b;
+  --badge-purple-ink: #bda6fb;
+  --badge-rose-ink: #ff9ea3;
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.3);
+  }
+}
+
+/* Explicit dark choice wins regardless of OS setting. */
+:root[data-theme="dark"] {
+  --bg-main: #0e1620;
+  --bg-card: #16212e;
+  --bg-card-hover: #1c2938;
+  --bg-input: #16212e;
+  --surface-sunk: #111c27;
+  --border-color: #27384a;
+
+  --text-main: #e8eff5;
+  --text-strong: #f1f5f9;
+  --text-muted: #a6bacd;
+  --text-dim: #7690a8;
+
+  --karofi-cyan: #35b9f5;
+  --karofi-cyan-hover: #5cc8f8;
+  --karofi-navy: #6bb4e8;
+  --summary-navy: #8ac6ee;
+  --summary-row-bg: #16303f;
+  --code-blue: #62b6e8;
+  --border-focus: #35b9f5;
+  --primary: #35b9f5;
+  --primary-hover: #5cc8f8;
+
+  --accent-emerald: #34d399;
+  --accent-emerald-text: #52c99f;
+  --accent-amber: #fbbf24;
+  --accent-rose: #f87171;
+  --accent-purple: #a78bfa;
+  --accent-cyan: #4dd0e1;
+
+  --danger: #ff8a90;
+  --danger-strong: #ffa8ac;
+  --danger-bg: rgba(255, 138, 144, 0.16);
+  --warning-text: #f0b357;
+  --warning-bg: rgba(240, 179, 87, 0.16);
+  --success-text: #52c99f;
+  --success-bg: rgba(82, 201, 159, 0.16);
+  --info-text: #8fb2dd;
+  --info-bg: rgba(143, 178, 221, 0.16);
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.3);
+}
+
 
 * {
   margin: 0;
@@ -68,11 +232,11 @@ body {
   background: var(--bg-main);
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--border-color);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--text-dim);
 }
 
 /* Layout Utilities */
@@ -138,13 +302,13 @@ body {
 }
 
 .btn-secondary {
-  background: #ffffff;
+  background: var(--bg-card);
   color: var(--text-main);
   border: 1px solid var(--border-color);
   box-shadow: 0 1px 2px rgba(0,0,0,0.03);
 }
 .btn-secondary:hover {
-  background: #f8fafc;
+  background: var(--bg-card-hover);
   border-color: var(--karofi-cyan-border);
   color: var(--karofi-cyan);
 }
@@ -188,27 +352,27 @@ body {
 
 .badge-blue {
   background: rgba(0, 160, 233, 0.1);
-  color: #008cd1;
+  color: var(--badge-blue-ink);
   border: 1px solid rgba(0, 160, 233, 0.25);
 }
 .badge-emerald {
   background: rgba(16, 185, 129, 0.1);
-  color: #059669;
+  color: var(--badge-emerald-ink);
   border: 1px solid rgba(16, 185, 129, 0.25);
 }
 .badge-amber {
   background: rgba(245, 158, 11, 0.1);
-  color: #d97706;
+  color: var(--badge-amber-ink);
   border: 1px solid rgba(245, 158, 11, 0.25);
 }
 .badge-purple {
   background: rgba(139, 92, 246, 0.1);
-  color: #7c3aed;
+  color: var(--badge-purple-ink);
   border: 1px solid rgba(139, 92, 246, 0.25);
 }
 .badge-rose {
   background: rgba(239, 68, 68, 0.1);
-  color: #dc2626;
+  color: var(--badge-rose-ink);
   border: 1px solid rgba(239, 68, 68, 0.25);
 }
 
@@ -229,7 +393,7 @@ body {
 .input-field {
   width: 100%;
   padding: 10px 14px;
-  background: #ffffff;
+  background: var(--bg-input);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-main);
@@ -249,7 +413,7 @@ body {
   overflow-x: auto;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
-  background: #ffffff;
+  background: var(--bg-card);
   box-shadow: var(--shadow-sm);
   position: relative;
 }
@@ -262,7 +426,7 @@ body {
 }
 
 .custom-table th {
-  background: #f1f5f9;
+  background: var(--surface-sunk);
   padding: 12px 16px;
   font-weight: 700;
   color: #334155;
@@ -280,7 +444,7 @@ body {
   position: sticky;
   top: 38px;
   z-index: 20;
-  background: #e0f2fe !important;
+  background: var(--summary-row-bg) !important;
   border-bottom: 2px solid #00a0e9 !important;
   box-shadow: 0 2px 4px rgba(0, 160, 233, 0.1);
   font-weight: 800;

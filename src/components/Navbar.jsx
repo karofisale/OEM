@@ -1,5 +1,6 @@
 import React from 'react';
-import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut, Menu, KeyRound } from 'lucide-react';
+import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut, Menu, KeyRound, Sun, Moon, Monitor } from 'lucide-react';
+import { loadTheme, applyTheme } from '../services/theme';
 
 export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSyncing, onRefreshData, onOpenMobileMenu, onOpenChangePassword }) {
   const getRoleLabel = (role) => {
@@ -13,10 +14,25 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
 
   const roleInfo = getRoleLabel(activeUser.role);
 
+  // Cycles system -> light -> dark. 'system' is the default and follows the OS,
+  // which is why it is a three-way toggle rather than a two-way switch.
+  const [theme, setTheme] = React.useState(loadTheme);
+  const THEME_UI = {
+    system: { Icon: Monitor, label: 'Giao diện: theo hệ thống', next: 'light' },
+    light:  { Icon: Sun,     label: 'Giao diện: sáng',          next: 'dark' },
+    dark:   { Icon: Moon,    label: 'Giao diện: tối',           next: 'system' }
+  };
+  const themeUi = THEME_UI[theme] || THEME_UI.system;
+  const cycleTheme = () => {
+    const next = themeUi.next;
+    setTheme(next);
+    applyTheme(next);
+  };
+
   return (
     <header className="app-navbar" style={{
       height: '68px',
-      background: '#ffffff',
+      background: 'var(--bg-card)',
       borderBottom: '1px solid var(--border-color)',
       display: 'flex',
       alignItems: 'center',
@@ -35,7 +51,7 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
           style={{ padding: '8px', borderRadius: '50%', width: '36px', height: '36px' }}
           title="Mở Menu"
         >
-          <Menu size={18} color="#00a0e9" />
+          <Menu size={18} color="var(--karofi-cyan)" />
         </button>
 
         <div style={{
@@ -52,10 +68,10 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
         </div>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <h1 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#00a0e9', letterSpacing: '-0.03em' }}>
+            <h1 style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--karofi-cyan)', letterSpacing: '-0.03em' }}>
               KAROFI
             </h1>
-            <span className="hide-mobile-xs" style={{ fontSize: '0.85rem', fontWeight: 800, color: '#004e89', letterSpacing: '0.05em' }}>
+            <span className="hide-mobile-xs" style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--karofi-navy)', letterSpacing: '0.05em' }}>
               OEM PORTAL
             </span>
           </div>
@@ -95,8 +111,8 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
         >
           <div style={{
             width: '28px', height: '28px', borderRadius: '50%',
-            background: activeUser.role === 'creator' ? '#f59e0b' : activeUser.role === 'admin' ? '#8b5cf6' : activeUser.role === 'leader' ? '#00a0e9' : '#10b981',
-            color: '#fff', fontWeight: 800, fontSize: '0.75rem',
+            background: activeUser.role === 'creator' ? 'var(--accent-amber)' : activeUser.role === 'admin' ? 'var(--accent-purple)' : activeUser.role === 'leader' ? 'var(--karofi-cyan)' : 'var(--accent-emerald)',
+            color: 'var(--on-accent)', fontWeight: 800, fontSize: '0.75rem',
             display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
             {activeUser.name[0].toUpperCase()}
@@ -114,6 +130,16 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
           <span className="hide-mobile-xs" style={{ fontSize: '0.725rem', color: 'var(--karofi-cyan)', fontWeight: 700, marginLeft: '4px' }}>
             Đổi
           </span>
+        </button>
+
+        <button
+          onClick={cycleTheme}
+          className="btn btn-secondary btn-sm"
+          title={`${themeUi.label} — bấm để đổi`}
+          aria-label={themeUi.label}
+          style={{ marginRight: '8px' }}
+        >
+          <themeUi.Icon size={14} />
         </button>
 
         <button

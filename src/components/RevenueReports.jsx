@@ -30,7 +30,7 @@ export default function RevenueReports({ transactions, clients, activeUser, base
       <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BarChart3 size={24} color="#00a0e9" /> Báo cáo doanh thu
+            <BarChart3 size={24} color="var(--karofi-cyan)" /> Báo cáo doanh thu
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
             {canFilterAllSales

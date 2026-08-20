@@ -31,7 +31,7 @@ export default function RowActionButtons({ onInsertAbove, onInsertBelow, onDelet
         onClick={onDelete}
         className="btn btn-secondary btn-sm"
         title="Xóa dòng"
-        style={{ padding: '4px 6px', color: '#dc2626' }}
+        style={{ padding: '4px 6px', color: 'var(--danger)' }}
       >
         <Trash2 size={13} />
       </button>

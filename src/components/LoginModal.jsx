@@ -90,7 +90,7 @@ export default function LoginModal({ onLoginSuccess, onClose, closable }) {
 
         {usersError && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '0.8rem', fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--danger)', fontSize: '0.8rem', fontWeight: 600 }}>
               <AlertCircle size={14} /> Không tải được danh sách tài khoản: {usersError}
             </div>
             <button type="button" onClick={loadUsers} className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}>
@@ -119,7 +119,7 @@ export default function LoginModal({ onLoginSuccess, onClose, closable }) {
                   padding: '12px 16px',
                   borderRadius: 'var(--radius-md)',
                   border: isSelected ? '2px solid var(--karofi-cyan)' : '1px solid var(--border-color)',
-                  background: isSelected ? 'var(--karofi-cyan-light)' : '#ffffff',
+                  background: isSelected ? 'var(--karofi-cyan-light)' : 'var(--bg-card)',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease'
                 }}
@@ -127,8 +127,8 @@ export default function LoginModal({ onLoginSuccess, onClose, closable }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{
                     width: '32px', height: '32px', borderRadius: '50%',
-                    background: u.role === 'creator' ? '#f59e0b' : u.role === 'admin' ? '#8b5cf6' : u.role === 'leader' ? '#00a0e9' : '#10b981',
-                    color: '#fff', fontWeight: 800, fontSize: '0.8rem',
+                    background: u.role === 'creator' ? 'var(--accent-amber)' : u.role === 'admin' ? 'var(--accent-purple)' : u.role === 'leader' ? 'var(--karofi-cyan)' : 'var(--accent-emerald)',
+                    color: 'var(--on-accent)', fontWeight: 800, fontSize: '0.8rem',
                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>
                     {u.name[0].toUpperCase()}
@@ -171,7 +171,7 @@ export default function LoginModal({ onLoginSuccess, onClose, closable }) {
               />
             </div>
             {loginError && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', color: '#dc2626', fontSize: '0.8rem', fontWeight: 600 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', color: 'var(--danger)', fontSize: '0.8rem', fontWeight: 600 }}>
                 <AlertCircle size={14} /> {loginError}
               </div>
             )}

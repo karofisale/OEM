@@ -148,7 +148,7 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
       <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CalendarRange size={24} color="#10b981" /> Kế hoạch kinh doanh
+            <CalendarRange size={24} color="var(--accent-emerald)" /> Kế hoạch kinh doanh
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
             Quản lý kế hoạch doanh số tháng/tuần (`Plan_thang`). Chênh = Done - Plan Update.
@@ -177,7 +177,7 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
               type="checkbox" 
               checked={onlyShowActivePlan}
               onChange={(e) => setOnlyShowActivePlan(e.target.checked)}
-              style={{ width: '16px', height: '16px', accentColor: '#00a0e9' }}
+              style={{ width: '16px', height: '16px', accentColor: 'var(--karofi-cyan)' }}
             />
             Chỉ hiển thị Khách có Plan Update &gt; 0
           </label>
@@ -222,32 +222,32 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
           <tbody>
             {/* STICKY TOP SUMMARY ROW */}
             <tr className="top-summary-row">
-              <td style={{ color: '#004e89', fontWeight: 900 }}>Σ TỔNG CỘNG</td>
-              <td style={{ color: '#004e89', whiteSpace: 'nowrap' }}>{selectedSale === 'ALL' ? 'All SALE' : selectedSale}</td>
+              <td style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>Σ TỔNG CỘNG</td>
+              <td style={{ color: 'var(--karofi-navy)', whiteSpace: 'nowrap' }}>{selectedSale === 'ALL' ? 'All SALE' : selectedSale}</td>
               
-              <td style={{ textAlign: 'right', color: '#004e89', fontFamily: 'JetBrains Mono', fontWeight: 900 }}>
+              <td style={{ textAlign: 'right', color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>
                 {planTotals.planKpi.toLocaleString('vi-VN')}
               </td>
 
-              <td style={{ textAlign: 'right', color: '#005fa7', fontFamily: 'JetBrains Mono', fontWeight: 900, fontSize: '0.875rem' }}>
+              <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900, fontSize: '0.875rem' }}>
                 {planTotals.planUpdate.toLocaleString('vi-VN')}
               </td>
 
-              <td style={{ textAlign: 'right', color: '#059669', fontFamily: 'JetBrains Mono', fontWeight: 900 }}>
+              <td style={{ textAlign: 'right', color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>
                 {planTotals.done.toLocaleString('vi-VN')}
               </td>
 
-              <td style={{ textAlign: 'right', color: planTotals.chenh >= 0 ? '#059669' : '#dc2626', fontFamily: 'JetBrains Mono', fontWeight: 900 }}>
+              <td style={{ textAlign: 'right', color: planTotals.chenh >= 0 ? 'var(--accent-emerald-text)' : 'var(--danger)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>
                 {planTotals.chenh.toLocaleString('vi-VN')}
               </td>
 
-              <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.775rem' }}>{planTotals.w1.toLocaleString('vi-VN')}</td>
-              <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.775rem' }}>{planTotals.w2.toLocaleString('vi-VN')}</td>
-              <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.775rem' }}>{planTotals.w3.toLocaleString('vi-VN')}</td>
-              <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.775rem' }}>{planTotals.w4.toLocaleString('vi-VN')}</td>
-              <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.775rem' }}>{planTotals.w5.toLocaleString('vi-VN')}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.775rem' }}>{planTotals.w1.toLocaleString('vi-VN')}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.775rem' }}>{planTotals.w2.toLocaleString('vi-VN')}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.775rem' }}>{planTotals.w3.toLocaleString('vi-VN')}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.775rem' }}>{planTotals.w4.toLocaleString('vi-VN')}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.775rem' }}>{planTotals.w5.toLocaleString('vi-VN')}</td>
 
-              <td style={{ color: '#004e89', fontSize: '0.75rem' }}>Tổng kế hoạch</td>
+              <td style={{ color: 'var(--karofi-navy)', fontSize: '0.75rem' }}>Tổng kế hoạch</td>
               <td><span className="badge badge-blue">Duyệt hệ thống</span></td>
             </tr>
 
@@ -257,42 +257,42 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
 
               return (
                 <tr key={`${plan.searchCode}_${plan.sale}_${idx}`} style={{ height: '42px' }}>
-                  <td className="code-font" style={{ fontWeight: 800, color: '#00a0e9', fontSize: '0.85rem' }}>
+                  <td className="code-font" style={{ fontWeight: 800, color: 'var(--karofi-cyan)', fontSize: '0.85rem' }}>
                     {plan.searchCode}
                   </td>
-                  <td style={{ fontWeight: 600, color: '#475569', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
+                  <td style={{ fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
                     {plan.sale}
                   </td>
 
-                  <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                  <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                     {plan.planKpi ? plan.planKpi.toLocaleString('vi-VN') : '0'}
                   </td>
 
-                  <td style={{ textAlign: 'right', fontWeight: 800, color: '#004e89', fontFamily: 'JetBrains Mono', fontSize: '0.825rem' }}>
+                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>
                     {plan.planUpdate ? plan.planUpdate.toLocaleString('vi-VN') : '0'}
                   </td>
 
-                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: 'JetBrains Mono', fontSize: '0.825rem' }}>
+                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>
                     {plan.done ? plan.done.toLocaleString('vi-VN') : '0'}
                   </td>
 
-                  <td style={{ textAlign: 'right', fontWeight: 800, color: chenh >= 0 ? '#059669' : '#ef4444', fontFamily: 'JetBrains Mono', fontSize: '0.825rem' }}>
+                  <td style={{ textAlign: 'right', fontWeight: 800, color: chenh >= 0 ? 'var(--accent-emerald-text)' : 'var(--accent-rose)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>
                     {chenh.toLocaleString('vi-VN')}
                   </td>
 
-                  <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.775rem' }}>
+                  <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.775rem' }}>
                     {plan.w1 ? plan.w1.toLocaleString('vi-VN') : '0'}
                   </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.775rem' }}>
+                  <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.775rem' }}>
                     {plan.w2 ? plan.w2.toLocaleString('vi-VN') : '0'}
                   </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.775rem' }}>
+                  <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.775rem' }}>
                     {plan.w3 ? plan.w3.toLocaleString('vi-VN') : '0'}
                   </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.775rem' }}>
+                  <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.775rem' }}>
                     {plan.w4 ? plan.w4.toLocaleString('vi-VN') : '0'}
                   </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.775rem' }}>
+                  <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.775rem' }}>
                     {plan.w5 ? plan.w5.toLocaleString('vi-VN') : '0'}
                   </td>
 
@@ -365,7 +365,7 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
                   ariaLabel="Chọn khách hàng cho kế hoạch"
                   renderOption={(c) => (
                     <span style={{ fontSize: '0.85rem' }}>
-                      <span className="code-font" style={{ color: '#00a0e9', fontWeight: 700 }}>{c.codeSearch}</span> — {c.name}
+                      <span className="code-font" style={{ color: 'var(--karofi-cyan)', fontWeight: 700 }}>{c.codeSearch}</span> — {c.name}
                     </span>
                   )}
                 />

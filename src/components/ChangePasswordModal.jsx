@@ -56,7 +56,7 @@ export default function ChangePasswordModal({ token, onClose }) {
 
         {success ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', textAlign: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#059669', fontWeight: 700 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-emerald-text)', fontWeight: 700 }}>
               <CheckCircle2 size={20} /> Đổi mã PIN thành công!
             </div>
             <button type="button" onClick={onClose} className="btn btn-primary" style={{ width: '100%' }}>
@@ -112,7 +112,7 @@ export default function ChangePasswordModal({ token, onClose }) {
             </div>
 
             {error && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '0.8rem', fontWeight: 600 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--danger)', fontSize: '0.8rem', fontWeight: 600 }}>
                 <AlertCircle size={14} /> {error}
               </div>
             )}

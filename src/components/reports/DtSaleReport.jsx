@@ -58,7 +58,7 @@ export default function DtSaleReport({ transactions, viewMode }) {
       {/* Cascading Filters Bar */}
       <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', padding: '14px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Filter size={15} color="#00a0e9" />
+          <Filter size={15} color="var(--karofi-cyan)" />
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Lọc Năm:</span>
           <select className="input-field" style={{ width: '110px' }} value={effectiveYear} onChange={(e) => setSaleFilterYear(e.target.value)} aria-label="Lọc theo năm">
             <option value="ALL">Tất cả Năm</option>
@@ -98,14 +98,14 @@ export default function DtSaleReport({ transactions, viewMode }) {
             </thead>
             <tbody>
               <tr className="top-summary-row">
-                <td style={{ color: '#004e89' }}>Σ</td>
-                <td style={{ color: '#004e89', fontWeight: 900 }}>TỔNG CỘNG HỆ THỐNG</td>
-                <td style={{ color: '#004e89' }}>{dtSaleTotals.orderCount} đơn</td>
-                <td style={{ textAlign: 'right', color: '#004e89' }}>{dtSaleTotals.totalQty.toLocaleString('vi-VN')} PC</td>
-                <td style={{ textAlign: 'right', color: '#005fa7', fontSize: '0.95rem', fontFamily: 'JetBrains Mono', fontWeight: 900 }}>
+                <td style={{ color: 'var(--karofi-navy)' }}>Σ</td>
+                <td style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>TỔNG CỘNG HỆ THỐNG</td>
+                <td style={{ color: 'var(--karofi-navy)' }}>{dtSaleTotals.orderCount} đơn</td>
+                <td style={{ textAlign: 'right', color: 'var(--karofi-navy)' }}>{dtSaleTotals.totalQty.toLocaleString('vi-VN')} PC</td>
+                <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontSize: '0.95rem', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>
                   {dtSaleTotals.totalRevenue.toLocaleString('vi-VN')} ₫
                 </td>
-                <td style={{ color: '#004e89' }}>100%</td>
+                <td style={{ color: 'var(--karofi-navy)' }}>100%</td>
               </tr>
 
               {dtSaleData.map((item, idx) => {
@@ -117,13 +117,13 @@ export default function DtSaleReport({ transactions, viewMode }) {
                     <td style={{ fontWeight: 700, color: 'var(--karofi-navy)' }}>{item.sale}</td>
                     <td style={{ fontWeight: 600 }}>{item.orderCount} đơn</td>
                     <td style={{ textAlign: 'right', fontWeight: 600 }}>{item.totalQty.toLocaleString('vi-VN')} PC</td>
-                    <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: 'JetBrains Mono' }}>
+                    <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace" }}>
                       {item.totalRevenue.toLocaleString('vi-VN')} ₫
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ flex: 1, height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${pct}%`, background: '#00a0e9', borderRadius: '4px' }} />
+                        <div style={{ flex: 1, height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${pct}%`, background: 'var(--karofi-cyan)', borderRadius: '4px' }} />
                         </div>
                         <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>{pct}%</span>
                       </div>

@@ -60,7 +60,7 @@ export default function DebtImporter({ onSyncDebt }) {
       <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FileSpreadsheet size={22} color="#06b6d4" /> Cập Nhật Công Nợ Khách Hàng Từ File Excel
+            <FileSpreadsheet size={22} color="var(--accent-cyan)" /> Cập Nhật Công Nợ Khách Hàng Từ File Excel
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
             Giải pháp thay thế thao tác sửa tay thủ công: Thả file Excel công nợ ➔ Tự động đọc & Cập nhật tab `Debt_Tracking` trên Google Sheet.
@@ -74,7 +74,7 @@ export default function DebtImporter({ onSyncDebt }) {
           width: '64px', height: '64px', borderRadius: '50%',
           background: 'rgba(6, 182, 212, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
-          <Upload size={32} color="#06b6d4" />
+          <Upload size={32} color="var(--accent-cyan)" />
         </div>
 
         <div>
@@ -108,7 +108,7 @@ export default function DebtImporter({ onSyncDebt }) {
           </div>
 
           {syncStatus === 'warning' && (
-            <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(245, 158, 11, 0.15)', color: '#b45309', fontSize: '0.85rem', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+            <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning-text)', fontSize: '0.85rem', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
               <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
               Tab <strong>Debt_Tracking</strong> đã có một quy trình cập nhật riêng (đối chiếu theo Mã KH/Tên khách hàng) — cố tình chưa nối chức năng này để tránh 2 luồng ghi đá nhau. Vui lòng dùng bảng xem trước bên dưới để cập nhật thủ công, hoặc dùng quy trình đã có.
             </div>
@@ -130,8 +130,8 @@ export default function DebtImporter({ onSyncDebt }) {
                   <tr key={`${d.clientCode}_${idx}`}>
                     <td className="code-font" style={{ color: 'var(--accent-purple)', fontWeight: 600 }}>{d.clientCode}</td>
                     <td style={{ fontWeight: 600 }}>{d.clientName}</td>
-                    <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono' }}>{d.openingDebt.toLocaleString('vi-VN')} ₫</td>
-                    <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontWeight: 700, color: 'var(--accent-emerald)' }}>
+                    <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace" }}>{d.openingDebt.toLocaleString('vi-VN')} ₫</td>
+                    <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, color: 'var(--accent-emerald)' }}>
                       {d.closingDebt.toLocaleString('vi-VN')} ₫
                     </td>
                     <td><span className="badge badge-amber">{d.salesRep}</span></td>

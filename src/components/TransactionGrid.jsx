@@ -69,7 +69,7 @@ export default function TransactionGrid({ transactions }) {
       <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FileText size={24} color="#00a0e9" /> Lịch sử doanh thu
+            <FileText size={24} color="var(--karofi-cyan)" /> Lịch sử doanh thu
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
             Tra cứu nhật ký chi tiết các giao dịch xuất bán thực tế tích hợp từ hệ thống SAP.
@@ -145,13 +145,13 @@ export default function TransactionGrid({ transactions }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
         <div className="glass-card" style={{ flex: '1', minWidth: '200px', padding: '12px 18px' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tổng Số Lượng</span>
-          <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: 'JetBrains Mono', color: 'var(--karofi-navy)' }}>
+          <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: 'var(--karofi-navy)' }}>
             {totals.qty.toLocaleString('vi-VN')}
           </div>
         </div>
         <div className="glass-card" style={{ flex: '1', minWidth: '200px', padding: '12px 18px' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tổng DT Thuần (VND)</span>
-          <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: 'JetBrains Mono', color: 'var(--accent-emerald)' }}>
+          <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: 'var(--accent-emerald)' }}>
             {totals.netRevenue.toLocaleString('vi-VN')}
           </div>
         </div>
@@ -180,25 +180,25 @@ export default function TransactionGrid({ transactions }) {
                 <td className="code-font" style={{ fontWeight: 700, color: 'var(--accent-purple)', fontSize: '0.8rem' }}>
                   {row.orderNo}
                 </td>
-                <td className="code-font" style={{ fontWeight: 800, color: '#00a0e9', fontSize: '0.825rem' }}>
+                <td className="code-font" style={{ fontWeight: 800, color: 'var(--karofi-cyan)', fontSize: '0.825rem' }}>
                   {row.clientCode}
                 </td>
-                <td className="code-font" style={{ color: '#64748b', fontWeight: 600, fontSize: '0.775rem' }}>
+                <td className="code-font" style={{ color: 'var(--text-dim)', fontWeight: 600, fontSize: '0.775rem' }}>
                   {row.sku}
                 </td>
                 <td style={{ maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.775rem', fontWeight: 600, color: 'var(--text-main)' }}>
                   {row.skuName}
                 </td>
-                <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.8rem', fontFamily: 'JetBrains Mono' }}>
+                <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.8rem', fontFamily: "'JetBrains Mono', monospace" }}>
                   {row.qty.toLocaleString('vi-VN')}
                 </td>
-                <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.775rem' }}>
+                <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.775rem' }}>
                   {row.price ? row.price.toLocaleString('vi-VN') : '0'}
                 </td>
-                <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: 'JetBrains Mono', fontSize: '0.8rem' }}>
+                <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>
                   {row.netRevenue ? row.netRevenue.toLocaleString('vi-VN') : '0'}
                 </td>
-                <td style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>
+                <td style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {row.sale}
                 </td>
               </tr>

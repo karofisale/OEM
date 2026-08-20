@@ -65,7 +65,7 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
       <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', padding: '14px 20px' }}>
         {canFilterAllSales && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Filter size={15} color="#00a0e9" />
+            <Filter size={15} color="var(--karofi-cyan)" />
             <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Lọc SALE:</span>
             <select className="input-field" style={{ width: '150px' }} value={ngayFilterSale} onChange={(e) => setNgayFilterSale(e.target.value)}>
               <option value="ALL">Tất cả SALE</option>
@@ -105,11 +105,11 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
             </thead>
             <tbody>
               <tr className="top-summary-row">
-                <td style={{ color: '#004e89' }}>Σ</td>
-                <td style={{ color: '#004e89', fontWeight: 900 }}>TỔNG CỘNG</td>
-                <td style={{ color: '#004e89' }}>Tất cả phát sinh ngày</td>
-                <td style={{ color: '#004e89' }}>All SALE</td>
-                <td style={{ textAlign: 'right', color: '#005fa7', fontSize: '0.95rem', fontFamily: 'JetBrains Mono', fontWeight: 900 }}>
+                <td style={{ color: 'var(--karofi-navy)' }}>Σ</td>
+                <td style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>TỔNG CỘNG</td>
+                <td style={{ color: 'var(--karofi-navy)' }}>Tất cả phát sinh ngày</td>
+                <td style={{ color: 'var(--karofi-navy)' }}>All SALE</td>
+                <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontSize: '0.95rem', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>
                   {dtNgayTotals.totalRevenue.toLocaleString('vi-VN')} ₫
                 </td>
               </tr>
@@ -117,10 +117,10 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
               {pagedRows.map((row) => (
                 <tr key={`${row.date}_${row.clientCode}`}>
                   <td style={{ fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8rem' }}>{row.date}</td>
-                  <td className="code-font" style={{ fontWeight: 800, color: '#00a0e9' }}>{row.clientCode}</td>
+                  <td className="code-font" style={{ fontWeight: 800, color: 'var(--karofi-cyan)' }}>{row.clientCode}</td>
                   <td style={{ fontWeight: 700 }}>{row.clientName}</td>
-                  <td style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>{row.sale}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: 'JetBrains Mono' }}>
+                  <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{row.sale}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace" }}>
                     {row.totalRevenue.toLocaleString('vi-VN')} ₫
                   </td>
                 </tr>
@@ -134,7 +134,7 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
             <div key={`${row.date}_${row.clientCode}`} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{row.date}</span>
-                <span className="code-font" style={{ fontSize: '0.8rem', fontWeight: 800, color: '#00a0e9' }}>{row.clientCode}</span>
+                <span className="code-font" style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--karofi-cyan)' }}>{row.clientCode}</span>
               </div>
               <h4 style={{ fontSize: '0.9rem', fontWeight: 700 }}>{row.clientName}</h4>
               <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>

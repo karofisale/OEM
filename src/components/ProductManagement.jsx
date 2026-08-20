@@ -116,7 +116,7 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
       <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
         <div>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Package size={22} color="#00a0e9" /> Danh Mục Sản Phẩm & Đề Xuất Giá Karofi
+            <Package size={22} color="var(--karofi-cyan)" /> Danh Mục Sản Phẩm & Đề Xuất Giá Karofi
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
             {/* Count comes from the data, not a hardcoded "440+" that never changed. */}
@@ -193,11 +193,11 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
           <tbody>
             {pagedMaterials.map((mat) => (
               <tr key={mat.sku}>
-                <td className="code-font" style={{ fontWeight: 700, color: '#00a0e9', fontSize: '0.8rem' }}>{mat.sku}</td>
+                <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{mat.sku}</td>
                 <td style={{ fontWeight: 600 }}>{mat.name}{mat.alias && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}> ({mat.alias})</span>}</td>
                 <td><span className="badge badge-purple">{mat.group}</span></td>
-                <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-emerald)' }}>{fmtPrice(mat.latestPriceVat)}</td>
-                <td style={{ textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: '0.8rem' }}>{fmtPrice(mat.suggestedPrice)}</td>
+                <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-emerald)' }}>{fmtPrice(mat.latestPriceVat)}</td>
+                <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmtPrice(mat.suggestedPrice)}</td>
                 <td style={{ textAlign: 'right', fontSize: '0.8rem' }}>{mat.totalQty?.toLocaleString('vi-VN') || 0} {mat.unit}</td>
                 {/* display:flex on a <td> takes the cell out of table layout, so it
                     stopped honouring the 190px <th> width and broke row alignment. */}
@@ -207,7 +207,7 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
                     onClick={() => { setProposeModalMat(mat); setProposedPriceInput(mat.suggestedPrice || mat.latestPriceVat || ''); }}
                     className="btn btn-secondary btn-sm"
                   >
-                    <DollarSign size={14} color="#00a0e9" /> Đề Xuất Giá
+                    <DollarSign size={14} color="var(--karofi-cyan)" /> Đề Xuất Giá
                   </button>
                   {isAdmin && (
                     <button onClick={() => openEditModal(mat)} className="btn btn-secondary btn-sm">
@@ -227,7 +227,7 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
           <div key={mat.sku} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <div>
-                <span className="code-font" style={{ fontSize: '0.75rem', color: '#00a0e9', fontWeight: 800 }}>
+                <span className="code-font" style={{ fontSize: '0.75rem', color: 'var(--karofi-cyan)', fontWeight: 800 }}>
                   SKU: {mat.sku}
                 </span>
                 <h4 style={{ fontSize: '0.95rem', fontWeight: 700, marginTop: '2px', color: 'var(--text-main)' }}>{mat.name}</h4>
@@ -236,7 +236,7 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
             </div>
 
             {mat.alias && (
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'var(--surface-sunk)', padding: '4px 8px', borderRadius: '4px' }}>
                 🏷️ Alias: <strong>{mat.alias}</strong>
               </div>
             )}
@@ -244,7 +244,7 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
             {/* Price Metrics */}
             <div style={{
               display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px',
-              background: '#f8fafc', border: '1px solid var(--border-color)', padding: '10px', borderRadius: 'var(--radius-md)', textAlign: 'center'
+              background: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', padding: '10px', borderRadius: 'var(--radius-md)', textAlign: 'center'
             }}>
               <div>
                 <span style={{ fontSize: '0.675rem', color: 'var(--text-dim)' }}>Giá Mới Nhất (VAT)</span>
@@ -271,7 +271,7 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
                   onClick={() => { setProposeModalMat(mat); setProposedPriceInput(mat.suggestedPrice || mat.latestPriceVat || ''); }}
                   className="btn btn-secondary btn-sm"
                 >
-                  <DollarSign size={14} color="#00a0e9" /> Đề Xuất Giá
+                  <DollarSign size={14} color="var(--karofi-cyan)" /> Đề Xuất Giá
                 </button>
                 {isAdmin && (
                   <button onClick={() => openEditModal(mat)} className="btn btn-secondary btn-sm">
@@ -317,7 +317,7 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
             <div style={{
               display: 'flex', alignItems: 'flex-start', gap: '8px',
               padding: '10px 14px', borderRadius: 'var(--radius-md)',
-              background: 'rgba(245, 158, 11, 0.15)', color: '#b45309', fontSize: '0.825rem'
+              background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning-text)', fontSize: '0.825rem'
             }}>
               <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
               <span>

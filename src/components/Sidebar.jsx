@@ -45,7 +45,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
     {isMobileOpen && <div className="sidebar-backdrop" onClick={onCloseMobile} />}
     <aside className={`app-sidebar ${isMobileOpen ? 'mobile-open' : ''}`} style={{
       width: effectiveCollapsed ? '72px' : '250px',
-      background: '#ffffff',
+      background: 'var(--bg-card)',
       borderRight: '1px solid var(--border-color)',
       display: 'flex',
       flexDirection: 'column',
@@ -69,7 +69,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
         marginBottom: '4px'
       }}>
         {!effectiveCollapsed && (
-          <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#004e89', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--karofi-navy)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             Menu Chức Năng
           </span>
         )}
@@ -80,7 +80,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
           style={{ padding: '6px', borderRadius: '50%', width: '30px', height: '30px' }}
           title={isMobileOpen ? 'Đóng Menu' : (isCollapsed ? 'Mở rộng Menu' : 'Thu gọn Menu')}
         >
-          {effectiveCollapsed ? <ChevronRight size={16} color="#00a0e9" /> : <ChevronLeft size={16} color="#00a0e9" />}
+          {effectiveCollapsed ? <ChevronRight size={16} color="var(--karofi-cyan)" /> : <ChevronLeft size={16} color="var(--karofi-cyan)" />}
         </button>
       </div>
 
@@ -102,7 +102,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
               borderRadius: 'var(--radius-md)',
               border: isActive ? '1px solid var(--karofi-cyan-border)' : '1px solid transparent',
               background: isActive ? 'var(--karofi-cyan-light)' : 'transparent',
-              color: isActive ? '#00a0e9' : 'var(--text-muted)',
+              color: isActive ? 'var(--karofi-cyan)' : 'var(--text-muted)',
               fontWeight: isActive ? 800 : 500,
               fontSize: '0.85rem',
               cursor: 'pointer',
@@ -110,12 +110,12 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <Icon size={18} color={isActive ? '#00a0e9' : '#64748b'} />
+              <Icon size={18} color={isActive ? 'var(--karofi-cyan)' : 'var(--text-dim)'} />
               {!effectiveCollapsed && <span>{item.label}</span>}
             </div>
 
             {!effectiveCollapsed && item.count && (
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', background: 'var(--surface-sunk)', padding: '2px 6px', borderRadius: '4px' }}>
                 {item.count}
               </span>
             )}
@@ -126,7 +126,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
       {!effectiveCollapsed && (
         <div style={{ marginTop: 'auto', padding: '12px 10px', background: 'var(--bg-main)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-            <Sparkles size={14} color="#00a0e9" />
+            <Sparkles size={14} color="var(--karofi-cyan)" />
             <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--karofi-navy)' }}>Karofi AI Engine</span>
           </div>
           <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>

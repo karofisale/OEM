@@ -40,7 +40,7 @@ export default function GoogleSheetSettings() {
       {/* Main Form */}
       <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Database size={18} color="#06b6d4" /> 1. Kết Nối Backend API
+          <Database size={18} color="var(--accent-cyan)" /> 1. Kết Nối Backend API
         </h3>
 
         <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
@@ -64,13 +64,13 @@ export default function GoogleSheetSettings() {
         </div>
 
         {testState === 'success' && (
-          <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-emerald-text)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <CheckCircle2 size={16} /> {testMessage}
           </div>
         )}
 
         {testState === 'error' && (
-          <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(220, 38, 38, 0.12)', color: '#dc2626', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(220, 38, 38, 0.12)', color: 'var(--danger)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <AlertTriangle size={16} /> {testMessage}
           </div>
         )}
@@ -79,19 +79,24 @@ export default function GoogleSheetSettings() {
       {/* Python & SAP Solution Guide */}
       <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Code2 size={18} color="#8b5cf6" /> 2. Hướng Dẫn Tự Động Hóa Python Script Với SAP
+          <Code2 size={18} color="var(--accent-purple)" /> 2. Hướng Dẫn Tự Động Hóa Python Script Với SAP
         </h3>
 
         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
           Để tự động hóa việc đẩy dữ liệu từ SAP vào Google Sheet mà không cần mở máy tính cá nhân, bạn có thể triển khai mẫu script Python sau làm Cronjob (Server/Windows Task Scheduler):
         </p>
 
+        {/* Was a dark-theme snippet dropped into a light app: rgba(0,0,0,0.3)
+            over the white card resolves to mid-grey, and #93c5fd on top of that
+            measures roughly 1.6:1 — essentially unreadable. Uses the surface and
+            text tokens now, so it stays legible in either theme. */}
         <pre className="code-font" style={{
-          background: 'rgba(0,0,0,0.3)',
+          background: 'var(--surface-sunk)',
           padding: '16px',
           borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border-color)',
           fontSize: '0.8rem',
-          color: '#93c5fd',
+          color: 'var(--text-main)',
           overflowX: 'auto',
           lineHeight: 1.4
         }}>

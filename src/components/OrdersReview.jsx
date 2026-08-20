@@ -252,7 +252,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
       <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ClipboardList size={24} color="#00a0e9" /> Đơn Hàng Chờ Duyệt (tab Orders)
+            <ClipboardList size={24} color="var(--karofi-cyan)" /> Đơn Hàng Chờ Duyệt (tab Orders)
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
             Rà soát các đơn AI Agent đã tạo, chỉnh sửa nếu cần, rồi copy mã dán vào SAP.
@@ -275,7 +275,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
       </div>
 
       {loadError && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '0.85rem', fontWeight: 600 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--danger)', fontSize: '0.85rem', fontWeight: 600 }}>
           <AlertCircle size={16} /> Không tải được danh sách đơn hàng: {loadError}
         </div>
       )}
@@ -329,7 +329,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
                     onClick={() => handleDeleteOrder(orderNo)}
                     disabled={deletingOrderNo === orderNo}
                     className="btn btn-secondary btn-sm"
-                    style={{ color: '#dc2626' }}
+                    style={{ color: 'var(--danger)' }}
                     title="Xóa toàn bộ đơn hàng này (phòng lên đơn trùng/nhầm)"
                   >
                     {deletingOrderNo === orderNo ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
@@ -364,7 +364,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
                             onSelect={(m) => handleSkuSelect(row, m)}
                           />
                         ) : (
-                          <span className="code-font" style={{ fontWeight: 700, color: '#0369a1' }}>{row.sku}</span>
+                          <span className="code-font" style={{ fontWeight: 700, color: 'var(--code-blue)' }}>{row.sku}</span>
                         )}
                       </td>
                       <td>
@@ -415,7 +415,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
                             onSelect={(c) => handleClientSelect(row, c)}
                           />
                         ) : (
-                          <span className="code-font" style={{ fontWeight: 700, color: '#0369a1' }}>{row.clientCode}</span>
+                          <span className="code-font" style={{ fontWeight: 700, color: 'var(--code-blue)' }}>{row.clientCode}</span>
                         )}
                         <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
                           {getValue(row, 'clientCodeSearch')}
@@ -457,7 +457,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
             </div>
 
             <div style={{ textAlign: 'right', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)' }}>
-              Tổng đơn: <span style={{ color: '#34d399' }}>{Math.round(groupTotal).toLocaleString('vi-VN')} ₫</span>
+              Tổng đơn: <span style={{ color: 'var(--accent-emerald-text)' }}>{Math.round(groupTotal).toLocaleString('vi-VN')} ₫</span>
             </div>
           </div>
         );

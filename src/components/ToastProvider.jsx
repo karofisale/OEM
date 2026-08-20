@@ -15,9 +15,9 @@ const ToastContext = createContext(null);
 const AUTO_DISMISS_MS = 5000;
 
 const VARIANTS = {
-  success: { Icon: CheckCircle2, bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.35)', color: '#047857' },
-  error:   { Icon: AlertCircle,  bg: 'rgba(220, 38, 38, 0.12)',  border: 'rgba(220, 38, 38, 0.35)',  color: '#b91c1c' },
-  info:    { Icon: Info,         bg: 'rgba(59, 130, 246, 0.12)', border: 'rgba(59, 130, 246, 0.35)', color: '#1d4ed8' }
+  success: { Icon: CheckCircle2, bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.35)', color: 'var(--success-text)' },
+  error:   { Icon: AlertCircle,  bg: 'rgba(220, 38, 38, 0.12)',  border: 'rgba(220, 38, 38, 0.35)',  color: 'var(--danger-strong)' },
+  info:    { Icon: Info,         bg: 'rgba(59, 130, 246, 0.12)', border: 'rgba(59, 130, 246, 0.35)', color: 'var(--info-text)' }
 };
 
 export function ToastProvider({ children }) {

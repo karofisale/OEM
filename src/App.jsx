@@ -248,7 +248,7 @@ export default function App() {
         )}
 
         {bootstrapError && (
-          <div style={{ margin: '16px 32px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(220, 38, 38, 0.12)', color: '#dc2626', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ margin: '16px 32px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(220, 38, 38, 0.12)', color: 'var(--danger)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
             <span>Lỗi tải dữ liệu từ backend: {bootstrapError}</span>
             <button onClick={fetchAllData} className="btn btn-secondary btn-sm" disabled={isSyncing}>
               Thử lại

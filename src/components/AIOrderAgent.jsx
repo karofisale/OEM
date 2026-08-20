@@ -289,7 +289,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
                 onChange={(e) => setPromptText(e.target.value)}
                 onPaste={handlePasteImage}
                 placeholder="VD: Lên đơn cho khách hàng Tecom 500 cái màng RO 100G và 100 phin lọc 2 đầu... (hoặc dán ảnh trực tiếp bằng Ctrl+V)"
-                style={{ resize: 'vertical', fontFamily: 'inherit', border: '1.5px solid #94a3b8' }}
+                style={{ resize: 'vertical', fontFamily: 'inherit', border: '1.5px solid var(--text-dim)' }}
               />
             </div>
 
@@ -341,7 +341,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ShoppingCart size={18} color="#10b981" /> 2. Danh Sách Đơn Hàng Chuẩn SAP
+                <ShoppingCart size={18} color="var(--accent-emerald)" /> 2. Danh Sách Đơn Hàng Chuẩn SAP
               </h3>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Admin kiểm tra & chỉnh sửa trước khi copy vào SAP</p>
             </div>
@@ -467,7 +467,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
                 <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-muted)' }}>
                   Tổng Giá Trị Đơn Hàng (Đã gồm VAT 8%):
                 </span>
-                <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#34d399' }}>
+                <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-emerald-text)' }}>
                   {Math.round(orderResult.grandTotal).toLocaleString('vi-VN')} ₫
                 </span>
               </div>

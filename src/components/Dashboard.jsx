@@ -71,7 +71,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
             width: '48px', height: '48px', borderRadius: '12px',
             background: 'rgba(0, 160, 233, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
-            <TrendingUp size={24} color="#00a0e9" />
+            <TrendingUp size={24} color="var(--karofi-cyan)" />
           </div>
           <div>
             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Tổng Doanh Thu Thuần</span>
@@ -88,7 +88,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
             width: '48px', height: '48px', borderRadius: '12px',
             background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
-            <PackageCheck size={24} color="#10b981" />
+            <PackageCheck size={24} color="var(--accent-emerald)" />
           </div>
           <div>
             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Sản Lượng Xuất Bán</span>
@@ -105,7 +105,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
             width: '48px', height: '48px', borderRadius: '12px',
             background: 'rgba(139, 92, 246, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
-            <Users size={24} color="#8b5cf6" />
+            <Users size={24} color="var(--accent-purple)" />
           </div>
           <div>
             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Khách Hàng OEM Active</span>
@@ -122,7 +122,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
             width: '48px', height: '48px', borderRadius: '12px',
             background: 'rgba(245, 158, 11, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
-            <FileText size={24} color="#f59e0b" />
+            <FileText size={24} color="var(--accent-amber)" />
           </div>
           <div>
             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Số Lượt Giao Dịch</span>
@@ -141,7 +141,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
         {/* Monthly Revenue Visual Bars */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)' }}>
-            <Calendar size={18} color="#00a0e9" /> Doanh Thu Xuất Bán Theo Tháng (VND)
+            <Calendar size={18} color="var(--karofi-cyan)" /> Doanh Thu Xuất Bán Theo Tháng (VND)
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
@@ -152,9 +152,9 @@ export default function Dashboard({ transactions = [], clients = [], materials =
                 <div key={month} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
                     <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{month}</span>
-                    <span style={{ fontWeight: 700, color: '#00a0e9' }}>{rev.toLocaleString('vi-VN')} ₫</span>
+                    <span style={{ fontWeight: 700, color: 'var(--karofi-cyan)' }}>{rev.toLocaleString('vi-VN')} ₫</span>
                   </div>
-                  <div style={{ height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
                     <div style={{
                       height: '100%',
                       width: `${percentage}%`,
@@ -172,7 +172,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
         {/* Top Clients Ranking */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)' }}>
-            <Award size={18} color="#f59e0b" /> Top Khách Hàng Doanh Số Cao Nhất
+            <Award size={18} color="var(--accent-amber)" /> Top Khách Hàng Doanh Số Cao Nhất
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -182,21 +182,21 @@ export default function Dashboard({ transactions = [], clients = [], materials =
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '10px 14px',
-                background: '#f8fafc',
+                background: 'var(--bg-card-hover)',
                 borderRadius: 'var(--radius-md)',
                 border: '1px solid var(--border-color)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{
                     width: '26px', height: '26px', borderRadius: '50%',
-                    background: idx === 0 ? '#f59e0b' : idx === 1 ? '#94a3b8' : idx === 2 ? '#b45309' : '#cbd5e1',
+                    background: idx === 0 ? 'var(--accent-amber)' : idx === 1 ? 'var(--text-dim)' : idx === 2 ? 'var(--warning-text)' : 'var(--border-color)',
                     color: '#fff', fontWeight: 800, fontSize: '0.75rem',
                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>
                     {idx + 1}
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.875rem', fontWeight: 800, color: '#00a0e9' }} className="code-font">{clientCode}</div>
+                    <div style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--karofi-cyan)' }} className="code-font">{clientCode}</div>
                   </div>
                 </div>
                 <div style={{ fontWeight: 800, color: 'var(--accent-emerald)', fontSize: '0.9rem' }}>

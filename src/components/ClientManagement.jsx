@@ -121,7 +121,7 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
       <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
         <div>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Users size={22} color="#00a0e9" /> Danh Bạ Khách Hàng OEM Karofi
+            <Users size={22} color="var(--karofi-cyan)" /> Danh Bạ Khách Hàng OEM Karofi
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
             {isSale ? `Hiển thị danh sách Khách hàng được gán cho ${activeUser.saleId}.` : 'Quản lý toàn bộ đối tác OEM và nhân sự phụ trách.'}
@@ -205,9 +205,9 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
           <tbody>
             {pagedClients.map((client) => (
               <tr key={client.code || client.name}>
-                <td className="code-font" style={{ fontWeight: 800, color: '#00a0e9', fontSize: '0.8rem' }}>{client.codeSearch}</td>
+                <td className="code-font" style={{ fontWeight: 800, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{client.codeSearch}</td>
                 <td style={{ fontWeight: 700 }}>{client.name}</td>
-                <td style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>{client.sale}</td>
+                <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{client.sale}</td>
                 <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{client.address || 'Hà Nội'}</td>
                 <td><span className={`badge ${(client.status || "Active") === "Active" ? "badge-emerald" : "badge-rose"}`}>{client.status}</span></td>
                 {canEditExisting && (
@@ -228,7 +228,7 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
           <div key={client.code || client.name} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <div>
-                <span className="code-font" style={{ fontSize: '0.75rem', color: '#00a0e9', fontWeight: 800 }}>
+                <span className="code-font" style={{ fontSize: '0.75rem', color: 'var(--karofi-cyan)', fontWeight: 800 }}>
                   Search Code: {client.codeSearch}
                 </span>
                 <h4 style={{ fontSize: '0.95rem', fontWeight: 700, marginTop: '2px', color: 'var(--text-main)' }}>{client.name}</h4>
@@ -238,11 +238,11 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <UserCheck size={14} color="#00a0e9" />
+                <UserCheck size={14} color="var(--karofi-cyan)" />
                 <span>Sales phụ trách: <strong style={{ color: 'var(--karofi-navy)' }}>{client.sale}</strong></span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <MapPin size={14} color="#f59e0b" />
+                <MapPin size={14} color="var(--accent-amber)" />
                 <span>{client.address || 'Hà Nội'}</span>
               </div>
             </div>

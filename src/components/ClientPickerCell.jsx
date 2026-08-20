@@ -21,7 +21,7 @@ export default function ClientPickerCell({ code, name, clients, onSelect }) {
       inputStyle={{ padding: '4px 8px', fontSize: '0.775rem', fontWeight: 700 }}
       renderOption={(c) => (
         <>
-          <div className="code-font" style={{ fontWeight: 700, color: '#00a0e9', fontSize: '0.775rem' }}>
+          <div className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.775rem' }}>
             {c.codeSearch || c.code}
           </div>
           <div style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>

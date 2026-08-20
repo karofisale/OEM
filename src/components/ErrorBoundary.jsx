@@ -28,7 +28,7 @@ export default class ErrorBoundary extends React.Component {
         padding: '24px', background: 'var(--bg-main, #f8fafc)'
       }}>
         <div className="glass-card" style={{ maxWidth: '440px', display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'center', alignItems: 'center' }}>
-          <AlertTriangle size={36} color="#dc2626" />
+          <AlertTriangle size={36} color="var(--danger)" />
           <h2 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Đã có lỗi xảy ra</h2>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
             Ứng dụng gặp sự cố không mong muốn — có thể do dữ liệu tải về bất thường (mạng chập chờn).

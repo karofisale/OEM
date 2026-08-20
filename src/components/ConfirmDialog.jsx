@@ -53,7 +53,7 @@ export default function ConfirmDialog({
         style={{ width: '420px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '14px' }}
       >
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-          {destructive && <AlertTriangle size={20} color="#dc2626" style={{ flexShrink: 0, marginTop: '2px' }} />}
+          {destructive && <AlertTriangle size={20} color="var(--danger)" style={{ flexShrink: 0, marginTop: '2px' }} />}
           <div>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>{title}</h3>
             <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.5 }}>
@@ -69,7 +69,7 @@ export default function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             className="btn btn-primary"
-            style={destructive ? { background: '#dc2626', borderColor: '#dc2626' } : undefined}
+            style={destructive ? { background: 'var(--danger)', borderColor: 'var(--danger)' } : undefined}
           >
             {confirmLabel}
           </button>
