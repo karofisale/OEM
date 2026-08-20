@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Package, Plus, Edit3, DollarSign, Search, Sparkles, Tag, Check, ArrowUpRight, Lock, Table, LayoutGrid } from 'lucide-react';
+import { Package, Plus, Edit3, DollarSign, Search, Sparkles, Tag, Check, ArrowUpRight, Lock, Table, LayoutGrid, AlertTriangle } from 'lucide-react';
 
 const fmtPrice = (v) => (v ? v.toLocaleString('vi-VN') : '-');
 
@@ -67,12 +67,14 @@ export default function ProductManagement({ materials, clients, transactions, ac
     setNewSuggestedPrice('');
   };
 
+  // There is no price-approval backend yet: the "Duyệt giá"/"Ngày duyệt" columns
+  // on the Products tab are reserved for it but nothing reads or writes them, and
+  // no API endpoint exists. This used to close the modal and show
+  // "✅ Đã gửi đề xuất giá ... tới Admin phê duyệt!" while sending nothing
+  // anywhere — the proposal was silently discarded. Until the flow is built, say
+  // so plainly instead (same honesty as DebtImporter's sync warning).
   const handleSavePriceProposal = (e) => {
     e.preventDefault();
-    if (!proposeModalMat || !proposedPriceInput) return;
-    alert(`✅ Đã gửi đề xuất giá mới ${parseInt(proposedPriceInput).toLocaleString('vi-VN')} ₫ cho mã SP ${proposeModalMat.sku} (${proposeModalMat.name}) tới Admin phê duyệt!`);
-    setProposeModalMat(null);
-    setProposedPriceInput('');
   };
 
   const openEditModal = (mat) => {
@@ -103,7 +105,9 @@ export default function ProductManagement({ materials, clients, transactions, ac
             <Package size={22} color="#00a0e9" /> Danh Mục Sản Phẩm & Đề Xuất Giá Karofi
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-            Quản lý mã vật tư, alias tên viết tắt. {isSale ? '💡 Sale được quyền đề xuất giá bán cho toàn bộ 440+ mã sản phẩm.' : 'Tra cứu giá bán mới nhất theo dữ liệu SAP.'}
+            {/* Count comes from the data, not a hardcoded "440+" that never changed. */}
+            Quản lý mã vật tư, alias tên viết tắt — {materials.length.toLocaleString('vi-VN')} mã sản phẩm.
+            {' '}{isAdmin ? 'Dùng nút "Sửa" để cập nhật Alias, Nhóm SP và Giá bán.' : 'Tra cứu giá bán mới nhất theo dữ liệu SAP.'}
           </p>
         </div>
 
@@ -275,6 +279,21 @@ export default function ProductManagement({ materials, clients, transactions, ac
               Mã SP: <strong>{proposeModalMat.sku}</strong> - {proposeModalMat.name}
             </p>
 
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: '8px',
+              padding: '10px 14px', borderRadius: 'var(--radius-md)',
+              background: 'rgba(245, 158, 11, 0.15)', color: '#b45309', fontSize: '0.825rem'
+            }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+              <span>
+                Luồng gửi đề xuất giá cho Admin duyệt <strong>chưa được xây dựng</strong> — hiện chưa có
+                nơi lưu đề xuất trên Google Sheet, nên bấm gửi sẽ không đi tới đâu.
+                {isAdmin
+                  ? ' Bạn là Admin: dùng nút "Sửa" ở mỗi dòng để cập nhật thẳng cột Giá bán.'
+                  : ' Tạm thời vui lòng báo giá đề xuất trực tiếp cho Admin để cập nhật giúp.'}
+              </span>
+            </div>
+
             <form onSubmit={handleSavePriceProposal} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Chọn Khách Hàng OEM Áp Dụng:</label>
@@ -293,8 +312,10 @@ export default function ProductManagement({ materials, clients, transactions, ac
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setProposeModalMat(null)} className="btn btn-secondary">Hủy</button>
-                <button type="submit" className="btn btn-primary">Gửi Đề Xuất Giá</button>
+                <button type="button" onClick={() => setProposeModalMat(null)} className="btn btn-secondary">Đóng</button>
+                <button type="submit" className="btn btn-primary" disabled title="Chưa có luồng phê duyệt giá — xem ghi chú phía trên">
+                  Gửi Đề Xuất Giá
+                </button>
               </div>
             </form>
           </div>

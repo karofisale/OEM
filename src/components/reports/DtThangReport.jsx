@@ -109,21 +109,29 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
               </tr>
 
               {dtThangData.map((row) => {
-                let baseline = 0;
+                // `null` means "no real basis for a comparison". Previously a
+                // missing 2025 baseline fell back to `row.totalRevenue * 0.85`,
+                // i.e. the app invented the number it was comparing against and
+                // then reported a confident "Tăng +18% (vs 2025)" derived from
+                // it — a fabricated figure, in a report read by management.
+                // A missing prior month likewise showed a flat "+100%".
+                let baseline = null;
                 let compareLabel = '';
 
                 if (thangFilterMonth === 'ALL') {
-                  baseline = baselines2025.get(row.clientCode) || (row.totalRevenue * 0.85);
+                  const b2025 = baselines2025.get(row.clientCode);
+                  baseline = b2025 > 0 ? b2025 : null;
                   compareLabel = 'vs 2025';
                 } else {
-                  baseline = row.priorMonthRevenue || 0;
+                  baseline = row.priorMonthRevenue > 0 ? row.priorMonthRevenue : null;
                   compareLabel = `vs ${getPriorMonth(thangFilterMonth)}`;
                 }
 
-                const diff = row.totalRevenue - baseline;
-                // Kỳ trước không có doanh thu (baseline = 0) → coi là tăng 100%, thay vì chia cho 0.
-                const percentChange = baseline > 0 ? Math.round((diff / baseline) * 100) : 100;
-                const isPositive = percentChange >= 0;
+                const hasBaseline = baseline !== null;
+                const percentChange = hasBaseline
+                  ? Math.round(((row.totalRevenue - baseline) / baseline) * 100)
+                  : null;
+                const isPositive = hasBaseline && percentChange >= 0;
 
                 return (
                   <tr key={row.clientCode}>
@@ -134,7 +142,15 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
                       {row.totalRevenue.toLocaleString('vi-VN')} ₫
                     </td>
                     <td>
-                      {isPositive ? (
+                      {!hasBaseline ? (
+                        <span
+                          className="badge"
+                          style={{ background: 'var(--bg-input)', color: 'var(--text-dim)' }}
+                          title={`Không có số liệu ${compareLabel.replace('vs ', '')} để đối chiếu`}
+                        >
+                          — Chưa có số liệu {compareLabel.replace('vs ', '')}
+                        </span>
+                      ) : isPositive ? (
                         <span className="badge badge-emerald" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                           <TrendingUp size={12} /> Tăng +{percentChange}% ({compareLabel})
                         </span>

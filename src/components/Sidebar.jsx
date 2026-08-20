@@ -15,7 +15,7 @@ import {
   ClipboardList
 } from 'lucide-react';
 
-export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile }) {
+export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, transactionCount = 0 }) {
   // The mobile drawer always shows full labels — icon-only collapse is a
   // desktop-only space-saving mode, not something worth doing in an overlay.
   const effectiveCollapsed = isMobileOpen ? false : isCollapsed;
@@ -30,7 +30,9 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
     { id: 'pending-orders', label: 'Đơn Hàng Chờ Duyệt', icon: ClipboardList },
     { id: 'revenue-reports', label: 'Báo cáo doanh thu', icon: PieChart },
     { id: 'dashboard', label: 'Tổng quan Metric', icon: BarChart3 },
-    { id: 'transactions', label: 'Lịch sử doanh thu', icon: Table, count: '1,890+' },
+    // Real loaded row count. This used to be the literal string '1,890+', which
+    // never changed no matter what was actually in the Sheet.
+    { id: 'transactions', label: 'Lịch sử doanh thu', icon: Table, count: transactionCount ? transactionCount.toLocaleString('vi-VN') : '' },
     { id: 'products', label: 'Sản phẩm & Bảng giá', icon: Package },
     { id: 'clients', label: 'Khách hàng OEM', icon: Users },
     { id: 'sales-plan', label: 'Kế hoạch kinh doanh', icon: CalendarRange },

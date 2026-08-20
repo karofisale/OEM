@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { CalendarRange, Plus, CheckCircle2, Check, Clock, Filter, User } from 'lucide-react';
+import { CalendarRange, Plus, Clock, Filter, User } from 'lucide-react';
 
 export default function SalesPlan({ plans, clients, transactions, activeUser, onAddPlan }) {
   const [selectedMonth, setSelectedMonth] = useState('T08-2026');
@@ -8,7 +8,6 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
   const [planStateList, setPlanStateList] = useState(plans);
   const [onlyShowActivePlan, setOnlyShowActivePlan] = useState(true);
 
-  const canApprove = ['creator', 'admin', 'leader'].includes(activeUser.role);
   const canFilterAllSales = ['creator', 'admin', 'leader'].includes(activeUser.role);
 
   // Form states
@@ -104,9 +103,10 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
     }, { planKpi: 0, planUpdate: 0, done: 0, chenh: 0, w1: 0, w2: 0, w3: 0, w4: 0, w5: 0 });
   }, [filteredPlans]);
 
-  const handleApprovePlan = (searchCode) => {
-    setPlanStateList(prev => prev.map(p => p.searchCode === searchCode ? { ...p, status: 'Đã duyệt' } : p));
-  };
+  // Removed: handleApprovePlan only flipped local state to 'Đã duyệt', which the
+  // next "Đồng bộ Sheet" wiped (the useEffect above re-merges from `plans`, and
+  // Plan_Thang has no approval column to persist into). It looked like an action
+  // and was purely cosmetic. Reinstate together with a real status column.
 
   const handleCreateProposal = (e) => {
     e.preventDefault();
@@ -294,21 +294,22 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
                   </td>
 
                   <td>
-                    {plan.status === 'Đã duyệt' ? (
-                      <span className="badge badge-emerald">
-                        <Check size={12} /> Đã duyệt
+                    {/* `status` only exists on a proposal created in this session and
+                        not yet reloaded from the Sheet. Rows coming back from
+                        Plan_Thang carry no status at all, because the tab has no
+                        approval column — so there is nothing truthful to show for
+                        them beyond "not tracked". */}
+                    {plan.status === 'Chờ duyệt' ? (
+                      <span className="badge badge-amber" title="Vừa tạo trong phiên này, đã ghi xuống Sheet">
+                        <Clock size={12} /> Vừa tạo
                       </span>
-                    ) : canApprove ? (
-                      <button 
-                        onClick={() => handleApprovePlan(plan.searchCode)}
-                        className="btn btn-emerald btn-sm"
-                        title="Phê duyệt Kế hoạch Tháng này"
-                      >
-                        <CheckCircle2 size={14} /> Duyệt Kế Hoạch
-                      </button>
                     ) : (
-                      <span className="badge badge-amber">
-                        <Clock size={12} /> Chờ duyệt
+                      <span
+                        className="badge"
+                        style={{ background: 'var(--bg-input)', color: 'var(--text-dim)' }}
+                        title="Tab Plan_Thang chưa có cột trạng thái duyệt nên app không theo dõi được trạng thái kế hoạch"
+                      >
+                        — Chưa theo dõi duyệt
                       </span>
                     )}
                   </td>

@@ -58,8 +58,11 @@ function oemAppLoadSalesPlans_() {
       w3: oemAppParseNum_(r[10]),
       w4: oemAppParseNum_(r[11]),
       w5: oemAppParseNum_(r[12]),
-      note: String(r[13] || ''),
-      status: 'Đã duyệt'
+      note: String(r[13] || '')
+      // No `status` field: tab Plan_Thang has no approval column, so this used to
+      // hardcode 'Đã duyệt' for every row — the UI then showed every plan as
+      // approved regardless of reality. Until a real approval column exists, the
+      // frontend renders "chưa theo dõi" rather than inventing a state.
     };
   }).filter(function (p) { return p.searchCode && p.searchCode !== 'Search_code'; });
 }

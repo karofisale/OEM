@@ -12,8 +12,12 @@ export default function Dashboard({ transactions = [], clients = [], materials =
   // Compute safe KPI metrics
   const totalRevenue = transactions.reduce((sum, t) => sum + (t.netRevenue || t.revenue || 0), 0);
   const totalQty = transactions.reduce((sum, t) => sum + (t.qty || 0), 0);
-  const activeClientsCount = clients.filter(c => c.status === 'Active' || c.status === 'Active ').length || clients.length || 4;
-  const totalTransactionsCount = transactions.length || 1891;
+  // No `|| 4` / `|| 1891` fallbacks here: those made an empty dataset render as
+  // "4 Đối tác" and "1.891 Bản ghi", i.e. plausible-looking numbers that were
+  // simply invented. If nothing loaded, the honest answer is 0.
+  const activeClientsCount = clients.filter(c => String(c.status || '').trim() === 'Active').length;
+  const totalTransactionsCount = transactions.length;
+  const hasData = transactions.length > 0 || clients.length > 0;
 
   // Monthly breakdown
   const monthlyRevenueMap = new Map();
@@ -35,9 +39,23 @@ export default function Dashboard({ transactions = [], clients = [], materials =
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
 
+  // Say so plainly rather than rendering a dashboard full of zeros that reads
+  // like a real (catastrophic) business result.
+  if (!hasData) {
+    return (
+      <div className="glass-card animate-fade-in" style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--text-dim)' }}>
+        <FileText size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
+        <div style={{ fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>Chưa có số liệu để hiển thị</div>
+        <div style={{ fontSize: '0.85rem' }}>
+          Dữ liệu chưa tải được từ Google Sheet. Bấm "Đồng bộ Sheet" trên thanh trên cùng để thử lại.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      
+
       {/* Executive KPI Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
         

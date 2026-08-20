@@ -182,6 +182,7 @@ export default function App() {
         onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        transactionCount={transactions.length}
       />
 
       {/* Main Container */}
