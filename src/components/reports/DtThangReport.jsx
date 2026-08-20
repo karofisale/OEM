@@ -1,23 +1,21 @@
 import React, { useMemo, useState } from 'react';
 import { Filter, TrendingUp, TrendingDown } from 'lucide-react';
+import { monthsFromTransactions, priorMonthKey, shortMonthLabel } from '../../utils/period';
 
-function getPriorMonth(m) {
-  if (m === 'T08-2026') return 'T07-2026';
-  if (m === 'T07-2026') return 'T06-2026';
-  if (m === 'T06-2026') return 'T05-2026';
-  if (m === 'T05-2026') return 'T04-2026';
-  if (m === 'T04-2026') return 'T03-2026';
-  return 'T07-2026';
-}
+// Replaces a hardcoded if-chain that only knew T04..T08-2026 and fell through to
+// 'T07-2026' for anything else — so from September the report would silently have
+// compared September against July, and January would never have reached December.
 
 export default function DtThangReport({ transactions, salesList, canFilterAllSales, viewMode, baselines2025 }) {
   const [thangFilterSale, setThangFilterSale] = useState('ALL');
   const [thangFilterMonth, setThangFilterMonth] = useState('ALL');
 
+  const monthsList = useMemo(() => monthsFromTransactions(transactions), [transactions]);
+
   const dtThangData = useMemo(() => {
     const map = new Map();
     const targetMonth = thangFilterMonth;
-    const priorMonth = getPriorMonth(targetMonth);
+    const priorMonth = priorMonthKey(targetMonth);
 
     transactions.forEach(t => {
       if (canFilterAllSales && thangFilterSale !== 'ALL' && !(t.sale || '').toLowerCase().includes(thangFilterSale.toLowerCase())) return;
@@ -75,12 +73,17 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Lọc Theo Tháng:</span>
-          <select className="input-field" style={{ width: '150px' }} value={thangFilterMonth} onChange={(e) => setThangFilterMonth(e.target.value)}>
+          <select
+            className="input-field"
+            style={{ width: '180px' }}
+            value={thangFilterMonth}
+            onChange={(e) => setThangFilterMonth(e.target.value)}
+            aria-label="Lọc theo tháng"
+          >
             <option value="ALL">Tất cả các Tháng (So với 2025)</option>
-            <option value="T08-2026">T08-2026 (So với T07)</option>
-            <option value="T07-2026">T07-2026 (So với T06)</option>
-            <option value="T06-2026">T06-2026 (So với T05)</option>
-            <option value="T05-2026">T05-2026 (So với T04)</option>
+            {monthsList.map(m => (
+              <option key={m} value={m}>{m} (So với {shortMonthLabel(priorMonthKey(m))})</option>
+            ))}
           </select>
         </div>
       </div>
@@ -124,7 +127,7 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
                   compareLabel = 'vs 2025';
                 } else {
                   baseline = row.priorMonthRevenue > 0 ? row.priorMonthRevenue : null;
-                  compareLabel = `vs ${getPriorMonth(thangFilterMonth)}`;
+                  compareLabel = `vs ${priorMonthKey(thangFilterMonth) || 'kỳ trước'}`;
                 }
 
                 const hasBaseline = baseline !== null;

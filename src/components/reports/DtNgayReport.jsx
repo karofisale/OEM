@@ -1,17 +1,24 @@
 import React, { useMemo, useState } from 'react';
 import { Filter } from 'lucide-react';
+import { monthsFromTransactions, latestMonthKey, weeksFromTransactions } from '../../utils/period';
 
 export default function DtNgayReport({ transactions, salesList, canFilterAllSales, viewMode }) {
   const [ngayFilterSale, setNgayFilterSale] = useState('ALL');
-  const [ngayFilterMonth, setNgayFilterMonth] = useState('T08-2026');
+  // null = not chosen yet -> newest month with data. Was hardcoded 'T08-2026',
+  // with an option literally labelled "Tháng hiện tại (T08)".
+  const [ngayFilterMonth, setNgayFilterMonth] = useState(null);
   const [ngayFilterWeek, setNgayFilterWeek] = useState('ALL');
+
+  const monthsList = useMemo(() => monthsFromTransactions(transactions), [transactions]);
+  const weeksList = useMemo(() => weeksFromTransactions(transactions), [transactions]);
+  const effectiveMonth = ngayFilterMonth ?? latestMonthKey(transactions) ?? 'ALL';
 
   const dtNgayData = useMemo(() => {
     const map = new Map();
 
     transactions.forEach(t => {
       if (canFilterAllSales && ngayFilterSale !== 'ALL' && !(t.sale || '').toLowerCase().includes(ngayFilterSale.toLowerCase())) return;
-      if (ngayFilterMonth !== 'ALL' && t.month !== ngayFilterMonth) return;
+      if (effectiveMonth !== 'ALL' && t.month !== effectiveMonth) return;
       if (ngayFilterWeek !== 'ALL' && t.week !== ngayFilterWeek) return;
 
       const dateStr = t.date || 'Chưa ngày';
@@ -33,7 +40,7 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
     });
 
     return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
-  }, [transactions, ngayFilterSale, ngayFilterMonth, ngayFilterWeek, canFilterAllSales]);
+  }, [transactions, ngayFilterSale, effectiveMonth, ngayFilterWeek, canFilterAllSales]);
 
   const dtNgayTotals = useMemo(() => {
     return dtNgayData.reduce((acc, i) => {
@@ -59,22 +66,17 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Lọc Tháng:</span>
-          <select className="input-field" style={{ width: '140px' }} value={ngayFilterMonth} onChange={(e) => setNgayFilterMonth(e.target.value)}>
+          <select className="input-field" style={{ width: '140px' }} value={effectiveMonth} onChange={(e) => setNgayFilterMonth(e.target.value)} aria-label="Lọc theo tháng">
             <option value="ALL">Tất cả Tháng</option>
-            <option value="T08-2026">Tháng hiện tại (T08)</option>
-            <option value="T07-2026">Tháng T07</option>
+            {monthsList.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Lọc Tuần:</span>
-          <select className="input-field" style={{ width: '120px' }} value={ngayFilterWeek} onChange={(e) => setNgayFilterWeek(e.target.value)}>
+          <select className="input-field" style={{ width: '120px' }} value={ngayFilterWeek} onChange={(e) => setNgayFilterWeek(e.target.value)} aria-label="Lọc theo tuần">
             <option value="ALL">Tất cả Tuần</option>
-            <option value="W1">Tuần 1 (W1)</option>
-            <option value="W2">Tuần 2 (W2)</option>
-            <option value="W3">Tuần 3 (W3)</option>
-            <option value="W4">Tuần 4 (W4)</option>
-            <option value="W5">Tuần 5 (W5)</option>
+            {weeksList.map(w => <option key={w} value={w}>Tuần {w.replace('W', '')} ({w})</option>)}
           </select>
         </div>
       </div>

@@ -1,17 +1,34 @@
 import React, { useMemo, useState } from 'react';
 import { Filter, Table, LayoutGrid } from 'lucide-react';
+import { monthsFromTransactions, yearsFromTransactions, weeksFromTransactions } from '../../utils/period';
 
 export default function DtSaleReport({ transactions, viewMode }) {
-  const [saleFilterYear, setSaleFilterYear] = useState('2026');
+  // null = not chosen yet; resolves to the newest year present once data loads.
+  // Was hardcoded '2026' with a single <option>Năm 2026</option>.
+  const [saleFilterYear, setSaleFilterYear] = useState(null);
   const [saleFilterMonth, setSaleFilterMonth] = useState('ALL');
   const [saleFilterWeek, setSaleFilterWeek] = useState('ALL');
+
+  const yearsList = useMemo(() => yearsFromTransactions(transactions), [transactions]);
+  const weeksList = useMemo(() => weeksFromTransactions(transactions), [transactions]);
+  const effectiveYear = saleFilterYear ?? yearsList[0] ?? 'ALL';
+
+  // Months are scoped to the chosen year, so the cascade can't offer a month
+  // that yields nothing.
+  const monthsList = useMemo(() => {
+    const all = monthsFromTransactions(transactions);
+    return effectiveYear === 'ALL' ? all : all.filter(m => m.endsWith(`-${effectiveYear}`));
+  }, [transactions, effectiveYear]);
+
+  // If the year changes out from under the selected month, drop back to "all".
+  const effectiveMonth = monthsList.includes(saleFilterMonth) ? saleFilterMonth : 'ALL';
 
   const dtSaleData = useMemo(() => {
     const map = new Map();
 
     transactions.forEach(t => {
-      if (saleFilterYear !== 'ALL' && !t.month.includes(saleFilterYear)) return;
-      if (saleFilterMonth !== 'ALL' && t.month !== saleFilterMonth) return;
+      if (effectiveYear !== 'ALL' && !String(t.month || '').endsWith(`-${effectiveYear}`)) return;
+      if (effectiveMonth !== 'ALL' && t.month !== effectiveMonth) return;
       if (saleFilterWeek !== 'ALL' && t.week !== saleFilterWeek) return;
 
       const saleName = t.sale || 'Khác';
@@ -25,7 +42,7 @@ export default function DtSaleReport({ transactions, viewMode }) {
     });
 
     return Array.from(map.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
-  }, [transactions, saleFilterYear, saleFilterMonth, saleFilterWeek]);
+  }, [transactions, effectiveYear, effectiveMonth, saleFilterWeek]);
 
   const dtSaleTotals = useMemo(() => {
     return dtSaleData.reduce((acc, i) => {
@@ -43,32 +60,25 @@ export default function DtSaleReport({ transactions, viewMode }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Filter size={15} color="#00a0e9" />
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Lọc Năm:</span>
-          <select className="input-field" style={{ width: '110px' }} value={saleFilterYear} onChange={(e) => setSaleFilterYear(e.target.value)}>
+          <select className="input-field" style={{ width: '110px' }} value={effectiveYear} onChange={(e) => setSaleFilterYear(e.target.value)} aria-label="Lọc theo năm">
             <option value="ALL">Tất cả Năm</option>
-            <option value="2026">Năm 2026</option>
+            {yearsList.map(y => <option key={y} value={y}>Năm {y}</option>)}
           </select>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>➔ Lọc Tháng:</span>
-          <select className="input-field" style={{ width: '130px' }} value={saleFilterMonth} onChange={(e) => setSaleFilterMonth(e.target.value)}>
+          <select className="input-field" style={{ width: '130px' }} value={effectiveMonth} onChange={(e) => setSaleFilterMonth(e.target.value)} aria-label="Lọc theo tháng">
             <option value="ALL">Tất cả Tháng</option>
-            <option value="T08-2026">T08-2026</option>
-            <option value="T07-2026">T07-2026</option>
-            <option value="T06-2026">T06-2026</option>
-            <option value="T05-2026">T05-2026</option>
+            {monthsList.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>➔ Lọc Tuần:</span>
-          <select className="input-field" style={{ width: '110px' }} value={saleFilterWeek} onChange={(e) => setSaleFilterWeek(e.target.value)}>
+          <select className="input-field" style={{ width: '110px' }} value={saleFilterWeek} onChange={(e) => setSaleFilterWeek(e.target.value)} aria-label="Lọc theo tuần">
             <option value="ALL">Tất cả Tuần</option>
-            <option value="W1">Tuần 1 (W1)</option>
-            <option value="W2">Tuần 2 (W2)</option>
-            <option value="W3">Tuần 3 (W3)</option>
-            <option value="W4">Tuần 4 (W4)</option>
-            <option value="W5">Tuần 5 (W5)</option>
+            {weeksList.map(w => <option key={w} value={w}>Tuần {w.replace('W', '')} ({w})</option>)}
           </select>
         </div>
       </div>

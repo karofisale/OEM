@@ -1,5 +1,6 @@
 import React from 'react';
-import { 
+import { monthSortValue } from '../utils/period';
+import {
   TrendingUp, 
   PackageCheck, 
   Users, 
@@ -19,14 +20,19 @@ export default function Dashboard({ transactions = [], clients = [], materials =
   const totalTransactionsCount = transactions.length;
   const hasData = transactions.length > 0 || clients.length > 0;
 
-  // Monthly breakdown
+  // Monthly breakdown. Rows with no month used to be filed under a hardcoded
+  // 'T08-2026', quietly inflating that one month with revenue that belongs
+  // elsewhere; they now get their own visible bucket instead.
   const monthlyRevenueMap = new Map();
   transactions.forEach(t => {
-    const month = t.month || 'T08-2026';
+    const month = t.month || 'Chưa rõ tháng';
     monthlyRevenueMap.set(month, (monthlyRevenueMap.get(month) || 0) + (t.netRevenue || 0));
   });
 
-  const monthlyList = Array.from(monthlyRevenueMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  // Chronological, not alphabetical: localeCompare puts 'T12-2025' after
+  // 'T08-2026' because it compares '1' against '8' character by character.
+  const monthlyList = Array.from(monthlyRevenueMap.entries())
+    .sort((a, b) => monthSortValue(a[0]) - monthSortValue(b[0]));
 
   // Top 5 Clients
   const clientRevMap = new Map();

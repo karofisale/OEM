@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { CalendarRange, Plus, Clock, Filter, User } from 'lucide-react';
 
 export default function SalesPlan({ plans, clients, transactions, activeUser, onAddPlan }) {
-  const [selectedMonth, setSelectedMonth] = useState('T08-2026');
   const [selectedSale, setSelectedSale] = useState('ALL');
   const [showModal, setShowModal] = useState(false);
   const [planStateList, setPlanStateList] = useState(plans);
@@ -176,15 +175,16 @@ export default function SalesPlan({ plans, clients, transactions, activeUser, on
             Chỉ hiển thị Khách có Plan Update &gt; 0
           </label>
 
-          <select 
-            className="input-field" 
-            style={{ width: '140px' }}
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-          >
-            <option value="T08-2026">Tháng 8/2026</option>
-            <option value="T09-2026">Tháng 9/2026</option>
-          </select>
+          {/* A "Tháng 8/2026 / Tháng 9/2026" dropdown used to sit here. It was
+              never referenced by filteredPlans, and could not have been: rows
+              from tab Plan_Thang carry no month at all (searchCode, clientName,
+              sale, planKpi, planUpdate, done, w1..w5, note). Switching it
+              changed nothing, which invited the reading that every month held
+              identical figures. The tab shows whatever Plan_Thang currently
+              contains, so say that instead of offering a choice that isn't real. */}
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+            Nguồn: tab <strong>Plan_Thang</strong> (kế hoạch tháng hiện hành)
+          </span>
 
           <button onClick={() => setShowModal(true)} className="btn btn-emerald">
             <Plus size={16} /> Đề Xuất Kế Hoạch Tháng

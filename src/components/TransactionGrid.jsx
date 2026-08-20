@@ -1,11 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Filter, Calendar, User, FileText, Layers } from 'lucide-react';
+import { monthsFromTransactions, latestMonthKey } from '../utils/period';
 
 export default function TransactionGrid({ transactions }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSale, setSelectedSale] = useState('ALL');
   const [selectedGroup, setSelectedGroup] = useState('ALL');
-  const [selectedMonth, setSelectedMonth] = useState('T08-2026'); // Default current month
+  // null = "user hasn't chosen yet", so the effective value can fall back to the
+  // newest month once data arrives. A useState initialiser can't do that: it runs
+  // once, while `transactions` is still empty. The old code sidestepped this by
+  // hardcoding 'T08-2026', which meant the tab opened on an empty table from
+  // September onwards.
+  const [selectedMonth, setSelectedMonth] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 25;
 
@@ -19,10 +25,10 @@ export default function TransactionGrid({ transactions }) {
     return Array.from(set);
   }, [transactions]);
 
-  const monthsList = useMemo(() => {
-    const set = new Set(transactions.map(t => t.month).filter(Boolean));
-    return Array.from(set).sort();
-  }, [transactions]);
+  const monthsList = useMemo(() => monthsFromTransactions(transactions), [transactions]);
+
+  // Newest month with data, until the user picks something themselves.
+  const effectiveMonth = selectedMonth ?? latestMonthKey(transactions) ?? 'ALL';
 
   const filteredData = useMemo(() => {
     return transactions.filter(t => {
@@ -36,11 +42,11 @@ export default function TransactionGrid({ transactions }) {
 
       const matchSale = selectedSale === 'ALL' || t.sale === selectedSale;
       const matchGroup = selectedGroup === 'ALL' || t.group === selectedGroup;
-      const matchMonth = selectedMonth === 'ALL' || t.month === selectedMonth;
+      const matchMonth = effectiveMonth === 'ALL' || t.month === effectiveMonth;
 
       return matchSearch && matchSale && matchGroup && matchMonth;
     });
-  }, [transactions, searchTerm, selectedSale, selectedGroup, selectedMonth]);
+  }, [transactions, searchTerm, selectedSale, selectedGroup, effectiveMonth]);
 
   const totalPages = Math.ceil(filteredData.length / pageSize) || 1;
   const pageData = useMemo(() => {
@@ -125,8 +131,9 @@ export default function TransactionGrid({ transactions }) {
           <select 
             className="input-field" 
             style={{ width: '140px' }}
-            value={selectedMonth}
+            value={effectiveMonth}
             onChange={(e) => { setSelectedMonth(e.target.value); setCurrentPage(1); }}
+            aria-label="Lọc theo tháng"
           >
             <option value="ALL">Tất cả Tháng</option>
             {monthsList.map(m => <option key={m} value={m}>{m}</option>)}
