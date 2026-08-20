@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ClipboardList, RefreshCw, Copy, Check, Save, AlertCircle, Loader2, Trash2, FileSpreadsheet } from 'lucide-react';
 import * as api from '../services/api';
+import LoadingScreen from './LoadingScreen';
 import SkuPickerCell from './SkuPickerCell';
 import ClientPickerCell from './ClientPickerCell';
 import RowActionButtons from './RowActionButtons';
 
-export default function OrdersReview({ token, activeUser, materials, clients }) {
+export default function OrdersReview({ token, activeUser, materials, clients, isActive = true, isStale = true, onLoaded }) {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -36,6 +37,7 @@ export default function OrdersReview({ token, activeUser, materials, clients }) 
     try {
       const data = await api.getOrders(token);
       setOrders(data || []);
+      if (onLoaded) onLoaded();
     } catch (err) {
       setLoadError(err.message || String(err));
     } finally {
@@ -43,7 +45,15 @@ export default function OrdersReview({ token, activeUser, materials, clients }) 
     }
   };
 
-  useEffect(() => { fetchOrders(); }, []);
+  // This component now stays mounted once opened, so a bare `useEffect(..., [])`
+  // would fetch only once ever and then show stale orders forever. Instead it
+  // fetches when the tab is on screen AND something has actually changed —
+  // first open, or a new order saved from the AI agent (App sets ordersStale).
+  // Previously the component unmounted on every tab switch, so returning to it
+  // always paid a full backend round-trip even when nothing had changed.
+  useEffect(() => {
+    if (isActive && isStale) fetchOrders();
+  }, [isActive, isStale]);
 
   // Sale chỉ thấy đơn do mình tạo (cột PIC); admin/creator/leader xem toàn bộ.
   const visibleOrders = useMemo(() => {
@@ -249,6 +259,13 @@ export default function OrdersReview({ token, activeUser, materials, clients }) 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '0.85rem', fontWeight: 600 }}>
           <AlertCircle size={16} /> Không tải được danh sách đơn hàng: {loadError}
         </div>
+      )}
+
+      {/* `isLoading` was tracked but never rendered, so the tab showed a header
+          and blank space for the whole fetch — which on this backend can be
+          tens of seconds. */}
+      {isLoading && !loadError && (
+        <LoadingScreen compact label="Đang tải danh sách đơn hàng chờ duyệt..." />
       )}
 
       {!isLoading && !loadError && groups.length === 0 && (

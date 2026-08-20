@@ -38,7 +38,7 @@ const createBlankItem = () => ({
   matchedAlias: ''
 });
 
-export default function AIOrderAgent({ clients, materials, transactions, token }) {
+export default function AIOrderAgent({ clients, materials, transactions, token, onOrderSaved }) {
   const [promptText, setPromptText] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [ocrStatus, setOcrStatus] = useState('');
@@ -215,6 +215,9 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
     try {
       await api.saveOrder(token, orderResult);
       setSaved(true);
+      // Tell the (now permanently mounted) "Đơn hàng chờ duyệt" tab that its
+      // list is out of date, so it refetches next time the user opens it.
+      if (onOrderSaved) onOrderSaved();
     } catch (err) {
       alert('Không lưu được đơn hàng lên Google Sheet (tab Orders): ' + err.message);
     } finally {

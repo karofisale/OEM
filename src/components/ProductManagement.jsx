@@ -3,7 +3,9 @@ import { Package, Plus, Edit3, DollarSign, Search, Sparkles, Tag, Check, ArrowUp
 
 const fmtPrice = (v) => (v ? v.toLocaleString('vi-VN') : '-');
 
-export default function ProductManagement({ materials, clients, transactions, activeUser, onAddMaterial, onEditMaterial }) {
+// `transactions` used to be passed in and destructured here but was never read —
+// dropped, so this component no longer re-renders when the transaction list changes.
+export default function ProductManagement({ materials, clients, activeUser, onAddMaterial, onEditMaterial }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('table');
   const [selectedClientForPrice, setSelectedClientForPrice] = useState(clients[0]?.name || '');

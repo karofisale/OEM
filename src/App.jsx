@@ -14,6 +14,7 @@ import SalesPlan from './components/SalesPlan';
 import DebtImporter from './components/DebtImporter';
 import GoogleSheetSettings from './components/GoogleSheetSettings';
 import LoadingScreen from './components/LoadingScreen';
+import KeepAliveTab from './components/KeepAliveTab';
 import { RefreshCw } from 'lucide-react';
 
 import * as api from './services/api';
@@ -21,6 +22,13 @@ import { readBootstrapCache, writeBootstrapCache, clearBootstrapCache } from './
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('ai-agent');
+  // Which tabs have ever been opened. Tabs mount on first visit and then stay
+  // mounted (hidden) — see KeepAliveTab for why.
+  const [visitedTabs, setVisitedTabs] = useState(() => new Set(['ai-agent']));
+  // Orders live in OrdersReview, which now stays mounted, so it no longer
+  // refetches just because the user came back to the tab. This flag is how it
+  // learns it genuinely needs to: set when the AI agent saves a new order.
+  const [ordersStale, setOrdersStale] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [session, setSession] = useState(() => api.loadSession());
@@ -45,6 +53,11 @@ export default function App() {
   // When the data on screen came from the local cache rather than a fresh
   // backend response — drives the "số liệu có thể chưa mới nhất" hint.
   const [isShowingCached, setIsShowingCached] = useState(false);
+
+  // Record every tab the user opens so KeepAliveTab keeps rendering it.
+  useEffect(() => {
+    setVisitedTabs(prev => (prev.has(activeTab) ? prev : new Set(prev).add(activeTab)));
+  }, [activeTab]);
 
   const applyBootstrap = (data) => {
     setClients(data.clients || []);
@@ -224,83 +237,86 @@ export default function App() {
           <LoadingScreen label="Đang tải dữ liệu OEM App..." />
         ) : (
         <main className="page-container">
-          {activeTab === 'ai-agent' && (
+          <KeepAliveTab isActive={activeTab === 'ai-agent'} hasVisited={visitedTabs.has('ai-agent')}>
             <AIOrderAgent
               clients={clients}
               materials={materials}
               transactions={transactions}
               token={session.token}
+              onOrderSaved={() => setOrdersStale(true)}
             />
-          )}
+          </KeepAliveTab>
 
-          {activeTab === 'pending-orders' && (
+          <KeepAliveTab isActive={activeTab === 'pending-orders'} hasVisited={visitedTabs.has('pending-orders')}>
             <OrdersReview
               token={session.token}
               activeUser={activeUser}
               materials={materials}
               clients={clients}
+              isActive={activeTab === 'pending-orders'}
+              isStale={ordersStale}
+              onLoaded={() => setOrdersStale(false)}
             />
-          )}
+          </KeepAliveTab>
 
-          {activeTab === 'revenue-reports' && (
+          <KeepAliveTab isActive={activeTab === 'revenue-reports'} hasVisited={visitedTabs.has('revenue-reports')}>
             <RevenueReports
               transactions={transactions}
               clients={clients}
               activeUser={activeUser}
               baselines2025={baselines2025}
             />
-          )}
+          </KeepAliveTab>
 
-          {activeTab === 'dashboard' && (
-            <Dashboard 
-              transactions={transactions} 
-              clients={clients} 
-              materials={materials} 
-              plans={plans} 
-            />
-          )}
-
-          {activeTab === 'transactions' && (
-            <TransactionGrid transactions={transactions} />
-          )}
-
-          {activeTab === 'products' && (
-            <ProductManagement 
-              materials={materials} 
-              clients={clients} 
+          <KeepAliveTab isActive={activeTab === 'dashboard'} hasVisited={visitedTabs.has('dashboard')}>
+            <Dashboard
               transactions={transactions}
+              clients={clients}
+              materials={materials}
+              plans={plans}
+            />
+          </KeepAliveTab>
+
+          <KeepAliveTab isActive={activeTab === 'transactions'} hasVisited={visitedTabs.has('transactions')}>
+            <TransactionGrid transactions={transactions} />
+          </KeepAliveTab>
+
+          <KeepAliveTab isActive={activeTab === 'products'} hasVisited={visitedTabs.has('products')}>
+            <ProductManagement
+              materials={materials}
+              clients={clients}
               activeUser={activeUser}
               onAddMaterial={handleAddMaterial}
               onEditMaterial={handleEditMaterial}
             />
-          )}
+          </KeepAliveTab>
 
-          {activeTab === 'clients' && (
+          <KeepAliveTab isActive={activeTab === 'clients'} hasVisited={visitedTabs.has('clients')}>
             <ClientManagement
               clients={clients}
               activeUser={activeUser}
               onAddClient={handleAddClient}
               onEditClient={handleEditClient}
             />
-          )}
+          </KeepAliveTab>
 
-          {activeTab === 'sales-plan' && (
-            <SalesPlan 
-              plans={plans} 
-              clients={clients} 
-              transactions={transactions} 
+          <KeepAliveTab isActive={activeTab === 'sales-plan'} hasVisited={visitedTabs.has('sales-plan')}>
+            <SalesPlan
+              plans={plans}
+              clients={clients}
+              transactions={transactions}
               activeUser={activeUser}
               onAddPlan={handleAddPlan}
             />
-          )}
+          </KeepAliveTab>
 
-          {activeTab === 'debt-importer' && (
+          <KeepAliveTab isActive={activeTab === 'debt-importer'} hasVisited={visitedTabs.has('debt-importer')}>
             <DebtImporter />
-          )}
+          </KeepAliveTab>
 
-          {activeTab === 'settings' && (
+          <KeepAliveTab isActive={activeTab === 'settings'} hasVisited={visitedTabs.has('settings')}>
             <GoogleSheetSettings />
-          )}
+          </KeepAliveTab>
         </main>
         )}
       </div>
