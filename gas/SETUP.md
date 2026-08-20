@@ -1,8 +1,29 @@
 # Deploy OEM App Backend (Google Apps Script)
 
-**Cập nhật 2026-08-19**: backend của app này giờ là **project Apps Script ĐỘC LẬP**, tách khỏi project dùng chung với 2 skill `up-dt-oem`/`cong-no-oem` (gộp chung hôm 2026-08-18, tách lại hôm nay). Lý do tách: đo thử cho thấy project dùng chung (gắn trực tiếp vào Sheet "OEM" khổng lồ làm container) chậm hơn 5-10 lần so với 1 project độc lập cho cùng 1 lệnh gọi đơn giản, ngay cả khi không bị lỗi mạng — xem ghi chú trong file `Code.gs`. File `gas/Code.gs` trong repo này **giờ LÀ bản deploy thật**, không còn là bản tham khảo lịch sử nữa.
+**Cập nhật 2026-08-19**: backend của app này giờ là **project Apps Script ĐỘC LẬP**, tách khỏi project dùng chung với 2 skill `up-dt-oem`/`cong-no-oem` (gộp chung hôm 2026-08-18, tách lại hôm nay). Lý do tách: đo thử cho thấy project dùng chung (gắn trực tiếp vào Sheet "OEM" khổng lồ làm container) chậm hơn 5-10 lần so với 1 project độc lập cho cùng 1 lệnh gọi đơn giản, ngay cả khi không bị lỗi mạng — xem ghi chú trong file `Code.gs`.
 
-## 1. Tạo project Apps Script mới (chỉ 1 lần)
+**Cập nhật 2026-08-20**: thư mục `gas/` giờ nối trực tiếp với project Apps Script qua [clasp](https://github.com/google/clasp) (`gas/.clasp.json` — `scriptId` trỏ đúng project, không chứa bí mật gì nên an toàn để commit). Từ giờ **sửa code local rồi push bằng clasp**, không cần copy-paste tay vào trình soạn thảo trên web nữa. Mục 1 dưới đây (dán tay) chỉ còn cần khi tạo project MỚI từ đầu hoặc máy chưa có clasp/chưa đăng nhập.
+
+## 0. Deploy bằng clasp (cách dùng hằng ngày)
+
+Yêu cầu một lần: `npx clasp login` bằng tài khoản Google có quyền Editor trên project (không cần cài global, `npx` tự tải).
+
+```bash
+cd gas
+npx clasp push                              # đẩy code local lên bản nháp @HEAD của Apps Script
+npx clasp create-version "mô tả ngắn gọn"   # đóng băng bản nháp thành 1 version có số, bất biến
+npx clasp update-deployment <deploymentId> -V <versionNumber>   # trỏ deployment ĐANG CHẠY sang version đó
+```
+
+**Lưu ý bắt buộc**: LUÔN dùng `update-deployment` (không phải `create-deployment`/`clasp deploy`) — lệnh này cập nhật đúng deployment ID hiện có, giữ nguyên Web app URL. Tạo deployment mới sẽ sinh URL khác, phá `API_URL` trong `src/services/api.js`.
+
+Deployment ID đang chạy (khớp `API_URL` hiện tại): `AKfycbyUJeeWip_QTpEHTG-5-h4JaOLR9kL9fO6MkoIX0P86YibuqaEo8qAI_X62XZuU9yQi3g`. Xem lại/đối chiếu bất cứ lúc nào bằng `npx clasp list-deployments`.
+
+`npx clasp status` cho biết file nào sẽ được đẩy lên (chỉ 7 file `.gs` + `appsscript.json` — `SETUP.md` và các file `.md` khác tự động bị bỏ qua, không cần `.claspignore` riêng).
+
+Xác nhận thật (2026-08-20): đã chạy trọn vòng push → create-version → update-deployment với nội dung không đổi để kiểm chứng đường ống — deployment ID giữ nguyên, `ping`/`getUserList`/`getBootstrap` đều phản hồi bình thường sau khi đổi.
+
+## 1. Tạo project Apps Script mới (chỉ 1 lần, khi KHÔNG dùng clasp hoặc tạo project từ đầu)
 
 1. Mở Google Sheet `OEM` (1lSeQyfHmd-H0s7Qu7n9b8LAJ3Deap9hHFLEKf6F0Cnk) → **Extensions → Apps Script**.
    - Tạo project MỚI (không phải project đang dùng chung với up-dt-oem/cong-no-oem) — dùng đúng tài khoản Google đang có quyền Editor trên Sheet này.
