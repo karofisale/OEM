@@ -2,17 +2,93 @@
 
 // ---------- Sheet helpers ----------
 
+// Both caches are per-execution: Apps Script starts a fresh V8 context for every
+// doPost, so these reset between requests on their own — they only ever dedupe
+// work WITHIN one request, never serve stale sheet handles across requests.
+//
+// Why this matters (measured 2026-08-20): a `ping` that touches no Sheet answers
+// in ~1.1s, while `getUserList` (one small tab) takes ~1.8s — so each
+// openById + getSheets cycle costs roughly 0.7s. getBootstrap used to run six of
+// them (Data, Orders, Products, Clients, Plan_Thang, Sales_Revenue), four of
+// which also re-enumerated every tab in the workbook. That was ~3-5s of pure
+// duplicated overhead on every single app load.
+var OEMAPP_SS_CACHE_ = null;
+var OEMAPP_GID_MAP_ = null;
+
+function oemAppSS_() {
+  if (!OEMAPP_SS_CACHE_) OEMAPP_SS_CACHE_ = SpreadsheetApp.openById(OEMAPP_SHEET_ID);
+  return OEMAPP_SS_CACHE_;
+}
+
+
 function oemAppGetSheetByGid_(gid) {
-  var sheets = SpreadsheetApp.openById(OEMAPP_SHEET_ID).getSheets();
-  for (var i = 0; i < sheets.length; i++) {
-    if (sheets[i].getSheetId() === gid) return sheets[i];
+  if (!OEMAPP_GID_MAP_) {
+    OEMAPP_GID_MAP_ = {};
+    var sheets = oemAppSS_().getSheets();
+    for (var i = 0; i < sheets.length; i++) {
+      OEMAPP_GID_MAP_[sheets[i].getSheetId()] = sheets[i];
+    }
   }
-  throw new Error('Không tìm thấy tab với gid ' + gid);
+  var sheet = OEMAPP_GID_MAP_[gid];
+  if (!sheet) throw new Error('Không tìm thấy tab với gid ' + gid);
+  return sheet;
 }
 
 
 function oemAppGetRows_(gid) {
   return oemAppGetSheetByGid_(gid).getDataRange().getValues();
+}
+
+
+// ---------- Chunked CacheService helpers ----------
+// CacheService caps a single value at 100KB, and the bootstrap payload is far
+// bigger than that (~590KB measured), so it has to be split.
+//
+// Chunk size is in CHARACTERS, and the limit is in BYTES — the gap matters here.
+// Most Vietnamese letters carrying diacritics (ạ ấ ầ ệ ộ ...) live in Latin
+// Extended Additional and cost 3 bytes each in UTF-8. So the true worst case is
+// 3 bytes/char: 30k chars = 90KB, safely under the cap even for an all-Vietnamese
+// string. A real payload is mostly ASCII structure and measures ~31KB per chunk.
+var OEMAPP_CACHE_CHUNK_CHARS_ = 30000;
+
+function oemAppCachePutBig_(key, str, ttlSeconds) {
+  var payload = {};
+  var count = Math.ceil(str.length / OEMAPP_CACHE_CHUNK_CHARS_);
+  for (var i = 0; i < count; i++) {
+    payload[key + '_' + i] = str.substr(i * OEMAPP_CACHE_CHUNK_CHARS_, OEMAPP_CACHE_CHUNK_CHARS_);
+  }
+  payload[key + '_n'] = String(count);
+  CacheService.getScriptCache().putAll(payload, ttlSeconds);
+}
+
+
+function oemAppCacheGetBig_(key) {
+  var cache = CacheService.getScriptCache();
+  var count = parseInt(cache.get(key + '_n'), 10);
+  if (!count) return null;
+
+  var keys = [];
+  for (var i = 0; i < count; i++) keys.push(key + '_' + i);
+  var parts = cache.getAll(keys);
+
+  // Chunks can be evicted individually under cache pressure. A partial read
+  // would silently corrupt the JSON, so any missing piece = full cache miss.
+  var out = '';
+  for (var j = 0; j < count; j++) {
+    var piece = parts[key + '_' + j];
+    if (piece === null || piece === undefined) return null;
+    out += piece;
+  }
+  return out;
+}
+
+
+function oemAppCacheDropBig_(key) {
+  var cache = CacheService.getScriptCache();
+  var count = parseInt(cache.get(key + '_n'), 10) || 0;
+  var keys = [key + '_n'];
+  for (var i = 0; i < count; i++) keys.push(key + '_' + i);
+  cache.removeAll(keys);
 }
 
 

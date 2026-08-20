@@ -40,7 +40,7 @@ function oemAppLoadOrderAliasHints_() {
 // Chữ, Ngày tạo, PIC, Update alias).
 
 function oemAppGetOrdersSheet_() {
-  var sheet = SpreadsheetApp.openById(OEMAPP_SHEET_ID).getSheetByName('Orders');
+  var sheet = oemAppSS_().getSheetByName('Orders'); // oemAppSS_ = one attach per request
   if (!sheet) throw new Error('Không tìm thấy tab "Orders" trên Google Sheet.');
   return sheet;
 }

@@ -102,7 +102,7 @@ var OEMAPP_PRODUCTS_SHEET = 'Products';
 
 
 function oemAppGetProductsSheet_() {
-  var sheet = SpreadsheetApp.openById(OEMAPP_SHEET_ID).getSheetByName(OEMAPP_PRODUCTS_SHEET);
+  var sheet = oemAppSS_().getSheetByName(OEMAPP_PRODUCTS_SHEET); // one attach per request
   if (!sheet) throw new Error('Khong tim thay tab "Products" tren Google Sheet.');
   return sheet;
 }
@@ -134,7 +134,11 @@ function oemAppLoadMaterialCatalog_() {
       name: String(rows[i][2] || ''),
       group: group,
       alias: String(rows[i][4] || ''),
-      suggestedPrice: oemAppParseNum_(rows[i][5])
+      suggestedPrice: oemAppParseNum_(rows[i][5]),
+      // 1-based real sheet row. Carrying it here lets add/edit locate a SKU from
+      // the catalog they already loaded, instead of re-reading the whole tab a
+      // second time just to find the row number (what oemAppFindProductRow_ did).
+      rowIndex: i + 1
     };
   }
   return { bySku: bySku, maxCateId: maxCateId, groupToCateId: groupToCateId };
@@ -145,15 +149,6 @@ function oemAppResolveCateId_(catalog, group) {
   if (!group) return catalog.maxCateId + 1;
   var existing = catalog.groupToCateId[String(group).toLowerCase()];
   return existing || catalog.maxCateId + 1;
-}
-
-
-function oemAppFindProductRow_(sheet, sku) {
-  var rows = sheet.getDataRange().getValues();
-  for (var i = 1; i < rows.length; i++) {
-    if (String(rows[i][1]) === String(sku)) return i + 1; // 1-based sheet row
-  }
-  return -1;
 }
 
 // Sale/Admin/Creator - same permission tier as addClient/addPlan (Sale can add
@@ -168,15 +163,18 @@ function oemAppAddMaterial_(token, material) {
   }
   if (!material || !material.sku) throw new Error('Thieu ma SKU.');
   var sheet = oemAppGetProductsSheet_();
-  if (oemAppFindProductRow_(sheet, material.sku) !== -1) {
+  // One read of the Products tab serves both the duplicate check and the CateID
+  // lookup (previously two full getDataRange().getValues() passes).
+  var catalog = oemAppLoadMaterialCatalog_();
+  if (catalog.bySku[String(material.sku)]) {
     throw new Error('Ma SKU ' + material.sku + ' da co trong tab Products - dung nut "Sua" de cap nhat.');
   }
-  var catalog = oemAppLoadMaterialCatalog_();
   var cateId = oemAppResolveCateId_(catalog, material.group);
   sheet.appendRow([
     cateId, material.sku, material.name || '', material.group || '',
     material.alias || '', material.suggestedPrice || 0, '', ''
   ]);
+  oemAppInvalidateBootstrap_();
   return { ok: true };
 }
 
@@ -195,8 +193,10 @@ function oemAppEditMaterial_(token, sku, updates) {
   if (!sku) throw new Error('Thieu ma SKU.');
   updates = updates || {};
   var sheet = oemAppGetProductsSheet_();
-  var rowIndex = oemAppFindProductRow_(sheet, sku);
+  // Single Products read: the catalog now carries each SKU's real sheet row.
   var catalog = oemAppLoadMaterialCatalog_();
+  var existingEntry = catalog.bySku[String(sku)];
+  var rowIndex = existingEntry ? existingEntry.rowIndex : -1;
   if (rowIndex === -1) {
     var newCateId = oemAppResolveCateId_(catalog, updates.group);
     sheet.appendRow([
@@ -212,5 +212,6 @@ function oemAppEditMaterial_(token, sku, updates) {
     var cateId = updates.group != null ? oemAppResolveCateId_(catalog, group) : existing[0];
     sheet.getRange(rowIndex, 1, 1, 6).setValues([[cateId, sku, name, group, alias, suggestedPrice]]);
   }
+  oemAppInvalidateBootstrap_();
   return { ok: true };
 }

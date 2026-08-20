@@ -86,8 +86,46 @@ function oemAppLoad2025Baselines_() {
 }
 
 
+// Bootstrap cache. The payload is currently IDENTICAL for every user (role-based
+// filtering is still done client-side, see the note in oemAppBuildBootstrap_), so
+// one shared script-cache entry serves everyone — the first user of the day pays
+// the full cost and everyone after them gets a near-instant response.
+//
+// TTL is safe at 10 minutes: tab "Data" is written by the separate up-dt-oem
+// import skill on a daily/weekly cadence, not continuously. The tabs this app
+// writes itself (Clients, Plan_Thang, Products) explicitly drop the cache on
+// write, so a user never sees their own edit missing.
+//
+// IMPORTANT: if per-Sale server-side filtering is ever added, this key MUST gain
+// a per-user component, otherwise one Sale would be served another Sale's data.
+var OEMAPP_BOOTSTRAP_CACHE_KEY_ = 'oemapp_bootstrap_v1';
+var OEMAPP_BOOTSTRAP_TTL_ = 600; // 10 minutes
+
+
 function oemAppGetBootstrap_(token) {
   oemAppRequireSession_(token); // any authenticated user may read — role-based UI filtering stays client-side
+
+  var cached = oemAppCacheGetBig_(OEMAPP_BOOTSTRAP_CACHE_KEY_);
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch (err) {
+      // Corrupt/truncated cache entry — fall through and rebuild from the Sheet.
+    }
+  }
+
+  var payload = oemAppBuildBootstrap_();
+
+  // A cache write failing (quota, size) must never break the actual request.
+  try {
+    oemAppCachePutBig_(OEMAPP_BOOTSTRAP_CACHE_KEY_, JSON.stringify(payload), OEMAPP_BOOTSTRAP_TTL_);
+  } catch (err) {}
+
+  return payload;
+}
+
+
+function oemAppBuildBootstrap_() {
   var transactions = oemAppLoadTransactions_();
   var aliasHints = oemAppLoadOrderAliasHints_();
   var catalog = oemAppLoadMaterialCatalog_();
@@ -98,6 +136,15 @@ function oemAppGetBootstrap_(token) {
     plans: oemAppLoadSalesPlans_(),
     baselines2025: oemAppLoad2025Baselines_()
   };
+}
+
+
+// Called by every writer so a user always sees their own edit immediately
+// instead of waiting out the TTL.
+function oemAppInvalidateBootstrap_() {
+  try {
+    oemAppCacheDropBig_(OEMAPP_BOOTSTRAP_CACHE_KEY_);
+  } catch (err) {}
 }
 
 // ---------- Orders (AI Order Agent → SAP staging tab) ----------
@@ -125,5 +172,6 @@ function oemAppAddPlan_(token, plan) {
     plan.w5 || 0,
     plan.note || ''
   ]);
+  oemAppInvalidateBootstrap_();
   return { ok: true };
 }

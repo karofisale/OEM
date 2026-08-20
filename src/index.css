@@ -1,4 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* Fonts are loaded by the <link> in index.html (which also has the matching
+   preconnect hints). An @import here would request the exact same stylesheet a
+   second time, and worse: an @import can't start downloading until this file has
+   itself arrived, so it added a second render-blocking round-trip on the
+   critical path for nothing. */
 
 :root {
   /* Karofi Brand Color System (Light Theme) */
@@ -312,6 +316,32 @@ body {
 
 .animate-fade-in {
   animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Spinner rotation. `.animate-spin` is applied to 15 lucide icons across 8
+   components (Navbar sync, LoadingScreen, LoginModal, every "Đang lưu/Đang
+   xuất" button...) but was never actually defined — this project has no
+   Tailwind, so those icons all sat completely motionless during waits that
+   can run 45s+. A frozen spinner reads as a frozen app, which defeats the
+   whole point of the loading indicators. */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+/* Respect the OS "reduce motion" setting for the continuous animations —
+   a permanently rotating icon is a common vestibular trigger. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin,
+  .pulse-dot,
+  .progress-bar-indeterminate {
+    animation-duration: 2.5s;
+  }
 }
 
 @keyframes pulseGlow {

@@ -36,6 +36,7 @@ function oemAppAddClient_(token, client) {
     client.address || '',
     client.status || 'Active'
   ]);
+  oemAppInvalidateBootstrap_();
   return { ok: true };
 }
 
@@ -61,5 +62,6 @@ function oemAppEditClient_(token, client) {
     client.address != null ? client.address : existing[7],
     client.status || existing[8]
   ]]);
+  oemAppInvalidateBootstrap_();
   return { ok: true };
 }

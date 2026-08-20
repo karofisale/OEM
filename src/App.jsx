@@ -17,6 +17,7 @@ import LoadingScreen from './components/LoadingScreen';
 import { RefreshCw } from 'lucide-react';
 
 import * as api from './services/api';
+import { readBootstrapCache, writeBootstrapCache, clearBootstrapCache } from './services/dataCache';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('ai-agent');
@@ -41,6 +42,18 @@ export default function App() {
 
   const activeUser = session?.user || { name: '', role: 'sale', saleId: '' };
 
+  // When the data on screen came from the local cache rather than a fresh
+  // backend response — drives the "số liệu có thể chưa mới nhất" hint.
+  const [isShowingCached, setIsShowingCached] = useState(false);
+
+  const applyBootstrap = (data) => {
+    setClients(data.clients || []);
+    setTransactions(data.transactions || []);
+    setMaterials(data.materials || []);
+    setPlans(data.plans || []);
+    setBaselines2025(new Map(Object.entries(data.baselines2025 || {})));
+  };
+
   // Load business data once we have a valid session; re-run when the token changes.
   const fetchAllData = async () => {
     if (!session?.token) return;
@@ -48,11 +61,9 @@ export default function App() {
     setBootstrapError('');
     try {
       const data = await api.getBootstrap(session.token);
-      setClients(data.clients || []);
-      setTransactions(data.transactions || []);
-      setMaterials(data.materials || []);
-      setPlans(data.plans || []);
-      setBaselines2025(new Map(Object.entries(data.baselines2025 || {})));
+      applyBootstrap(data);
+      setIsShowingCached(false);
+      writeBootstrapCache(activeUser.name, data); // fire-and-forget
     } catch (err) {
       console.error('Error fetching backend data:', err);
       setBootstrapError(err.message || String(err));
@@ -67,8 +78,26 @@ export default function App() {
     }
   };
 
+  // Stale-while-revalidate: paint whatever we cached last time first (the app
+  // becomes usable in milliseconds instead of waiting out a backend round-trip
+  // that has been measured anywhere from 1.4s to well over a minute), then
+  // always refresh in the background behind the existing "Đang tải lại" banner.
   useEffect(() => {
-    fetchAllData();
+    if (!session?.token) return;
+    let cancelled = false;
+
+    (async () => {
+      const cached = await readBootstrapCache(session.user?.name);
+      // Don't clobber fresher data if the network somehow won the race.
+      if (cached && !cancelled && !hasLoadedOnce) {
+        applyBootstrap(cached.data);
+        setIsShowingCached(true);
+        setHasLoadedOnce(true);
+      }
+      if (!cancelled) fetchAllData();
+    })();
+
+    return () => { cancelled = true; };
   }, [session?.token]);
 
   const handleLoginSuccess = (newSession) => {
@@ -78,11 +107,14 @@ export default function App() {
 
   const handleLogout = () => {
     api.clearSession();
+    clearBootstrapCache(); // don't leave business data on a shared machine
     setSession(null);
     setClients([]);
     setTransactions([]);
     setMaterials([]);
     setPlans([]);
+    setHasLoadedOnce(false);
+    setIsShowingCached(false);
   };
 
   const handleAddMaterial = async (newMat) => {
@@ -171,7 +203,10 @@ export default function App() {
             "the error just vanished and nothing happened". */}
         {isSyncing && hasLoadedOnce && !bootstrapError && (
           <div style={{ margin: '16px 32px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--karofi-navy)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <RefreshCw size={14} className="animate-spin" /> Đang tải lại dữ liệu từ backend — có thể mất khá lâu nếu mạng đang chập chờn, vui lòng chờ...
+            <RefreshCw size={14} className="animate-spin" />
+            {isShowingCached
+              ? 'Đang hiển thị số liệu đã lưu lần trước — đang tải bản mới nhất ở nền, bảng sẽ tự cập nhật khi xong.'
+              : 'Đang tải lại dữ liệu từ backend — có thể mất khá lâu nếu mạng đang chập chờn, vui lòng chờ...'}
           </div>
         )}
 

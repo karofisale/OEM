@@ -51,19 +51,18 @@ export default function AIOrderAgent({ clients, materials, transactions, token }
   const [orderResult, setOrderResult] = useState(null);
 
   // Handle Text Prompt Submission
+  // Runs synchronously — the parse itself measures ~11ms even against the full
+  // catalogue (440 SKUs) and transaction history, so the 400ms setTimeout that
+  // used to wrap this was 36x the actual work, purely as artificial "thinking" delay.
   const handleGenerateOrder = () => {
-    setIsProcessing(true);
     setSaved(false);
-    setTimeout(() => {
-      const result = parseOrderTextToSAP({
-        textInput: promptText,
-        clientList: clients,
-        materialsCatalog: materials,
-        transactions: transactions
-      });
-      setOrderResult(result);
-      setIsProcessing(false);
-    }, 400);
+    const result = parseOrderTextToSAP({
+      textInput: promptText,
+      clientList: clients,
+      materialsCatalog: materials,
+      transactions: transactions
+    });
+    setOrderResult(result);
   };
 
   // Handle Image Upload & OCR — shared by the file-picker button and pasting
