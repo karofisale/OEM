@@ -19,8 +19,10 @@ import { RefreshCw } from 'lucide-react';
 
 import * as api from './services/api';
 import { readBootstrapCache, writeBootstrapCache, clearBootstrapCache } from './services/dataCache';
+import { useToast } from './components/ToastProvider';
 
 export default function App() {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState('ai-agent');
   // Which tabs have ever been opened. Tabs mount on first visit and then stay
   // mounted (hidden) — see KeepAliveTab for why.
@@ -130,49 +132,70 @@ export default function App() {
     setIsShowingCached(false);
   };
 
-  const handleAddMaterial = async (newMat) => {
-    setMaterials(prev => [newMat, ...prev]);
+  // All five writers below update the UI first and call the backend after, so the
+  // app stays responsive on a connection where a write can take many seconds.
+  // The catch blocks used to only alert() — which left the optimistic row sitting
+  // in the list, so the user saw their new product listed AND a message saying it
+  // had not been saved. Each one now restores the previous state on failure, so
+  // what is on screen always matches what is in the Sheet.
+  const withOptimistic = async (apply, revert, call, failMessage) => {
+    apply();
     try {
-      await api.addMaterial(session.token, newMat);
+      await call();
     } catch (err) {
-      alert('Không ghi được sản phẩm mới lên Google Sheet: ' + err.message);
+      revert();
+      toast.error(`${failMessage}: ${err.message}`);
     }
+  };
+
+  const handleAddMaterial = async (newMat) => {
+    const prev = materials;
+    await withOptimistic(
+      () => setMaterials(m => [newMat, ...m]),
+      () => setMaterials(prev),
+      () => api.addMaterial(session.token, newMat),
+      'Không ghi được sản phẩm mới lên Google Sheet'
+    );
   };
 
   const handleEditMaterial = async (sku, updates) => {
-    setMaterials(prev => prev.map(m => m.sku === sku ? { ...m, ...updates } : m));
-    try {
-      await api.editMaterial(session.token, sku, updates);
-    } catch (err) {
-      alert('Không cập nhật được sản phẩm lên Google Sheet: ' + err.message);
-    }
+    const prev = materials;
+    await withOptimistic(
+      () => setMaterials(m => m.map(x => x.sku === sku ? { ...x, ...updates } : x)),
+      () => setMaterials(prev),
+      () => api.editMaterial(session.token, sku, updates),
+      'Không cập nhật được sản phẩm lên Google Sheet'
+    );
   };
 
   const handleAddClient = async (newClient) => {
-    setClients(prev => [newClient, ...prev]);
-    try {
-      await api.addClient(session.token, newClient);
-    } catch (err) {
-      alert('Không ghi được khách hàng mới lên Google Sheet: ' + err.message);
-    }
+    const prev = clients;
+    await withOptimistic(
+      () => setClients(c => [newClient, ...c]),
+      () => setClients(prev),
+      () => api.addClient(session.token, newClient),
+      'Không ghi được khách hàng mới lên Google Sheet'
+    );
   };
 
   const handleEditClient = async (updatedClient) => {
-    setClients(prev => prev.map(c => c.code === updatedClient.code ? updatedClient : c));
-    try {
-      await api.editClient(session.token, updatedClient);
-    } catch (err) {
-      alert('Không cập nhật được khách hàng lên Google Sheet: ' + err.message);
-    }
+    const prev = clients;
+    await withOptimistic(
+      () => setClients(c => c.map(x => x.code === updatedClient.code ? updatedClient : x)),
+      () => setClients(prev),
+      () => api.editClient(session.token, updatedClient),
+      'Không cập nhật được khách hàng lên Google Sheet'
+    );
   };
 
   const handleAddPlan = async (newPlan) => {
-    setPlans(prev => [newPlan, ...prev]);
-    try {
-      await api.addPlan(session.token, newPlan);
-    } catch (err) {
-      alert('Không ghi được kế hoạch mới lên Google Sheet: ' + err.message);
-    }
+    const prev = plans;
+    await withOptimistic(
+      () => setPlans(p => [newPlan, ...p]),
+      () => setPlans(prev),
+      () => api.addPlan(session.token, newPlan),
+      'Không ghi được kế hoạch mới lên Google Sheet'
+    );
   };
 
   // No valid session — require login before showing any business data.

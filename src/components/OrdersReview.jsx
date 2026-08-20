@@ -2,11 +2,16 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ClipboardList, RefreshCw, Copy, Check, Save, AlertCircle, Loader2, Trash2, FileSpreadsheet } from 'lucide-react';
 import * as api from '../services/api';
 import LoadingScreen from './LoadingScreen';
+import ConfirmDialog from './ConfirmDialog';
+import { useToast } from './ToastProvider';
 import SkuPickerCell from './SkuPickerCell';
 import ClientPickerCell from './ClientPickerCell';
 import RowActionButtons from './RowActionButtons';
 
 export default function OrdersReview({ token, activeUser, materials, clients, isActive = true, isStale = true, onLoaded }) {
+  const toast = useToast();
+  // Pending destructive action awaiting confirmation, replacing window.confirm().
+  const [confirming, setConfirming] = useState(null);
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -97,7 +102,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
       setOrders(prev => prev.map(o => o.rowIndex === row.rowIndex ? { ...o, sku, name, qty, price, total, clientCode, clientCodeSearch } : o));
       setEditedRows(prev => { const next = { ...prev }; delete next[row.rowIndex]; return next; });
     } catch (err) {
-      alert('Không lưu được thay đổi: ' + err.message);
+      toast.error('Không lưu được thay đổi: ' + err.message);
     } finally {
       setSavingRow(null);
     }
@@ -132,35 +137,49 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
       setEditedRows({});
       await fetchOrders();
     } catch (err) {
-      alert('Không chèn được dòng: ' + err.message);
+      toast.error('Không chèn được dòng: ' + err.message);
     } finally {
       setBusyRowIndex(null);
     }
   };
 
-  const handleDeleteRow = async (row) => {
-    if (!window.confirm('Xóa dòng này khỏi tab Orders?')) return;
+  const handleDeleteRow = (row) => setConfirming({
+    kind: 'row',
+    title: 'Xóa dòng này?',
+    message: `Dòng "${row.sku || '(chưa có mã)'} — ${row.name || ''}" sẽ bị xóa khỏi tab Orders.`,
+    confirmLabel: 'Xóa dòng',
+    run: () => deleteRowConfirmed(row)
+  });
+
+  const deleteRowConfirmed = async (row) => {
     setBusyRowIndex(row.rowIndex);
     try {
       await api.deleteOrderLine(token, row.rowIndex);
       setEditedRows({});
       await fetchOrders();
     } catch (err) {
-      alert('Không xóa được dòng: ' + err.message);
+      toast.error('Không xóa được dòng: ' + err.message);
     } finally {
       setBusyRowIndex(null);
     }
   };
 
-  const handleDeleteOrder = async (orderNo) => {
-    if (!window.confirm(`Xóa TOÀN BỘ đơn hàng ${orderNo} khỏi tab Orders? Không thể hoàn tác.`)) return;
+  const handleDeleteOrder = (orderNo) => setConfirming({
+    kind: 'order',
+    title: `Xóa toàn bộ đơn ${orderNo}?`,
+    message: 'Tất cả các dòng của đơn này sẽ bị xóa khỏi tab Orders. Thao tác này không thể hoàn tác.',
+    confirmLabel: 'Xóa cả đơn',
+    run: () => deleteOrderConfirmed(orderNo)
+  });
+
+  const deleteOrderConfirmed = async (orderNo) => {
     setDeletingOrderNo(orderNo);
     try {
       await api.deleteOrder(token, orderNo);
       setEditedRows({});
       await fetchOrders();
     } catch (err) {
-      alert('Không xóa được đơn hàng: ' + err.message);
+      toast.error('Không xóa được đơn hàng: ' + err.message);
     } finally {
       setDeletingOrderNo('');
     }
@@ -204,7 +223,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
       XLSX.utils.book_append_sheet(wb, ws, String(orderNo).slice(0, 31) || 'Don hang');
       XLSX.writeFile(wb, `Don_${orderNo}.xlsx`);
     } catch (err) {
-      alert('Không xuất được file Excel: ' + err.message);
+      toast.error('Không xuất được file Excel: ' + err.message);
     } finally {
       setExportingOrderNo('');
     }
@@ -221,7 +240,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
       const today = new Date().toLocaleDateString('vi-VN').replace(/\//g, '-');
       XLSX.writeFile(wb, `Don_Hang_Cho_Duyet_${today}.xlsx`);
     } catch (err) {
-      alert('Không xuất được file Excel: ' + err.message);
+      toast.error('Không xuất được file Excel: ' + err.message);
     } finally {
       setExportingAll(false);
     }
@@ -443,6 +462,17 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
           </div>
         );
       })}
+
+      {confirming && (
+        <ConfirmDialog
+          title={confirming.title}
+          message={confirming.message}
+          confirmLabel={confirming.confirmLabel}
+          destructive
+          onConfirm={() => { const run = confirming.run; setConfirming(null); run(); }}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
 
     </div>
   );

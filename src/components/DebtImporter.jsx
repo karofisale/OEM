@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { FileSpreadsheet, Upload, CheckCircle2, ArrowRight, AlertTriangle } from 'lucide-react';
+import { useToast } from './ToastProvider';
 
 export default function DebtImporter({ onSyncDebt }) {
+  const toast = useToast();
   const [file, setFile] = useState(null);
   const [debtData, setDebtData] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -36,7 +38,7 @@ export default function DebtImporter({ onSyncDebt }) {
 
         setDebtData(parsed);
       } catch (err) {
-        alert('Lỗi đọc file Excel. Xin kiểm tra định dạng file.');
+        toast.error('Lỗi đọc file Excel. Xin kiểm tra định dạng file.');
       } finally {
         setIsProcessing(false);
       }

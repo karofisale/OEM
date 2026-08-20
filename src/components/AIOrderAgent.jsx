@@ -21,6 +21,7 @@ import {
   VAT_RATE
 } from '../services/aiAgent';
 import * as api from '../services/api';
+import { useToast } from './ToastProvider';
 import SkuPickerCell from './SkuPickerCell';
 import ClientPickerCell from './ClientPickerCell';
 import RowActionButtons from './RowActionButtons';
@@ -39,6 +40,7 @@ const createBlankItem = () => ({
 });
 
 export default function AIOrderAgent({ clients, materials, transactions, token, onOrderSaved }) {
+  const toast = useToast();
   const [promptText, setPromptText] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [ocrStatus, setOcrStatus] = useState('');
@@ -73,7 +75,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
   const processImageFile = async (file) => {
     if (!file) return;
     if (file.size > MAX_OCR_IMAGE_BYTES) {
-      alert(`Ảnh quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Vui lòng chọn ảnh dưới 8MB để tránh treo trình duyệt khi quét OCR.`);
+      toast.error(`Ảnh quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Vui lòng chọn ảnh dưới 8MB để tránh treo trình duyệt khi quét OCR.`);
       return;
     }
     setImageFile(file);
@@ -93,7 +95,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
       });
       setOrderResult(result);
     } catch (err) {
-      alert(err.message || 'Lỗi đọc ảnh.');
+      toast.error(err.message || 'Lỗi đọc ảnh.');
     } finally {
       setIsProcessing(false);
       setOcrStatus('');
@@ -219,7 +221,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
       // list is out of date, so it refetches next time the user opens it.
       if (onOrderSaved) onOrderSaved();
     } catch (err) {
-      alert('Không lưu được đơn hàng lên Google Sheet (tab Orders): ' + err.message);
+      toast.error('Không lưu được đơn hàng lên Google Sheet (tab Orders): ' + err.message);
     } finally {
       setIsSaving(false);
     }
