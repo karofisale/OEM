@@ -7,7 +7,7 @@
 // there was consistently ~5-10x slower per call. Source: gas/Code.gs (+
 // Helpers/Auth/Clients/Products/SalesData/Orders.gs in this folder). See
 // gas/SETUP.md for deploy steps.
-export const API_URL = 'https://script.google.com/macros/s/AKfycbyUJeeWip_QTpEHTG-5-h4JaOLR9kL9fO6MkoIX0P86YibuqaEo8qAI_X62XZuU9yQi3g/exec';
+export const API_URL = 'https://script.google.com/macros/s/AKfycbwKe1b7gUOnp9gPF_q6jlzTFIrD3DOtkFM8oMQf41D1iXGrEwmYElWZeupCNG-Szy7DfQ/exec';
 
 const SESSION_KEY = 'oem_session_v1';
 const SESSION_TTL_MS = 6 * 60 * 60 * 1000; // 6h, matches the backend's cache TTL
