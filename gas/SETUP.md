@@ -17,7 +17,9 @@ npx clasp update-deployment <deploymentId> -V <versionNumber>   # trỏ deployme
 
 **Lưu ý bắt buộc**: LUÔN dùng `update-deployment` (không phải `create-deployment`/`clasp deploy`) — lệnh này cập nhật đúng deployment ID hiện có, giữ nguyên Web app URL. Tạo deployment mới sẽ sinh URL khác, phá `API_URL` trong `src/services/api.js`.
 
-Deployment ID đang chạy (khớp `API_URL` hiện tại): `AKfycbyUJeeWip_QTpEHTG-5-h4JaOLR9kL9fO6MkoIX0P86YibuqaEo8qAI_X62XZuU9yQi3g`. Xem lại/đối chiếu bất cứ lúc nào bằng `npx clasp list-deployments`.
+Deployment ID đang chạy (khớp `API_URL` hiện tại): `AKfycbwKe1b7gUOnp9gPF_q6jlzTFIrD3DOtkFM8oMQf41D1iXGrEwmYElWZeupCNG-Szy7DfQ`. Xem lại/đối chiếu bất cứ lúc nào bằng `npx clasp list-deployments`.
+
+**Cập nhật 2026-08-21**: deployment ID ở trên đã đổi (khác với bản 2026-08-20) — ai đó đã tạo **New deployment** thủ công trên trình soạn thảo web thay vì `update-deployment`, nên sinh ra ID mới thay vì cập nhật ID cũ. Đã xác minh sống (`ping`/`getUserList`/`getBootstrap`) deployment mới này hoạt động bình thường và trả đúng dữ liệu thật. Chưa xác minh được deployment mới có nằm trong CÙNG project Apps Script (`scriptId` trong `gas/.clasp.json`) hay không, vì `npx clasp login` trên máy này đang cần đăng nhập lại (lỗi `invalid_rapt` — chính sách reauth định kỳ của Google Workspace), nên `clasp list-deployments` tạm thời không chạy được để đối chiếu. **Việc cần làm trước lần deploy bằng clasp tiếp theo**: chạy `npx clasp login` (mở trình duyệt, đăng nhập lại tài khoản có quyền Editor), rồi `npx clasp list-deployments` để xác nhận ID mới ở trên có xuất hiện trong danh sách của đúng project hay không — nếu KHÔNG, nghĩa là đã có project Apps Script khác/mới, và `scriptId` trong `.clasp.json` cần được cập nhật lại trước khi push.
 
 `npx clasp status` cho biết file nào sẽ được đẩy lên (chỉ 7 file `.gs` + `appsscript.json` — `SETUP.md` và các file `.md` khác tự động bị bỏ qua, không cần `.claspignore` riêng).
 
