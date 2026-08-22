@@ -60,6 +60,7 @@ function oemAppDeriveMaterials_(transactions, aliasHints, catalogMap) {
       latestPrice: m.latestPrice,
       latestPriceVat: Math.round(m.latestPrice * (1 + m.latestTaxRate)),
       suggestedPrice: override.suggestedPrice || 0,
+      isExclusive: !!override.isExclusive,
       learnedAliases: (aliasHints && aliasHints[sku]) || []
     };
   });
@@ -72,6 +73,7 @@ function oemAppDeriveMaterials_(transactions, aliasHints, catalogMap) {
     out.push({
       sku: sku, name: c.name || sku, alias: c.alias || '', unit: 'PC', group: c.group || 'Linh kiện OEM',
       totalQty: 0, avgPrice: 0, latestPrice: 0, latestPriceVat: 0, suggestedPrice: c.suggestedPrice || 0,
+      isExclusive: !!c.isExclusive,
       learnedAliases: (aliasHints && aliasHints[sku]) || []
     });
   });
@@ -93,11 +95,14 @@ function oemAppDeriveMaterials_(transactions, aliasHints, catalogMap) {
 // user-created, same precedent as "Orders": found by name, NOT auto-created,
 // throws if missing) ----------
 // Columns (1-indexed): CateID, Ma LK (SKU), Ten LK, Nhom SP, Alias, Gia ban,
-// Duyet gia, Ngay duyet. CateID is a per-Nhom-SP lookup number (19 existing
-// groups = CateID 1..19) - NOT touched by "Duyet gia"/"Ngay duyet", which stay
-// reserved for a future price-approval flow (out of scope here; the existing
-// "De Xuat Gia" button in ProductManagement.jsx is a separate, still-unwired
-// UI stub - this Sua/Them flow only ever writes CateID/SKU/Ten/Nhom/Alias/Gia ban).
+// Duyet gia, Ngay duyet, Doc quyen. CateID is a per-Nhom-SP lookup number (19
+// existing groups = CateID 1..19) - NOT touched by "Duyet gia"/"Ngay duyet",
+// which stay reserved for a future price-approval flow (out of scope here;
+// the existing "De Xuat Gia" button in ProductManagement.jsx is a separate,
+// still-unwired UI stub - this Sua/Them flow only ever writes
+// CateID/SKU/Ten/Nhom/Alias/Gia ban/Doc quyen). "Doc quyen" (2026-08-22, added
+// by the user for the SOP planning filter) is a plain truthy cell (TRUE/"x"/
+// non-empty) - read with oemAppParseBool_, not oemAppParseNum_.
 var OEMAPP_PRODUCTS_SHEET = 'Products';
 
 
@@ -135,6 +140,7 @@ function oemAppLoadMaterialCatalog_() {
       group: group,
       alias: String(rows[i][4] || ''),
       suggestedPrice: oemAppParseNum_(rows[i][5]),
+      isExclusive: oemAppParseBool_(rows[i][8]),
       // 1-based real sheet row. Carrying it here lets add/edit locate a SKU from
       // the catalog they already loaded, instead of re-reading the whole tab a
       // second time just to find the row number (what oemAppFindProductRow_ did).
@@ -172,7 +178,7 @@ function oemAppAddMaterial_(token, material) {
   var cateId = oemAppResolveCateId_(catalog, material.group);
   sheet.appendRow([
     cateId, material.sku, material.name || '', material.group || '',
-    material.alias || '', material.suggestedPrice || 0, '', ''
+    material.alias || '', material.suggestedPrice || 0, '', '', !!material.isExclusive
   ]);
   oemAppInvalidateBootstrap_();
   return { ok: true };
@@ -201,16 +207,18 @@ function oemAppEditMaterial_(token, sku, updates) {
     var newCateId = oemAppResolveCateId_(catalog, updates.group);
     sheet.appendRow([
       newCateId, sku, updates.name || '', updates.group || '',
-      updates.alias || '', updates.suggestedPrice || 0, '', ''
+      updates.alias || '', updates.suggestedPrice || 0, '', '', !!updates.isExclusive
     ]);
   } else {
-    var existing = sheet.getRange(rowIndex, 1, 1, 8).getValues()[0];
+    var existing = sheet.getRange(rowIndex, 1, 1, 9).getValues()[0];
     var name = updates.name != null ? updates.name : existing[2];
     var group = updates.group != null ? updates.group : existing[3];
     var alias = updates.alias != null ? updates.alias : existing[4];
     var suggestedPrice = updates.suggestedPrice != null ? updates.suggestedPrice : existing[5];
     var cateId = updates.group != null ? oemAppResolveCateId_(catalog, group) : existing[0];
-    sheet.getRange(rowIndex, 1, 1, 6).setValues([[cateId, sku, name, group, alias, suggestedPrice]]);
+    var isExclusive = updates.isExclusive != null ? !!updates.isExclusive : existing[8];
+    // Cols 7-8 (Duyet gia/Ngay duyet) round-trip unchanged — this flow never touches them.
+    sheet.getRange(rowIndex, 1, 1, 9).setValues([[cateId, sku, name, group, alias, suggestedPrice, existing[6], existing[7], isExclusive]]);
   }
   oemAppInvalidateBootstrap_();
   return { ok: true };

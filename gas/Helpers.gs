@@ -92,6 +92,16 @@ function oemAppCacheDropBig_(key) {
 }
 
 
+// TRUE/"x"/"có"/1/any non-empty text -> true; blank/FALSE/0 -> false. Sheets
+// stores a checkbox cell as a real boolean, but a plain typed "x" is just text.
+function oemAppParseBool_(val) {
+  if (val === true) return true;
+  if (val === false || val === '' || val === null || val === undefined) return false;
+  var s = String(val).trim().toLowerCase();
+  return s !== '' && s !== '0' && s !== 'false' && s !== 'không';
+}
+
+
 function oemAppParseNum_(val) {
   if (val === '' || val === null || val === undefined) return 0;
   if (typeof val === 'number') return val;

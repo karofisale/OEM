@@ -187,3 +187,23 @@ export async function deleteOrder(token, orderNo) {
 export async function ping() {
   return callApi('ping');
 }
+
+export async function getSopPlanningContext(token) {
+  return callApi('getSopPlanningContext', [token]);
+}
+
+export async function submitSopDraft(token, anchor, rows) {
+  return callApi('submitSopDraft', [token, anchor, rows]);
+}
+
+export async function getSopPendingReview(token, anchor) {
+  return callApi('getSopPendingReview', [token, anchor]);
+}
+
+export async function approveSop(token, anchor) {
+  return callApi('approveSop', [token, anchor]);
+}
+
+export async function getSopView(token) {
+  return callApi('getSopView', [token]);
+}

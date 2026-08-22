@@ -12,7 +12,8 @@ import {
   PieChart,
   ChevronLeft,
   ChevronRight,
-  ClipboardList
+  ClipboardList,
+  CalendarClock
 } from 'lucide-react';
 
 export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, transactionCount = 0 }) {
@@ -36,6 +37,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
     { id: 'products', label: 'Sản phẩm & Bảng giá', icon: Package },
     { id: 'clients', label: 'Khách hàng OEM', icon: Users },
     { id: 'sales-plan', label: 'Kế hoạch kinh doanh', icon: CalendarRange },
+    { id: 'sop', label: 'Kế hoạch SOP', icon: CalendarClock },
     { id: 'debt-importer', label: 'Nhập công nợ Excel', icon: FileSpreadsheet },
     { id: 'settings', label: 'Cấu hình Google Sheet', icon: Settings }
   ];

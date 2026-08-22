@@ -33,6 +33,7 @@
  *   Products.gs          - material/product catalogue
  *   SalesData.gs         - transactions, sales plans, baselines, getBootstrap
  *   Orders.gs            - AI Order Agent -> SAP staging tab "Orders"
+ *   Sop.gs                - SOP monthly per-SKU quantity plan (draft + approve)
  */
 
 var OEMAPP_SHEET_ID = '1lSeQyfHmd-H0s7Qu7n9b8LAJ3Deap9hHFLEKf6F0Cnk';
@@ -100,7 +101,13 @@ var oemAppApiMap_ = {
   updateOrderLine: oemAppUpdateOrderLine_,
   insertOrderLine: oemAppInsertOrderLine_,
   deleteOrderLine: oemAppDeleteOrderLine_,
-  deleteOrder: oemAppDeleteOrder_
+  deleteOrder: oemAppDeleteOrder_,
+  getSopPlanningContext: oemAppGetSopPlanningContext_,
+  submitSopDraft: oemAppSubmitSopDraft_,
+  getSopPendingReview: oemAppGetSopPendingReview_,
+  approveSop: oemAppApproveSop_,
+  getSopView: oemAppGetSopView_,
+  sopDiag: oemAppSopDiag_
 };
 
 

@@ -11,6 +11,7 @@ import TransactionGrid from './components/TransactionGrid';
 import ProductManagement from './components/ProductManagement';
 import ClientManagement from './components/ClientManagement';
 import SalesPlan from './components/SalesPlan';
+import SopPlan from './components/SopPlan';
 import DebtImporter from './components/DebtImporter';
 import GoogleSheetSettings from './components/GoogleSheetSettings';
 import LoadingScreen from './components/LoadingScreen';
@@ -342,6 +343,14 @@ export default function App() {
               transactions={transactions}
               activeUser={activeUser}
               onAddPlan={handleAddPlan}
+            />
+          </KeepAliveTab>
+
+          <KeepAliveTab isActive={activeTab === 'sop'} hasVisited={visitedTabs.has('sop')}>
+            <SopPlan
+              token={session.token}
+              activeUser={activeUser}
+              materials={materials}
             />
           </KeepAliveTab>
 

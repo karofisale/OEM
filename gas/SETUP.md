@@ -66,6 +66,15 @@ rồi Deploy → New version. Nếu không, project cũ vẫn chạy bản có n
 
 Sửa trực tiếp `D:\Antigravity\OEM App\gas\Code.gs` (giờ LÀ bản deploy thật) — dán vào Apps Script editor của project ĐỘC LẬP mới (không phải project up-dt-oem/cong-no-oem nữa), Save, rồi **Deploy → Manage deployments → Edit → New version → Deploy**.
 
+## Tab bắt buộc cho tính năng SOP (thêm 2026-08-22)
+
+`Sop.gs` tìm 2 tab theo TÊN (như "Orders"/"Products" — không tự tạo, báo lỗi nếu thiếu):
+
+- **SOP_Plan**: `Kỳ | Sale | Mã SKU | SL T+1 | SL T+2 | SL T+3 | SL T+4 | Trạng thái | Ngày gửi | Người duyệt | Ngày duyệt` — chi tiết từng Sale, giữ lịch sử, không bao giờ bị ghi đè.
+- **SOP**: `Mã | Tên SP | Giá bán | SL <tháng> | SL <tháng> | SL <tháng> | SL <tháng>` — bị **ghi đè toàn bộ** mỗi khi Admin/Creator duyệt 1 kỳ, chỉ phản ánh kỳ mới nhất.
+
+Cột "Độc quyền" trên tab **Products** (cột thứ 9, do người dùng tự thêm) dùng để lọc bảng lập kế hoạch — đọc bằng `oemAppParseBool_` (TRUE/"x"/text khác rỗng = có).
+
 ## Những gì backend này CHƯA làm (có chủ đích)
 
 - **Đồng bộ Công Nợ Excel** (`DebtImporter.jsx`) vẫn chỉ lưu tạm — tab `Debt_Tracking`/`Debt` đã có quy trình cập nhật riêng qua skill `cong-no-oem` (đối chiếu Mã KH/Tên KH); một luồng ghi tự động thứ 2 từ app này rủi ro làm hai luồng đá nhau.
