@@ -68,10 +68,41 @@ Sửa trực tiếp `D:\Antigravity\OEM App\gas\Code.gs` (giờ LÀ bản deploy
 
 ## Tab bắt buộc cho tính năng SOP (thêm 2026-08-22)
 
-`Sop.gs` tìm 2 tab theo TÊN (như "Orders"/"Products" — không tự tạo, báo lỗi nếu thiếu):
+`Sop.gs` tìm 2 tab theo TÊN (như "Orders"/"Products" — không tự tạo, báo lỗi nếu thiếu, và đọc/ghi theo VỊ TRÍ cột chứ không theo tên tiêu đề — dòng 1 chỉ để người đọc, code không parse chữ trong đó trừ tab SOP như ghi chú bên dưới).
 
-- **SOP_Plan**: `Kỳ | Sale | Mã SKU | SL T+1 | SL T+2 | SL T+3 | SL T+4 | Trạng thái | Ngày gửi | Người duyệt | Ngày duyệt` — chi tiết từng Sale, giữ lịch sử, không bao giờ bị ghi đè.
-- **SOP**: `Mã | Tên SP | Giá bán | SL <tháng> | SL <tháng> | SL <tháng> | SL <tháng>` — bị **ghi đè toàn bộ** mỗi khi Admin/Creator duyệt 1 kỳ, chỉ phản ánh kỳ mới nhất.
+**⚠️ Kiểm tra lại (2026-08-22)**: `sopDiag` (gọi không cần đăng nhập) đọc được dòng tiêu đề THỰC TẾ của 2 tab hiện có không khớp bảng dưới đây — có nhãn "Tổng DT:" và các số thập phân trông giống dữ liệu doanh thu từ một tab khác, nghi là bị copy sót nội dung cũ. **Chưa ai chạy thử tính năng thật với dữ liệu này** — cần dọn lại 2 tab đúng cấu trúc dưới đây trước khi dùng, để tránh nút "Duyệt" (xoá + ghi đè tab SOP) đụng vào dữ liệu không liên quan.
+
+### Tab "SOP_Plan" — 11 cột, đọc/ghi bởi `oemAppLoadSopPlanRows_` / `oemAppSubmitSopDraft_` / `oemAppApproveSop_`
+
+| Cột | Vị trí (1-indexed) | Tên gợi ý | Kiểu dữ liệu | Ví dụ |
+|---|---|---|---|---|
+| A | 1 | Kỳ | text, "yyyy-MM" | `2026-09` |
+| B | 2 | Sale | text (saleId hoặc tên đăng nhập) | `KH Đình Hoan` |
+| C | 3 | Mã SKU | text | `SKU001` |
+| D | 4 | SL T+1 | số | `50` |
+| E | 5 | SL T+2 | số | `60` |
+| F | 6 | SL T+3 | số | `70` |
+| G | 7 | SL T+4 | số | `80` |
+| H | 8 | Trạng thái | text: `Chờ duyệt` hoặc `Đã duyệt` | `Chờ duyệt` |
+| I | 9 | Ngày gửi | text "dd/MM/yyyy HH:mm" | `21/08/2026 09:00` |
+| J | 10 | Người duyệt | text (tên admin, để trống tới khi duyệt) | `` |
+| K | 11 | Ngày duyệt | text "dd/MM/yyyy HH:mm" (để trống tới khi duyệt) | `` |
+
+Dòng 1 = tiêu đề (bỏ qua khi đọc). Từ dòng 2 trở đi là dữ liệu — 1 dòng = 1 (Kỳ, Sale, SKU). Tab này **giữ lịch sử, không bao giờ bị code xoá** — chỉ ghi đè đúng dòng khi Sale gửi lại trước khi duyệt, hoặc chỉ đổi cột H/J/K khi duyệt.
+
+### Tab "SOP" — 7 cột, bị `oemAppApproveSop_` **ghi đè toàn bộ** mỗi lần duyệt (chỉ phản ánh kỳ mới nhất)
+
+| Cột | Vị trí (1-indexed) | Tên | Ví dụ |
+|---|---|---|---|
+| A | 1 | Mã | `SKU001` |
+| B | 2 | Tên SP | `Vật tư 001` |
+| C | 3 | Giá bán | `15000` |
+| D | 4 | SL <tháng 1> | `55` |
+| E | 5 | SL <tháng 2> | `66` |
+| F | 6 | SL <tháng 3> | `77` |
+| G | 7 | SL <tháng 4> | `88` |
+
+Dòng 1 do code tự ghi (`Mã`, `Tên SP`, `Giá bán`, và 4 tiêu đề dạng `SL T09-2026`...) — `oemAppGetSopView_` đọc lại đúng 4 tiêu đề này ở cột D-G để hiển thị nhãn tháng, nên **không tự đổi tay dòng 1**. Nếu tab đang có thêm cột phía sau cột G (như dữ liệu lạ phát hiện ở trên), code không đọc tới nhưng nên xoá cho sạch, tránh gây nhầm khi mở Sheet trực tiếp.
 
 Cột "Độc quyền" trên tab **Products** (cột thứ 9, do người dùng tự thêm) dùng để lọc bảng lập kế hoạch — đọc bằng `oemAppParseBool_` (TRUE/"x"/text khác rỗng = có).
 
