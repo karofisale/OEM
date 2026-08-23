@@ -119,8 +119,12 @@ function oemAppGetSopPlanningContext_(token) {
   var priorApproved = {};
   // Tracks which approved row last won each SKU's priorApproved value, so a
   // more recently approved forecast overrides an older one that also covered
-  // the same month (periods roll forward and overlap).
-  var bestApprovedAt = {};
+  // the same month (periods roll forward and overlap). Keyed by rowIndex
+  // (physical sheet position), NOT by parsing "Ngày duyệt" — that column is
+  // written as "dd/MM/yyyy HH:mm", which `new Date(...)` cannot parse (silently
+  // NaN in V8/Apps Script). Rows are only ever appended, never reordered, so a
+  // later real-world approval always lands at a higher rowIndex.
+  var bestRowIndex = {};
 
   allRows.forEach(function (row) {
     if (row.sale !== saleKey) return;
@@ -133,9 +137,8 @@ function oemAppGetSopPlanningContext_(token) {
       var months = oemAppSopPeriodMonths_(row.period);
       var offset = months.indexOf(priorMonth);
       if (offset !== -1) {
-        var approvedAt = row.approvedAt ? new Date(row.approvedAt).getTime() : 0;
-        if (!(row.sku in bestApprovedAt) || approvedAt > bestApprovedAt[row.sku]) {
-          bestApprovedAt[row.sku] = approvedAt;
+        if (!(row.sku in bestRowIndex) || row.rowIndex > bestRowIndex[row.sku]) {
+          bestRowIndex[row.sku] = row.rowIndex;
           priorApproved[row.sku] = row.sl[offset];
         }
       }
