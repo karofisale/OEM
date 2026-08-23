@@ -106,25 +106,31 @@ function oemAppSopSaleKey_(user) {
 // What a Sale sees before they start filling in the table: the period they're
 // about to plan for (the frontend shows this in a "xác nhận kỳ" banner before
 // unlocking the table), whatever they already typed and submitted this period
-// but isn't approved yet (so reopening the screen doesn't lose it), and last
-// month's APPROVED qty per SKU — the ">0" default filter.
+// but isn't approved yet (so reopening the screen doesn't lose it), last
+// month's APPROVED qty per SKU (the ">0" default filter), and — since 3 of
+// the 4 new months were already part of whatever this Sale last got
+// approved — a carry-forward value per SKU for each of the 4 new months, so
+// the table opens pre-filled for editing instead of blank (only a genuinely
+// new month, normally T+4, has nothing to carry forward).
 function oemAppGetSopPlanningContext_(token) {
   var user = oemAppRequireSession_(token);
   var saleKey = oemAppSopSaleKey_(user);
   var anchor = oemAppSopCurrentAnchor_();
   var priorMonth = oemAppSopAddMonths_(anchor, -1);
+  var newMonths = oemAppSopPeriodMonths_(anchor);
 
   var allRows = oemAppLoadSopPlanRows_();
   var myDraft = [];
-  var priorApproved = {};
-  // Tracks which approved row last won each SKU's priorApproved value, so a
-  // more recently approved forecast overrides an older one that also covered
-  // the same month (periods roll forward and overlap). Keyed by rowIndex
-  // (physical sheet position), NOT by parsing "Ngày duyệt" — that column is
-  // written as "dd/MM/yyyy HH:mm", which `new Date(...)` cannot parse (silently
-  // NaN in V8/Apps Script). Rows are only ever appended, never reordered, so a
-  // later real-world approval always lands at a higher rowIndex.
-  var bestRowIndex = {};
+
+  // sku -> { monthKey: { value, rowIndex } }, built from EVERY approved row
+  // this Sale has ever had, across every period — not just the immediately
+  // preceding one — so a gap (a month nobody submitted a period for) still
+  // carries forward from whichever approval last covered it. Keyed by
+  // rowIndex (physical sheet position), NOT by parsing "Ngày duyệt" — that
+  // column is text "dd/MM/yyyy HH:mm", which `new Date(...)` silently returns
+  // NaN for in V8/Apps Script. Rows are only ever appended, never reordered,
+  // so a later real-world approval always lands at a higher rowIndex.
+  var approvedGrid = {};
 
   allRows.forEach(function (row) {
     if (row.sale !== saleKey) return;
@@ -134,23 +140,31 @@ function oemAppGetSopPlanningContext_(token) {
     }
 
     if (row.status === 'Đã duyệt') {
-      var months = oemAppSopPeriodMonths_(row.period);
-      var offset = months.indexOf(priorMonth);
-      if (offset !== -1) {
-        if (!(row.sku in bestRowIndex) || row.rowIndex > bestRowIndex[row.sku]) {
-          bestRowIndex[row.sku] = row.rowIndex;
-          priorApproved[row.sku] = row.sl[offset];
+      var rowMonths = oemAppSopPeriodMonths_(row.period);
+      if (!approvedGrid[row.sku]) approvedGrid[row.sku] = {};
+      var grid = approvedGrid[row.sku];
+      rowMonths.forEach(function (m, i) {
+        if (!grid[m] || row.rowIndex > grid[m].rowIndex) {
+          grid[m] = { value: row.sl[i], rowIndex: row.rowIndex };
         }
-      }
+      });
     }
   });
 
-  var months = oemAppSopPeriodMonths_(anchor);
+  var priorApproved = {};
+  var carryForward = {};
+  Object.keys(approvedGrid).forEach(function (sku) {
+    var grid = approvedGrid[sku];
+    if (grid[priorMonth]) priorApproved[sku] = grid[priorMonth].value;
+    carryForward[sku] = newMonths.map(function (m) { return grid[m] ? grid[m].value : 0; });
+  });
+
   return {
     anchor: anchor,
-    monthLabels: months.map(oemAppSopLabel_),
+    monthLabels: newMonths.map(oemAppSopLabel_),
     myDraft: myDraft,
-    priorApprovedBySku: priorApproved
+    priorApprovedBySku: priorApproved,
+    carryForwardBySku: carryForward
   };
 }
 
@@ -314,6 +328,14 @@ function oemAppSopDiag_() {
     var planSheet = oemAppGetSopPlanSheet_();
     out.planFound = true;
     out.planHeaders = planSheet.getRange(1, 1, 1, 11).getValues()[0];
+    // Data-shape summary only — distinct labels + counts, never quantities —
+    // so seeded rows (period/sale spelling/status text) can be sanity-checked
+    // without a login and without exposing any real numbers.
+    var planRows = oemAppLoadSopPlanRows_();
+    out.planRowCount = planRows.length;
+    out.planDistinctPeriods = Array.from(new Set(planRows.map(function (r) { return r.period; }))).sort();
+    out.planDistinctSales = Array.from(new Set(planRows.map(function (r) { return r.sale; }))).sort();
+    out.planDistinctStatuses = Array.from(new Set(planRows.map(function (r) { return r.status; }))).sort();
   } catch (e) {
     out.planFound = false;
     out.planError = e.message;
@@ -322,6 +344,7 @@ function oemAppSopDiag_() {
     var sopSheet = oemAppGetSopSheet_();
     out.sopFound = true;
     out.sopHeaders = sopSheet.getRange(1, 1, 1, Math.max(sopSheet.getLastColumn(), 7)).getValues()[0];
+    out.sopRowCount = Math.max(0, sopSheet.getLastRow() - 1);
   } catch (e) {
     out.sopFound = false;
     out.sopError = e.message;

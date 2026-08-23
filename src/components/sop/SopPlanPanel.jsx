@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Filter, CheckCircle2, Save, ShieldCheck } from 'lucide-react';
+import { Search, Filter, CheckCircle2, Save, ShieldCheck, TrendingUp } from 'lucide-react';
 import * as api from '../../services/api';
 import Pagination, { usePagedSlice } from '../Pagination';
 import LoadingScreen from '../LoadingScreen';
@@ -31,7 +31,11 @@ export default function SopPlanPanel({ token, materials, onSubmitted }) {
     try {
       const data = await api.getSopPlanningContext(token);
       setContext(data);
+      // Base: carried forward from whatever was last approved (normally fills
+      // the first 3 of the 4 months — the 4th is genuinely new, stays 0), then
+      // an in-progress-but-unapproved draft for THIS exact period overrides it.
       const map = {};
+      Object.entries(data.carryForwardBySku || {}).forEach(([sku, sl]) => { map[sku] = sl.slice(); });
       (data.myDraft || []).forEach(d => { map[d.sku] = [d.sl1 || 0, d.sl2 || 0, d.sl3 || 0, d.sl4 || 0]; });
       setDraftMap(map);
     } catch (err) {
@@ -61,6 +65,19 @@ export default function SopPlanPanel({ token, materials, onSubmitted }) {
   }, [materials, context, searchTerm, groupFilter, exclusiveOnly, onlyPriorPlanned]);
 
   const { safePage, pageItems: pagedMaterials } = usePagedSlice(filteredMaterials, page, PAGE_SIZE);
+
+  // Live SUMPRODUCT(SL x Giá bán) per month over the FULL filtered set (not
+  // just the visible page) — recomputes on every keystroke so Sale sees the
+  // value of what they're entering before submitting, same idea as the
+  // approved-plan revenue summary in "Xem SOP".
+  const revenueByMonth = useMemo(() => {
+    return [0, 1, 2, 3].map(i => filteredMaterials.reduce((sum, m) => {
+      const v = draftMap[m.sku] || [0, 0, 0, 0];
+      return sum + (v[i] || 0) * (m.suggestedPrice || 0);
+    }, 0));
+  }, [filteredMaterials, draftMap]);
+
+  const fmtBillion = (v) => (v / 1e9).toLocaleString('vi-VN', { maximumFractionDigits: 2, minimumFractionDigits: 0 });
 
   const setCell = (sku, idx, value) => {
     setDraftMap(prev => {
@@ -127,6 +144,21 @@ export default function SopPlanPanel({ token, materials, onSubmitted }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Doanh thu ước tính theo SL đang nhập — SUMPRODUCT(SL x Giá bán), cập nhật theo từng ô */}
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${context.monthLabels.length}, 1fr)`, gap: '12px' }}>
+        {context.monthLabels.map((label, i) => (
+          <div key={label + i} className="glass-card" style={{ padding: '14px', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+              <TrendingUp size={13} color="var(--accent-emerald)" /> {label}
+            </div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", marginTop: '4px' }}>
+              {fmtBillion(revenueByMonth[i])} tỷ đ
+            </div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>Giá trị kế hoạch đang nhập</div>
+          </div>
+        ))}
+      </div>
+
       {/* Filter bar */}
       <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
@@ -175,7 +207,7 @@ export default function SopPlanPanel({ token, materials, onSubmitted }) {
               return (
                 <tr key={m.sku}>
                   <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>
-                    {m.sku}{m.isExclusive && <span className="badge badge-purple" style={{ marginLeft: '6px', fontSize: '0.65rem' }}>Độc quyền</span>}
+                    {m.sku}
                   </td>
                   <td style={{ fontWeight: 600 }}>{m.name}</td>
                   <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{(m.suggestedPrice || 0).toLocaleString('vi-VN')}</td>
