@@ -209,7 +209,12 @@ function oemAppAiChat_(token, message, history) {
   var contents = (history || []).slice();
   contents.push(userTurn);
 
-  var MAX_ROUNDS = 4;
+  // Generous headroom for a compound question (eg find a client, then pull
+  // their revenue) plus a final synthesis turn. `trace` records what actually
+  // happened each round so a runaway loop fails with something debuggable
+  // instead of a bare "gave up" message.
+  var MAX_ROUNDS = 8;
+  var trace = [];
   for (var round = 0; round < MAX_ROUNDS; round++) {
     var body = {
       system_instruction: { parts: [{ text: oemAppAiChatSystemPrompt_() }] },
@@ -255,6 +260,7 @@ function oemAppAiChat_(token, message, history) {
       } catch (e) {
         toolResult = { error: e.message };
       }
+      trace.push({ tool: functionCallPart.functionCall.name, args: functionCallPart.functionCall.args, result: toolResult });
       // The live API rejects role "function" ("Role 'function' is not
       // supported... valid role: ... USER ... MODEL ...") despite that being
       // the commonly-documented convention — a functionResponse part goes
@@ -272,5 +278,8 @@ function oemAppAiChat_(token, message, history) {
     throw new Error('Gemini trả về nội dung không xử lý được.');
   }
 
-  throw new Error('Gemini gọi quá nhiều bước tra cứu liên tiếp mà chưa có câu trả lời — thử hỏi cụ thể/ngắn gọn hơn.');
+  throw new Error(
+    'Gemini gọi quá nhiều bước tra cứu liên tiếp mà chưa có câu trả lời — thử hỏi cụ thể/ngắn gọn hơn. ' +
+    'Các bước đã gọi: ' + JSON.stringify(trace)
+  );
 }
