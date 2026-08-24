@@ -211,3 +211,7 @@ export async function getSopView(token) {
 export async function aiParseOrder(token, input) {
   return callApi('aiParseOrder', [token, input]);
 }
+
+export async function aiChat(token, message, history) {
+  return callApi('aiChat', [token, message, history]);
+}

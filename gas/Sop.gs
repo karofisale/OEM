@@ -294,8 +294,10 @@ function oemAppApproveSop_(token, anchor) {
 
 // ---------- SOP (read-facing forecast) ----------
 
-function oemAppGetSopView_(token) {
-  oemAppRequireSession_(token);
+// No session check here — split out so oemAppAiChat_'s sku_info tool (called
+// after the ONE session check already done at the top of that request) can
+// read the current SOP without a second, redundant auth check.
+function oemAppReadSopView_() {
   var sheet = oemAppGetSopSheet_();
   var rows = sheet.getDataRange().getValues();
   if (rows.length < 1) return { rows: [], monthLabels: [] };
@@ -317,6 +319,11 @@ function oemAppGetSopView_(token) {
     });
   }
   return { rows: out, monthLabels: monthLabels };
+}
+
+function oemAppGetSopView_(token) {
+  oemAppRequireSession_(token);
+  return oemAppReadSopView_();
 }
 
 // ---------- Diagnostics (no session required — same tier as ping) ----------

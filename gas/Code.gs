@@ -35,6 +35,7 @@
  *   Orders.gs            - AI Order Agent -> SAP staging tab "Orders"
  *   Sop.gs                - SOP monthly per-SKU quantity plan (draft + approve)
  *   Ai.gs                 - Gemini API order parsing (replaces the old client-side heuristic matcher)
+ *   AiChat.gs             - Gemini function-calling lookup chat (separate feature from Ai.gs)
  */
 
 var OEMAPP_SHEET_ID = '1lSeQyfHmd-H0s7Qu7n9b8LAJ3Deap9hHFLEKf6F0Cnk';
@@ -110,7 +111,8 @@ var oemAppApiMap_ = {
   getSopView: oemAppGetSopView_,
   sopDiag: oemAppSopDiag_,
   forceRefreshBootstrap: oemAppForceRefreshBootstrap_,
-  aiParseOrder: oemAppAiParseOrder_
+  aiParseOrder: oemAppAiParseOrder_,
+  aiChat: oemAppAiChat_
 };
 
 

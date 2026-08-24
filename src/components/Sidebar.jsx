@@ -13,7 +13,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
-  CalendarClock
+  CalendarClock,
+  MessageCircleQuestion
 } from 'lucide-react';
 
 export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, transactionCount = 0 }) {
@@ -28,6 +29,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
 
   const menuItems = [
     { id: 'ai-agent', label: 'AI Agent Đặt Hàng SAP', icon: Bot },
+    { id: 'ai-chat', label: 'Tra cứu AI', icon: MessageCircleQuestion },
     { id: 'pending-orders', label: 'Đơn Hàng Chờ Duyệt', icon: ClipboardList },
     { id: 'revenue-reports', label: 'Báo cáo doanh thu', icon: PieChart },
     { id: 'dashboard', label: 'Tổng quan Metric', icon: BarChart3 },

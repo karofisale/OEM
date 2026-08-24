@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import LoginModal from './components/LoginModal';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import AIOrderAgent from './components/AIOrderAgent';
+import AiLookupChat from './components/AiLookupChat';
 import OrdersReview from './components/OrdersReview';
 import RevenueReports from './components/RevenueReports';
 import Dashboard from './components/Dashboard';
@@ -281,6 +282,10 @@ export default function App() {
               token={session.token}
               onOrderSaved={() => setOrdersStale(true)}
             />
+          </KeepAliveTab>
+
+          <KeepAliveTab isActive={activeTab === 'ai-chat'} hasVisited={visitedTabs.has('ai-chat')}>
+            <AiLookupChat token={session.token} />
           </KeepAliveTab>
 
           <KeepAliveTab isActive={activeTab === 'pending-orders'} hasVisited={visitedTabs.has('pending-orders')}>
