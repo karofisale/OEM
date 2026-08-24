@@ -1,9 +1,9 @@
-// Order-building helpers around the Claude-backed parser (gas/Ai.gs).
+// Order-building helpers around the Gemini-backed parser (gas/Ai.gs).
 //
 // 2026-08-24: the free-text/OCR matching that used to live here (substring +
 // word-overlap scoring, a hand-rolled client/product matcher, Tesseract.js
 // OCR) was never actually "AI" in the language-model sense — see the audit.
-// It's replaced by a real Claude call (gas/Ai.gs's record_order tool) that
+// It's replaced by a real Gemini call (gas/Ai.gs, structured JSON output) that
 // handles both text and images. What stays here is deterministic and doesn't
 // belong in a prompt: historical pricing lookup, VAT math, and turning the
 // model's structured result into the shape the review table expects.
@@ -81,7 +81,7 @@ export function getHistoricalUnitPrice(clientName, sku, transactions, fallbackPr
 }
 
 // File -> raw base64 (no "data:...;base64," prefix — gas/Ai.gs sends it to
-// Claude's image content block as-is).
+// Gemini's inlineData image part as-is).
 export function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -91,7 +91,7 @@ export function fileToBase64(file) {
   });
 }
 
-// Compact context sent alongside the prompt (gas/Ai.gs) — only what Claude
+// Compact context sent alongside the prompt (gas/Ai.gs) — only what Gemini
 // needs to pick a real sku/client code, not the full bootstrap objects.
 export function buildAiPromptContext(clientList, materialsCatalog) {
   return {
@@ -102,7 +102,7 @@ export function buildAiPromptContext(clientList, materialsCatalog) {
   };
 }
 
-// Turns Claude's structured record_order result (gas/Ai.gs) into the same
+// Turns Gemini's structured JSON result (gas/Ai.gs) into the same
 // orderResult shape the review table has always used. Pricing/VAT stay a
 // deterministic lookup here rather than something the model computes —
 // the model only ever needs to say WHICH client/sku/qty, never do arithmetic.
@@ -117,7 +117,7 @@ export function buildOrderFromAiResult(aiResult, clientList, materialsCatalog, t
   if (aiResult.client && aiResult.client.code) {
     matchedClient = activeClients.find(c => c.code === aiResult.client.code) || null;
     if (!matchedClient) {
-      warnings.push(`Claude trả về mã KH "${aiResult.client.code}" nhưng không khớp khách hàng Active nào — vui lòng chọn tay.`);
+      warnings.push(`Gemini trả về mã KH "${aiResult.client.code}" nhưng không khớp khách hàng Active nào — vui lòng chọn tay.`);
     }
   }
   if (!matchedClient) {
@@ -134,7 +134,7 @@ export function buildOrderFromAiResult(aiResult, clientList, materialsCatalog, t
   (aiResult.items || []).forEach(raw => {
     const material = materialBySku.get(raw.sku);
     if (!material) {
-      warnings.push(`Claude trả về mã SKU "${raw.sku}" không có trong danh mục — đã bỏ qua dòng "${raw.sourceText || ''}".`);
+      warnings.push(`Gemini trả về mã SKU "${raw.sku}" không có trong danh mục — đã bỏ qua dòng "${raw.sourceText || ''}".`);
       return;
     }
     const qty = Number(raw.qty) || 0;

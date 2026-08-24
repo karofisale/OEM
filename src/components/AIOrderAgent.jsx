@@ -40,8 +40,8 @@ const createBlankItem = () => ({
   matchedAlias: ''
 });
 
-// Claude returns a real 0-1 confidence per item (see gas/Ai.gs's record_order
-// tool) — shown as a colored % instead of the old hardcoded "High (Mapped)"
+// Gemini returns a real 0-1 confidence per item (see gas/Ai.gs's response
+// schema) — shown as a colored % instead of the old hardcoded "High (Mapped)"
 // label every match used to get regardless of how weak the match actually
 // was. Manual edits (createBlankItem/handleSkuChange) still set a plain
 // string label instead of a score, which falls through to the neutral badge.
@@ -67,14 +67,14 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
   // Processed order state — starts empty until Sale actually enters a command.
   const [orderResult, setOrderResult] = useState(null);
 
-  // Handle Text Prompt Submission — a real Claude call now (gas/Ai.gs), not a
+  // Handle Text Prompt Submission — a real Gemini call now (gas/Ai.gs), not a
   // local heuristic, so this is a network round-trip and can fail (bad/missing
   // API key, rate limit, no network).
   const handleGenerateOrder = async () => {
     if (!promptText.trim() || isProcessing) return;
     setSaved(false);
     setIsProcessing(true);
-    setOcrStatus('Đang gửi cho Claude phân tích...');
+    setOcrStatus('Đang gửi cho Gemini phân tích...');
     try {
       const { materials: materialsForPrompt, clients: clientsForPrompt } = buildAiPromptContext(clients, materials);
       const aiResult = await api.aiParseOrder(token, { text: promptText, materials: materialsForPrompt, clients: clientsForPrompt });
@@ -89,7 +89,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
 
   // Handle Image Upload — shared by the file-picker button and pasting an
   // image directly into the textarea (Ctrl+V). The image goes straight to
-  // Claude (multimodal) instead of running local OCR first — one pipeline
+  // Gemini (multimodal) instead of running local OCR first — one pipeline
   // instead of two, and handwriting/screenshots read better through an actual
   // model than through Tesseract's generic OCR.
   const MAX_OCR_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB — larger images can hang the tab reading/encoding
@@ -103,7 +103,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
     setImageFile(file);
     setIsProcessing(true);
     setSaved(false);
-    setOcrStatus('Đang gửi ảnh cho Claude đọc và phân tích...');
+    setOcrStatus('Đang gửi ảnh cho Gemini đọc và phân tích...');
 
     try {
       const imageBase64 = await fileToBase64(file);
@@ -281,7 +281,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
         </div>
 
         <span className="badge badge-purple" style={{ padding: '6px 14px', fontSize: '0.8rem' }}>
-          <Sparkles size={14} /> Claude AI
+          <Sparkles size={14} /> Gemini AI
         </span>
       </div>
 
@@ -327,7 +327,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
                 htmlFor="ocr-upload"
                 className="btn btn-secondary btn-sm"
                 style={{ cursor: 'pointer', justifyContent: 'center' }}
-                title="Tải ảnh chụp đơn hàng / chữ viết tay — Claude đọc trực tiếp"
+                title="Tải ảnh chụp đơn hàng / chữ viết tay — Gemini đọc trực tiếp"
               >
                 <Upload size={14} /> Tải Ảnh
               </label>
@@ -415,7 +415,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
                 </div>
               </div>
 
-              {/* Claude's own uncertainty notes — things it couldn't map to a
+              {/* Gemini's own uncertainty notes — things it couldn't map to a
                   real SKU/client, or judged ambiguous — surfaced verbatim so
                   Sale knows exactly what to double-check before saving. */}
               {orderResult.warnings && orderResult.warnings.length > 0 && (
