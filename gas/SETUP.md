@@ -106,6 +106,23 @@ Dòng 1 do code tự ghi (`Mã`, `Tên SP`, `Giá bán`, và 4 tiêu đề dạn
 
 Cột "Độc quyền" trên tab **Products** (cột thứ 9, do người dùng tự thêm) là **text tự do** (vd tên khách/hãng giữ độc quyền SKU đó), không phải cột đúng/sai — dùng để lọc bảng lập kế hoạch qua dropdown chọn đúng 1 giá trị, giống cách lọc "Nhóm SP", không phải ô tick.
 
+## Tab tuỳ chọn "Kits" — công thức "Bộ sản phẩm" cho AI Agent (thêm 2026-08-24)
+
+Không bắt buộc — nếu tab "Kits" không tồn tại, `oemAppLoadKits_` trả về mảng rỗng và AI Agent xử lý "bộ"/"combo" như 1 sản phẩm đơn lẻ như trước (không tách dòng). Tạo tab này khi muốn dạy cho AI Agent biết một "Bộ <tên>" cụ thể gồm những SKU nào, mỗi SKU bao nhiêu cái.
+
+5 cột: `Tên gọi Bộ | Mã SKU thành phần | Vai trò | SL trong 1 Bộ | Ghi chú`. Mỗi dòng = 1 thành phần của 1 Bộ. Ví dụ "Bộ cốc" gồm cốc trong, cốc màu (2 lựa chọn theo màu — cùng "Vai trò" nhưng khác SKU, AI Agent sẽ tự chọn đúng SKU theo màu được nhắc trong đơn), và nắp cốc:
+
+| Tên gọi Bộ | Mã SKU thành phần | Vai trò | SL trong 1 Bộ | Ghi chú |
+|---|---|---|---|---|
+| Bộ cốc | SKU-COC-TRONG | Cốc trong | 1 | |
+| Bộ cốc | SKU-COC-XANH | Cốc màu | 2 | Biến thể xanh |
+| Bộ cốc | SKU-COC-DO | Cốc màu | 2 | Biến thể đỏ |
+| Bộ cốc | SKU-NAP-COC | Nắp cốc | 3 | |
+
+Với dữ liệu trên, lệnh "2 bộ cốc màu xanh" sẽ tách thành 3 dòng: 2x Cốc trong, 4x Cốc màu xanh (đúng SKU biến thể xanh, bỏ qua dòng SKU-COC-DO), 6x Nắp cốc. Nếu lệnh không nói rõ biến thể nào (chỉ ghi "bộ cốc" trống không), AI Agent bỏ qua thành phần "Cốc màu" và ghi cảnh báo thay vì đoán đại 1 màu.
+
+Thêm "Bộ" mới bằng cách thêm dòng mới cùng `Tên gọi Bộ` — không cần sửa code, đây là dữ liệu, không phải cấu hình.
+
 ## Những gì backend này CHƯA làm (có chủ đích)
 
 - **Đồng bộ Công Nợ Excel** (`DebtImporter.jsx`) vẫn chỉ lưu tạm — tab `Debt_Tracking`/`Debt` đã có quy trình cập nhật riêng qua skill `cong-no-oem` (đối chiếu Mã KH/Tên KH); một luồng ghi tự động thứ 2 từ app này rủi ro làm hai luồng đá nhau.

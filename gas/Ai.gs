@@ -65,8 +65,8 @@ var OEMAPP_AI_RESPONSE_SCHEMA_ = {
   required: ['items', 'warnings']
 };
 
-function oemAppAiBuildSystemPrompt_() {
-  return [
+function oemAppAiBuildSystemPrompt_(hasKits) {
+  var rules = [
     'Bạn đọc hiểu lệnh đặt hàng (văn bản tự nhiên tiếng Việt, hoặc ảnh chụp đơn/tin nhắn) của nhân viên Sale công ty OEM Karofi, ',
     'và trả về đúng 1 đối tượng JSON theo schema đã cho.',
     '\n\nQUY TẮC BẮT BUỘC:',
@@ -75,10 +75,50 @@ function oemAppAiBuildSystemPrompt_() {
     '- Trường "client.code" (nếu có) PHẢI lấy nguyên văn từ danh sách khách hàng được cung cấp. Nếu không chắc là khách nào, để client = null và ghi vào warnings.',
     '- "confidence" phải phản ánh đúng mức độ chắc chắn thực tế - thấp (dưới 0.5) khi câu mơ hồ, viết tắt lạ, hoặc chữ viết tay khó đọc trong ảnh; không mặc định cao cho mọi dòng.',
     '- Một dòng lệnh có thể nhắc nhiều sản phẩm cùng lúc (nối bằng "+", hoặc liệt kê), hoặc dùng số lượng viết bằng chữ ("năm trăm", "một nghìn") - vẫn phải trích đúng.',
-    '- "bộ"/"combo" trong câu thường nghĩa là một tập hợp linh kiện liên quan (vd lõi lọc + vỏ lọc) - cân nhắc ghi nhận đủ các sản phẩm liên quan nếu danh mục cho thấy chúng thường đi cùng nhau (cùng nhóm/alias), nhưng không suy diễn quá xa nếu không có căn cứ.',
     '- Nếu lệnh đề cập ý phủ định ("không lấy X", "bỏ X ra") thì KHÔNG đưa X vào items.',
     '- Chỉ trả về đúng đối tượng JSON theo schema, không kèm giải thích bằng lời.'
-  ].join('\n');
+  ];
+
+  if (hasKits) {
+    rules.push(
+      '- "CÔNG THỨC BỘ SẢN PHẨM" bên dưới định nghĩa các "Bộ"/combo đã biết: mỗi Bộ gồm nhiều thành phần (mỗi thành phần là 1 hoặc nhiều dòng SKU cùng "Vai trò" - nếu 1 Vai trò có nhiều dòng SKU khác nhau, đó là các LỰA CHỌN THEO BIẾN THỂ (màu/loại...), chỉ chọn ĐÚNG 1 SKU khớp biến thể được nhắc trong lệnh cho vai trò đó).',
+      '- Khi lệnh nhắc "Bộ <tên>" hoặc tên trùng với 1 Công thức Bộ Sản phẩm, PHẢI tách thành NHIỀU dòng item riêng - mỗi thành phần 1 dòng - với SL = (SL trong 1 Bộ của thành phần đó) x (số Bộ được đặt). VÍ DỤ: nếu "Bộ cốc" gồm thành phần "Cốc trong" SL/Bộ=1, "Cốc màu" SL/Bộ=2 (2 lựa chọn theo màu), "Nắp cốc" SL/Bộ=3, và lệnh ghi "2 bộ cốc màu xanh" thì phải trả về 3 dòng: 2 Cốc trong, 4 Cốc màu xanh (đúng SKU biến thể xanh), 6 Nắp cốc - KHÔNG trả về 1 dòng duy nhất cho "Bộ".',
+      '- Nếu 1 thành phần có nhiều biến thể mà lệnh không nói rõ biến thể nào, BỎ QUA thành phần đó và ghi rõ vào "warnings" thay vì đoán đại 1 biến thể.',
+      '- Nếu "bộ"/"combo" được nhắc nhưng KHÔNG khớp Công thức Bộ Sản phẩm nào, xử lý như 1 sản phẩm đơn lẻ bình thường (tìm SKU khớp gần nhất trong danh mục), không tự suy diễn công thức.'
+    );
+  } else {
+    rules.push('- "bộ"/"combo" trong câu thường nghĩa là một tập hợp linh kiện liên quan - nếu danh mục không cho biết công thức cụ thể, xử lý cụm từ đó như 1 sản phẩm đơn lẻ (tìm SKU khớp gần nhất), không tự suy diễn nhiều SKU.');
+  }
+
+  return rules.join('\n');
+}
+
+// Tab "Kits" (tuỳ chọn — không bắt buộc phải có) định nghĩa công thức "Bộ sản
+// phẩm": mỗi Bộ = nhiều thành phần, mỗi thành phần có thể có nhiều dòng SKU
+// (biến thể theo màu/loại — Gemini chọn đúng 1 theo ngữ cảnh đơn hàng).
+// Cột: Tên gọi Bộ | Mã SKU thành phần | Vai trò | SL trong 1 Bộ | Ghi chú.
+function oemAppLoadKits_() {
+  var sheet;
+  try {
+    sheet = oemAppSS_().getSheetByName('Kits');
+  } catch (e) {
+    return [];
+  }
+  if (!sheet) return [];
+  var rows = sheet.getDataRange().getValues();
+  var out = [];
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    if (!r[0] || !r[1]) continue; // cần ít nhất Tên gọi Bộ + Mã SKU
+    out.push({
+      kitName: String(r[0]),
+      sku: String(r[1]),
+      role: String(r[2] || ''),
+      qtyPerKit: oemAppParseNum_(r[3]),
+      note: String(r[4] || '')
+    });
+  }
+  return out;
 }
 
 // input = { text, imageBase64 (không kèm prefix data:), imageMimeType, materials: [{sku,name,alias,group}], clients: [{code,name,alias}] }
@@ -89,10 +129,13 @@ function oemAppAiParseOrder_(token, input) {
     throw new Error('Không có nội dung để đọc - nhập lệnh văn bản hoặc gửi kèm ảnh.');
   }
 
+  var kits = oemAppLoadKits_();
+
   var parts = [];
   var contextParts = [];
   contextParts.push('DANH MỤC SẢN PHẨM (chỉ được chọn "sku" từ đây):\n' + JSON.stringify(input.materials || []));
   contextParts.push('DANH SÁCH KHÁCH HÀNG (chỉ được chọn "client.code" từ đây):\n' + JSON.stringify(input.clients || []));
+  if (kits.length) contextParts.push('CÔNG THỨC BỘ SẢN PHẨM:\n' + JSON.stringify(kits));
   if (input.text) contextParts.push('LỆNH ĐẶT HÀNG (văn bản):\n' + input.text);
 
   parts.push({ text: contextParts.join('\n\n') });
@@ -108,7 +151,7 @@ function oemAppAiParseOrder_(token, input) {
   }
 
   var body = {
-    system_instruction: { parts: [{ text: oemAppAiBuildSystemPrompt_() }] },
+    system_instruction: { parts: [{ text: oemAppAiBuildSystemPrompt_(kits.length > 0) }] },
     contents: [{ role: 'user', parts: parts }],
     generationConfig: {
       responseMimeType: 'application/json',
