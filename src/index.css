@@ -595,4 +595,23 @@ body {
   .hide-mobile-xs {
     display: none !important;
   }
+
+  /* AI Order Agent's command box: the textarea shared a row with a fixed
+     150px button column, which barely left it any width on a phone screen. */
+  .ai-order-input-row {
+    flex-direction: column;
+  }
+
+  .ai-order-input-actions {
+    width: 100% !important;
+    flex-direction: row !important;
+  }
+
+  .ai-order-input-actions > * {
+    flex: 1;
+  }
+
+  .ai-order-textarea {
+    min-height: 50vh;
+  }
 }

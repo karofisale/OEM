@@ -251,9 +251,9 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
             <Bot size={28} color="#fff" />
           </div>
           <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>AI Agent Đặt Hàng Thông Minh (SAP Order Builder)</h2>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>AI Agent đặt hàng</h2>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Nhập lệnh văn bản tự nhiên, tải ảnh chụp chữ viết tay, hoặc dán ảnh trực tiếp (Ctrl+V) ➔ AI tự tra cứu Mã SP, Alias & Giá lịch sử ➔ Tạo bảng đơn hàng SAP.
+              Nhập lệnh văn bản, ảnh chụp, dán ảnh trực tiếp
             </p>
           </div>
         </div>
@@ -279,12 +279,12 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
           {/* Prompt textarea + compact tải ảnh/phân tích actions side by side —
               saves the vertical height the old full-size OCR dropzone + full-width
               button used to take. */}
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
+          <div className="ai-order-input-row" style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
             <div className="form-group" style={{ margin: 0, flex: 1 }}>
               <label className="form-label">Nội dung câu lệnh hoặc ghi chú đơn hàng:</label>
               <textarea
                 rows={5}
-                className="input-field"
+                className="input-field ai-order-textarea"
                 value={promptText}
                 onChange={(e) => setPromptText(e.target.value)}
                 onPaste={handlePasteImage}
@@ -293,7 +293,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
               />
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '150px', justifyContent: 'flex-end' }}>
+            <div className="ai-order-input-actions" style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '150px', justifyContent: 'flex-end' }}>
               <input
                 type="file"
                 accept="image/*"
