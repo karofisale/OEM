@@ -21,7 +21,7 @@ export default function SopPlanPanel({ token, materials, onSubmitted }) {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [groupFilter, setGroupFilter] = useState('ALL');
-  const [exclusiveOnly, setExclusiveOnly] = useState(false);
+  const [exclusiveFilter, setExclusiveFilter] = useState('ALL');
   const [onlyPriorPlanned, setOnlyPriorPlanned] = useState(true);
   const [page, setPage] = useState(1);
 
@@ -52,17 +52,25 @@ export default function SopPlanPanel({ token, materials, onSubmitted }) {
     return Array.from(set).sort();
   }, [materials]);
 
+  // "Độc quyền" is free text (eg the client/brand holding exclusivity on a
+  // SKU), not yes/no — so it filters the same way as Nhóm SP: a dropdown of
+  // whatever distinct values actually exist, not a tick.
+  const exclusiveList = useMemo(() => {
+    const set = new Set(materials.map(m => m.exclusiveTo).filter(Boolean));
+    return Array.from(set).sort();
+  }, [materials]);
+
   const filteredMaterials = useMemo(() => {
     if (!context) return [];
     const q = searchTerm.trim().toLowerCase();
     return materials.filter(m => {
       if (onlyPriorPlanned && !(context.priorApprovedBySku[m.sku] > 0)) return false;
       if (groupFilter !== 'ALL' && m.group !== groupFilter) return false;
-      if (exclusiveOnly && !m.isExclusive) return false;
+      if (exclusiveFilter !== 'ALL' && (m.exclusiveTo || '') !== exclusiveFilter) return false;
       if (q && !(m.name.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q) || (m.alias || '').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [materials, context, searchTerm, groupFilter, exclusiveOnly, onlyPriorPlanned]);
+  }, [materials, context, searchTerm, groupFilter, exclusiveFilter, onlyPriorPlanned]);
 
   const { safePage, pageItems: pagedMaterials } = usePagedSlice(filteredMaterials, page, PAGE_SIZE);
 
@@ -176,10 +184,10 @@ export default function SopPlanPanel({ token, materials, onSubmitted }) {
           {groupsList.map(g => <option key={g} value={g}>{g}</option>)}
         </select>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer' }}>
-          <input type="checkbox" checked={exclusiveOnly} onChange={(e) => { setExclusiveOnly(e.target.checked); setPage(1); }} style={{ width: '16px', height: '16px' }} />
-          Chỉ Độc quyền
-        </label>
+        <select className="input-field" style={{ width: '190px' }} value={exclusiveFilter} onChange={(e) => { setExclusiveFilter(e.target.value); setPage(1); }}>
+          <option value="ALL">Tất cả Độc quyền</option>
+          {exclusiveList.map(v => <option key={v} value={v}>{v}</option>)}
+        </select>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer' }}>
           <input type="checkbox" checked={onlyPriorPlanned} onChange={(e) => { setOnlyPriorPlanned(e.target.checked); setPage(1); }} style={{ width: '16px', height: '16px' }} />

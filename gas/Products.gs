@@ -60,7 +60,7 @@ function oemAppDeriveMaterials_(transactions, aliasHints, catalogMap) {
       latestPrice: m.latestPrice,
       latestPriceVat: Math.round(m.latestPrice * (1 + m.latestTaxRate)),
       suggestedPrice: override.suggestedPrice || 0,
-      isExclusive: !!override.isExclusive,
+      exclusiveTo: override.exclusiveTo || '',
       learnedAliases: (aliasHints && aliasHints[sku]) || []
     };
   });
@@ -73,7 +73,7 @@ function oemAppDeriveMaterials_(transactions, aliasHints, catalogMap) {
     out.push({
       sku: sku, name: c.name || sku, alias: c.alias || '', unit: 'PC', group: c.group || 'Linh kiện OEM',
       totalQty: 0, avgPrice: 0, latestPrice: 0, latestPriceVat: 0, suggestedPrice: c.suggestedPrice || 0,
-      isExclusive: !!c.isExclusive,
+      exclusiveTo: c.exclusiveTo || '',
       learnedAliases: (aliasHints && aliasHints[sku]) || []
     });
   });
@@ -101,8 +101,10 @@ function oemAppDeriveMaterials_(transactions, aliasHints, catalogMap) {
 // the existing "De Xuat Gia" button in ProductManagement.jsx is a separate,
 // still-unwired UI stub - this Sua/Them flow only ever writes
 // CateID/SKU/Ten/Nhom/Alias/Gia ban/Doc quyen). "Doc quyen" (2026-08-22, added
-// by the user for the SOP planning filter) is a plain truthy cell (TRUE/"x"/
-// non-empty) - read with oemAppParseBool_, not oemAppParseNum_.
+// by the user for the SOP planning filter) is FREE TEXT - eg the name of the
+// client/brand holding exclusivity on that SKU, not a yes/no flag - so the
+// SOP planning filter is a dropdown of distinct values, same treatment as
+// "Nhom SP", not a checkbox.
 var OEMAPP_PRODUCTS_SHEET = 'Products';
 
 
@@ -140,7 +142,7 @@ function oemAppLoadMaterialCatalog_() {
       group: group,
       alias: String(rows[i][4] || ''),
       suggestedPrice: oemAppParseNum_(rows[i][5]),
-      isExclusive: oemAppParseBool_(rows[i][8]),
+      exclusiveTo: String(rows[i][8] || ''),
       // 1-based real sheet row. Carrying it here lets add/edit locate a SKU from
       // the catalog they already loaded, instead of re-reading the whole tab a
       // second time just to find the row number (what oemAppFindProductRow_ did).
@@ -178,7 +180,7 @@ function oemAppAddMaterial_(token, material) {
   var cateId = oemAppResolveCateId_(catalog, material.group);
   sheet.appendRow([
     cateId, material.sku, material.name || '', material.group || '',
-    material.alias || '', material.suggestedPrice || 0, '', '', !!material.isExclusive
+    material.alias || '', material.suggestedPrice || 0, '', '', material.exclusiveTo || ''
   ]);
   oemAppInvalidateBootstrap_();
   return { ok: true };
@@ -207,7 +209,7 @@ function oemAppEditMaterial_(token, sku, updates) {
     var newCateId = oemAppResolveCateId_(catalog, updates.group);
     sheet.appendRow([
       newCateId, sku, updates.name || '', updates.group || '',
-      updates.alias || '', updates.suggestedPrice || 0, '', '', !!updates.isExclusive
+      updates.alias || '', updates.suggestedPrice || 0, '', '', updates.exclusiveTo || ''
     ]);
   } else {
     var existing = sheet.getRange(rowIndex, 1, 1, 9).getValues()[0];
@@ -216,9 +218,9 @@ function oemAppEditMaterial_(token, sku, updates) {
     var alias = updates.alias != null ? updates.alias : existing[4];
     var suggestedPrice = updates.suggestedPrice != null ? updates.suggestedPrice : existing[5];
     var cateId = updates.group != null ? oemAppResolveCateId_(catalog, group) : existing[0];
-    var isExclusive = updates.isExclusive != null ? !!updates.isExclusive : existing[8];
+    var exclusiveTo = updates.exclusiveTo != null ? updates.exclusiveTo : existing[8];
     // Cols 7-8 (Duyet gia/Ngay duyet) round-trip unchanged — this flow never touches them.
-    sheet.getRange(rowIndex, 1, 1, 9).setValues([[cateId, sku, name, group, alias, suggestedPrice, existing[6], existing[7], isExclusive]]);
+    sheet.getRange(rowIndex, 1, 1, 9).setValues([[cateId, sku, name, group, alias, suggestedPrice, existing[6], existing[7], exclusiveTo]]);
   }
   oemAppInvalidateBootstrap_();
   return { ok: true };

@@ -104,7 +104,7 @@ Dòng 1 = tiêu đề (bỏ qua khi đọc). Từ dòng 2 trở đi là dữ li�
 
 Dòng 1 do code tự ghi (`Mã`, `Tên SP`, `Giá bán`, và 4 tiêu đề dạng `SL T09-2026`...) — `oemAppGetSopView_` đọc lại đúng 4 tiêu đề này ở cột D-G để hiển thị nhãn tháng, nên **không tự đổi tay dòng 1**. Nếu tab đang có thêm cột phía sau cột G (như dữ liệu lạ phát hiện ở trên), code không đọc tới nhưng nên xoá cho sạch, tránh gây nhầm khi mở Sheet trực tiếp.
 
-Cột "Độc quyền" trên tab **Products** (cột thứ 9, do người dùng tự thêm) dùng để lọc bảng lập kế hoạch — đọc bằng `oemAppParseBool_` (TRUE/"x"/text khác rỗng = có).
+Cột "Độc quyền" trên tab **Products** (cột thứ 9, do người dùng tự thêm) là **text tự do** (vd tên khách/hãng giữ độc quyền SKU đó), không phải cột đúng/sai — dùng để lọc bảng lập kế hoạch qua dropdown chọn đúng 1 giá trị, giống cách lọc "Nhóm SP", không phải ô tick.
 
 ## Những gì backend này CHƯA làm (có chủ đích)
 
