@@ -207,3 +207,7 @@ export async function approveSop(token, anchor) {
 export async function getSopView(token) {
   return callApi('getSopView', [token]);
 }
+
+export async function aiParseOrder(token, input) {
+  return callApi('aiParseOrder', [token, input]);
+}

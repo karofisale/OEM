@@ -46,8 +46,20 @@ function oemAppGetOrdersSheet_() {
 }
 
 
+// Leader is view-only for orders everywhere else in the app (OrdersReview.jsx's
+// canEdit excludes it) — these four writers used to only require a valid
+// session, so a Leader who opened the AI Agent tab directly could still save/
+// edit/delete order lines despite the UI treating them as read-only.
+function oemAppRequireOrderEditRole_(user) {
+  if (!['sale', 'admin', 'creator'].includes(user.role)) {
+    throw new Error('Không có quyền sửa đơn hàng (Leader chỉ xem).');
+  }
+}
+
+
 function oemAppSaveOrder_(token, order) {
   var user = oemAppRequireSession_(token);
+  oemAppRequireOrderEditRole_(user);
   if (!order || !order.items || !order.items.length) {
     throw new Error('Đơn hàng trống, không có gì để lưu.');
   }
@@ -107,7 +119,7 @@ function oemAppGetOrders_(token) {
 
 
 function oemAppUpdateOrderLine_(token, rowIndex, updates) {
-  oemAppRequireSession_(token);
+  oemAppRequireOrderEditRole_(oemAppRequireSession_(token));
   var sheet = oemAppGetOrdersSheet_();
   var idx = parseInt(rowIndex, 10);
   if (!idx || idx < 2) throw new Error('rowIndex không hợp lệ.');
@@ -145,6 +157,7 @@ function oemAppUpdateOrderLine_(token, rowIndex, updates) {
 // get filled in via the same inline-edit + updateOrderLine flow as any other row.
 function oemAppInsertOrderLine_(token, refRowIndex, position, item) {
   var user = oemAppRequireSession_(token);
+  oemAppRequireOrderEditRole_(user);
   var sheet = oemAppGetOrdersSheet_();
   var idx = parseInt(refRowIndex, 10);
   if (!idx || idx < 2) throw new Error('rowIndex không hợp lệ.');
@@ -174,7 +187,7 @@ function oemAppInsertOrderLine_(token, refRowIndex, position, item) {
 
 
 function oemAppDeleteOrderLine_(token, rowIndex) {
-  oemAppRequireSession_(token);
+  oemAppRequireOrderEditRole_(oemAppRequireSession_(token));
   var sheet = oemAppGetOrdersSheet_();
   var idx = parseInt(rowIndex, 10);
   if (!idx || idx < 2) throw new Error('rowIndex không hợp lệ.');

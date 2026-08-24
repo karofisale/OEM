@@ -34,6 +34,7 @@
  *   SalesData.gs         - transactions, sales plans, baselines, getBootstrap
  *   Orders.gs            - AI Order Agent -> SAP staging tab "Orders"
  *   Sop.gs                - SOP monthly per-SKU quantity plan (draft + approve)
+ *   Ai.gs                 - Claude API order parsing (replaces the old client-side heuristic matcher)
  */
 
 var OEMAPP_SHEET_ID = '1lSeQyfHmd-H0s7Qu7n9b8LAJ3Deap9hHFLEKf6F0Cnk';
@@ -108,7 +109,8 @@ var oemAppApiMap_ = {
   approveSop: oemAppApproveSop_,
   getSopView: oemAppGetSopView_,
   sopDiag: oemAppSopDiag_,
-  forceRefreshBootstrap: oemAppForceRefreshBootstrap_
+  forceRefreshBootstrap: oemAppForceRefreshBootstrap_,
+  aiParseOrder: oemAppAiParseOrder_
 };
 
 

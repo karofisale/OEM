@@ -13,9 +13,10 @@ import {
   PlusCircle
 } from 'lucide-react';
 import {
-  parseOrderTextToSAP,
+  buildAiPromptContext,
+  buildOrderFromAiResult,
+  fileToBase64,
   generateSAPCopyString,
-  extractTextFromImage,
   getHistoricalUnitPrice,
   isNewAliasWorthLearning,
   VAT_RATE
@@ -39,6 +40,20 @@ const createBlankItem = () => ({
   matchedAlias: ''
 });
 
+// Claude returns a real 0-1 confidence per item (see gas/Ai.gs's record_order
+// tool) — shown as a colored % instead of the old hardcoded "High (Mapped)"
+// label every match used to get regardless of how weak the match actually
+// was. Manual edits (createBlankItem/handleSkuChange) still set a plain
+// string label instead of a score, which falls through to the neutral badge.
+function ConfidenceBadge({ confidence }) {
+  if (typeof confidence !== 'number') {
+    return <span className="badge badge-purple" style={{ fontSize: '0.625rem' }}>{confidence}</span>;
+  }
+  const pct = Math.round(confidence * 100);
+  const cls = confidence >= 0.8 ? 'badge-emerald' : confidence >= 0.5 ? 'badge-amber' : 'badge-rose';
+  return <span className={`badge ${cls}`} style={{ fontSize: '0.625rem' }}>{pct}% tin cậy</span>;
+}
+
 export default function AIOrderAgent({ clients, materials, transactions, token, onOrderSaved }) {
   const toast = useToast();
   const [promptText, setPromptText] = useState('');
@@ -52,48 +67,55 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
   // Processed order state — starts empty until Sale actually enters a command.
   const [orderResult, setOrderResult] = useState(null);
 
-  // Handle Text Prompt Submission
-  // Runs synchronously — the parse itself measures ~11ms even against the full
-  // catalogue (440 SKUs) and transaction history, so the 400ms setTimeout that
-  // used to wrap this was 36x the actual work, purely as artificial "thinking" delay.
-  const handleGenerateOrder = () => {
+  // Handle Text Prompt Submission — a real Claude call now (gas/Ai.gs), not a
+  // local heuristic, so this is a network round-trip and can fail (bad/missing
+  // API key, rate limit, no network).
+  const handleGenerateOrder = async () => {
+    if (!promptText.trim() || isProcessing) return;
     setSaved(false);
-    const result = parseOrderTextToSAP({
-      textInput: promptText,
-      clientList: clients,
-      materialsCatalog: materials,
-      transactions: transactions
-    });
-    setOrderResult(result);
+    setIsProcessing(true);
+    setOcrStatus('Đang gửi cho Claude phân tích...');
+    try {
+      const { materials: materialsForPrompt, clients: clientsForPrompt } = buildAiPromptContext(clients, materials);
+      const aiResult = await api.aiParseOrder(token, { text: promptText, materials: materialsForPrompt, clients: clientsForPrompt });
+      setOrderResult(buildOrderFromAiResult(aiResult, clients, materials, transactions));
+    } catch (err) {
+      toast.error('Không phân tích được lệnh: ' + err.message);
+    } finally {
+      setIsProcessing(false);
+      setOcrStatus('');
+    }
   };
 
-  // Handle Image Upload & OCR — shared by the file-picker button and pasting
-  // an image directly into the textarea (Ctrl+V), so both paths run the same
-  // size check + OCR + parse flow.
-  const MAX_OCR_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB — larger images can hang the tab during OCR
+  // Handle Image Upload — shared by the file-picker button and pasting an
+  // image directly into the textarea (Ctrl+V). The image goes straight to
+  // Claude (multimodal) instead of running local OCR first — one pipeline
+  // instead of two, and handwriting/screenshots read better through an actual
+  // model than through Tesseract's generic OCR.
+  const MAX_OCR_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB — larger images can hang the tab reading/encoding
 
   const processImageFile = async (file) => {
     if (!file) return;
     if (file.size > MAX_OCR_IMAGE_BYTES) {
-      toast.error(`Ảnh quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Vui lòng chọn ảnh dưới 8MB để tránh treo trình duyệt khi quét OCR.`);
+      toast.error(`Ảnh quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Vui lòng chọn ảnh dưới 8MB.`);
       return;
     }
     setImageFile(file);
     setIsProcessing(true);
     setSaved(false);
-    setOcrStatus('Đang quét OCR nhận diện chữ trên hình ảnh...');
+    setOcrStatus('Đang gửi ảnh cho Claude đọc và phân tích...');
 
     try {
-      const extractedText = await extractTextFromImage(file, (msg) => setOcrStatus(msg));
-      setPromptText(extractedText || 'Đơn hàng từ ảnh chụp');
-
-      const result = parseOrderTextToSAP({
-        textInput: extractedText,
-        clientList: clients,
-        materialsCatalog: materials,
-        transactions: transactions
+      const imageBase64 = await fileToBase64(file);
+      const { materials: materialsForPrompt, clients: clientsForPrompt } = buildAiPromptContext(clients, materials);
+      const aiResult = await api.aiParseOrder(token, {
+        imageBase64,
+        imageMimeType: file.type || 'image/jpeg',
+        materials: materialsForPrompt,
+        clients: clientsForPrompt
       });
-      setOrderResult(result);
+      setPromptText('(Đơn hàng từ ảnh chụp)');
+      setOrderResult(buildOrderFromAiResult(aiResult, clients, materials, transactions));
     } catch (err) {
       toast.error(err.message || 'Lỗi đọc ảnh.');
     } finally {
@@ -259,7 +281,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
         </div>
 
         <span className="badge badge-purple" style={{ padding: '6px 14px', fontSize: '0.8rem' }}>
-          <Sparkles size={14} /> AI Powered v2.4
+          <Sparkles size={14} /> Claude AI
         </span>
       </div>
 
@@ -305,7 +327,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
                 htmlFor="ocr-upload"
                 className="btn btn-secondary btn-sm"
                 style={{ cursor: 'pointer', justifyContent: 'center' }}
-                title="Tải ảnh chụp đơn hàng / chữ viết tay (OCR)"
+                title="Tải ảnh chụp đơn hàng / chữ viết tay — Claude đọc trực tiếp"
               >
                 <Upload size={14} /> Tải Ảnh
               </label>
@@ -393,6 +415,23 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
                 </div>
               </div>
 
+              {/* Claude's own uncertainty notes — things it couldn't map to a
+                  real SKU/client, or judged ambiguous — surfaced verbatim so
+                  Sale knows exactly what to double-check before saving. */}
+              {orderResult.warnings && orderResult.warnings.length > 0 && (
+                <div style={{
+                  display: 'flex', flexDirection: 'column', gap: '6px',
+                  padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                  background: 'var(--warning-bg)', color: 'var(--warning-text)', fontSize: '0.8rem'
+                }}>
+                  {orderResult.warnings.map((w, i) => (
+                    <div key={i} style={{ display: 'flex', gap: '6px' }}>
+                      <span>⚠️</span><span>{w}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Order Items Table */}
               <div className="table-container" style={{ maxHeight: '360px', overflowY: 'auto' }}>
                 <table className="custom-table" style={{ fontSize: '0.78rem' }}>
@@ -414,7 +453,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
                         </td>
                         <td>
                           <div style={{ fontWeight: 600, fontSize: '0.78rem' }}>{item.name}</div>
-                          <span className="badge badge-purple" style={{ fontSize: '0.625rem' }}>{item.confidence}</span>
+                          <ConfidenceBadge confidence={item.confidence} />
                         </td>
                         <td>
                           <input

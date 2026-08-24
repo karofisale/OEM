@@ -1,38 +1,28 @@
-// AI Agent Order Processing Engine & SAP Generator
+// Order-building helpers around the Claude-backed parser (gas/Ai.gs).
+//
+// 2026-08-24: the free-text/OCR matching that used to live here (substring +
+// word-overlap scoring, a hand-rolled client/product matcher, Tesseract.js
+// OCR) was never actually "AI" in the language-model sense — see the audit.
+// It's replaced by a real Claude call (gas/Ai.gs's record_order tool) that
+// handles both text and images. What stays here is deterministic and doesn't
+// belong in a prompt: historical pricing lookup, VAT math, and turning the
+// model's structured result into the shape the review table expects.
 
 // Thành Tiền / Tổng Giá Trị are shown VAT-inclusive per request; Đơn Giá stays pre-VAT.
 export const VAT_RATE = 1.08;
 
-// Fuzzy text matching helper
+// Fuzzy text matching helper — still used by the free-type "sửa mã" comboboxes
+// below, which are plain client-side search widgets, not order parsing.
 function similarityScore(str1, str2) {
   const s1 = str1.toLowerCase().trim();
   const s2 = str2.toLowerCase().trim();
   if (s1 === s2) return 1.0;
   if (s1.includes(s2) || s2.includes(s1)) return 0.8;
-  
+
   const words1 = s1.split(/\s+/);
   const words2 = s2.split(/\s+/);
   const common = words1.filter(w => w.length > 1 && s2.includes(w));
   return common.length / Math.max(words1.length, words2.length);
-}
-
-// Perform Optical Character Recognition on image file
-export async function extractTextFromImage(imageFile, onProgress) {
-  try {
-    // Lazy-loaded: tesseract.js is a large dependency, only worth the download
-    // when OCR is actually used (see review item 10 — bundle size).
-    const { createWorker } = await import('tesseract.js');
-    const worker = await createWorker('vie+eng');
-    if (onProgress) {
-      onProgress('Reading image text via OCR...');
-    }
-    const ret = await worker.recognize(imageFile);
-    await worker.terminate();
-    return ret.data.text;
-  } catch (error) {
-    console.error('OCR Error:', error);
-    throw new Error('Không thể đọc chữ từ hình ảnh này. Xin thử lại với file ảnh rõ nét hơn.');
-  }
 }
 
 // Free-type search for the "sửa mã vật tư" comboboxes (AI Order Agent review table,
@@ -56,68 +46,6 @@ export function clientMatchesQuery(client, query) {
   return tokens.every(t => haystack.includes(t));
 }
 
-// Match material from catalog. clientOrderedSkus (optional Set<sku>) boosts the
-// score of SKUs this specific client has ordered before (see getClientOrderedSkus)
-// — the same free-text wording ("phin lọc", "block"...) often maps to a different
-// SKU per client's product line, so prior purchase history is a strong tiebreaker.
-export function findMatchingMaterial(queryText, materialsCatalog, clientOrderedSkus) {
-  if (!queryText || !materialsCatalog.length) return null;
-  const q = queryText.toLowerCase().trim();
-
-  // 1. Direct SKU match
-  const skuMatch = materialsCatalog.find(m => m.sku.toLowerCase() === q);
-  if (skuMatch) return skuMatch;
-
-  // 2. Direct SKU inside text
-  const skuInText = materialsCatalog.find(m => q.includes(m.sku.toLowerCase()));
-  if (skuInText) return skuInText;
-
-  // 3. Name or Alias match with highest score
-  const HISTORY_BOOST = 0.15;
-  let bestMatch = null;
-  let highestScore = 0;
-
-  materialsCatalog.forEach(mat => {
-    const nameScore = similarityScore(q, mat.name);
-    const aliasScore = mat.alias ? similarityScore(q, mat.alias) : 0;
-    // learnedAliases: free-text terms Sale/Admin previously used that got mapped to this
-    // SKU (see AI_ALIAS_LEARN below) — lets the matcher improve from real corrections
-    // instead of only ever knowing the auto-derived alias.
-    const learnedScore = (mat.learnedAliases || []).reduce(
-      (best, term) => Math.max(best, similarityScore(q, term)), 0
-    );
-    let maxScore = Math.max(nameScore, aliasScore, learnedScore);
-    if (clientOrderedSkus && clientOrderedSkus.has(mat.sku)) maxScore += HISTORY_BOOST;
-
-    if (maxScore > highestScore && maxScore >= 0.25) {
-      highestScore = maxScore;
-      bestMatch = mat;
-    }
-  });
-
-  return bestMatch;
-}
-
-// SKUs a given client has ordered before, per the Data tab's transaction history —
-// matched by Code/Code_search first (stable identifier), falling back to a fuzzy
-// name match for clients whose transactions predate a code being assigned.
-export function getClientOrderedSkus(client, transactions) {
-  const skus = new Set();
-  if (!client || !transactions || !transactions.length) return skus;
-  const codeKey = String(client.codeSearch || client.code || '').toLowerCase().trim();
-  const nameKey = String(client.name || '').toLowerCase().trim();
-
-  transactions.forEach(t => {
-    const tCode = String(t.clientCode || '').toLowerCase().trim();
-    const matchByCode = codeKey && tCode === codeKey;
-    const matchByName = !matchByCode && nameKey && t.clientName &&
-      (t.clientName.toLowerCase().includes(nameKey) || nameKey.includes(t.clientName.toLowerCase()));
-    if ((matchByCode || matchByName) && t.sku) skus.add(t.sku);
-  });
-
-  return skus;
-}
-
 // Whether queryText is different/specific enough from what the matcher already knows
 // about this material to be worth surfacing for review in the Orders sheet's "Update
 // alias" column — avoids writing back near-duplicates of the SKU name/alias every time.
@@ -129,63 +57,13 @@ export function isNewAliasWorthLearning(queryText, material) {
   return !known.some(term => similarityScore(q, term) >= 0.6);
 }
 
-// Locate the client mentioned in free text. Only ever considers Status = Active
-// clients, and besides exact name/alias/code substring matches, also looks for
-// mentions introduced by a common Vietnamese addressing prefix ("anh Long",
-// "nhà Minh Anh", "cty ABC"...) since Sale rarely types a client's full formal
-// registered name. Returns null (never a silent "first client in the list"
-// guess) when nothing reasonably matches — that guess was the reported bug.
-function findMatchingClient(textInput, clientList) {
-  const activeClients = (clientList || []).filter(
-    c => String(c.status || 'Active').toLowerCase().trim() === 'active'
-  );
-  const lowerInput = String(textInput || '').toLowerCase();
-
-  // 1. Direct substring match on full name / alias / codeSearch — prefer the longest hit
-  let best = null;
-  let bestLen = 0;
-  activeClients.forEach(client => {
-    [client.name, client.alias, client.codeSearch].filter(Boolean).forEach(candidate => {
-      const c = candidate.toLowerCase().trim();
-      if (c.length >= 2 && lowerInput.includes(c) && c.length > bestLen) {
-        bestLen = c.length;
-        best = client;
-      }
-    });
-  });
-  if (best) return best;
-
-  // 2. Vietnamese addressing-prefix snippets: "nhà X", "anh X", "chị X", "cty X", "công ty X"
-  const PREFIX_RE = /(?:nhà|anh|chị|cty|công ty|doanh nghiệp)\s+([^\d,;.\n+]{2,40})/gi;
-  const snippets = [];
-  let m;
-  while ((m = PREFIX_RE.exec(lowerInput)) !== null) {
-    snippets.push(m[1].trim());
-  }
-
-  let bestScore = 0;
-  snippets.forEach(snippet => {
-    activeClients.forEach(client => {
-      [client.name, client.alias].filter(Boolean).forEach(candidate => {
-        const score = similarityScore(snippet, candidate);
-        if (score > bestScore && score >= 0.4) {
-          bestScore = score;
-          best = client;
-        }
-      });
-    });
-  });
-
-  return best;
-}
-
 // Find historical price for client and material
 export function getHistoricalUnitPrice(clientName, sku, transactions, fallbackPrice = 0) {
   if (!transactions || !transactions.length) return fallbackPrice;
 
   // Search transactions for this client and SKU
-  const clientTx = transactions.filter(t => 
-    t.sku === sku && 
+  const clientTx = transactions.filter(t =>
+    t.sku === sku &&
     (t.clientName.toLowerCase().includes(clientName.toLowerCase()) || clientName.toLowerCase().includes(t.clientName.toLowerCase()))
   );
 
@@ -202,152 +80,105 @@ export function getHistoricalUnitPrice(clientName, sku, transactions, fallbackPr
   return fallbackPrice;
 }
 
-// Process Order Prompt or OCR text into SAP-structured Order Lines
-export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, transactions }) {
-  const lines = textInput.split(/\n|,|;/).map(l => l.trim()).filter(Boolean);
+// File -> raw base64 (no "data:...;base64," prefix — gas/Ai.gs sends it to
+// Claude's image content block as-is).
+export function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = () => reject(new Error('Không đọc được file ảnh.'));
+    reader.readAsDataURL(file);
+  });
+}
 
-  // 1. Identify Client — Active only; never silently default to the first client
-  // in the Clients sheet (that was the reported bug: an order for one client
-  // could land under whichever client happened to be row 1).
-  const matchedClient = findMatchingClient(textInput, clientList) || {
-    name: '⚠️ Chưa xác định khách hàng — vui lòng ghi rõ tên/alias KH trong lệnh',
-    code: '',
-    codeSearch: '',
-    alias: '',
-    status: 'Active'
+// Compact context sent alongside the prompt (gas/Ai.gs) — only what Claude
+// needs to pick a real sku/client code, not the full bootstrap objects.
+export function buildAiPromptContext(clientList, materialsCatalog) {
+  return {
+    materials: (materialsCatalog || []).map(m => ({ sku: m.sku, name: m.name, alias: m.alias || '', group: m.group || '' })),
+    clients: (clientList || [])
+      .filter(c => String(c.status || 'Active').toLowerCase().trim() === 'active')
+      .map(c => ({ code: c.code, name: c.name, alias: c.alias || '' }))
   };
+}
 
-  // 2. Identify Product items & Quantities — boost matching against this client's
-  // own order history (Data tab), see findMatchingMaterial/getClientOrderedSkus.
-  const clientOrderedSkus = getClientOrderedSkus(matchedClient, transactions);
-  const orderItems = [];
+// Turns Claude's structured record_order result (gas/Ai.gs) into the same
+// orderResult shape the review table has always used. Pricing/VAT stay a
+// deterministic lookup here rather than something the model computes —
+// the model only ever needs to say WHICH client/sku/qty, never do arithmetic.
+export function buildOrderFromAiResult(aiResult, clientList, materialsCatalog, transactions) {
+  const activeClients = (clientList || []).filter(
+    c => String(c.status || 'Active').toLowerCase().trim() === 'active'
+  );
+  const materialBySku = new Map((materialsCatalog || []).map(m => [m.sku, m]));
+  const warnings = Array.isArray(aiResult.warnings) ? [...aiResult.warnings] : [];
 
-  const pushOrAccumulate = (matchedMaterial, qty, sourceQuery) => {
-    const price = getHistoricalUnitPrice(matchedClient.name, matchedMaterial.sku, transactions, matchedMaterial.avgPrice);
-    const existing = orderItems.find(item => item.sku === matchedMaterial.sku);
-    if (existing) {
-      existing.qty += qty;
-      existing.total = existing.qty * existing.price * VAT_RATE;
-    } else {
-      orderItems.push({
-        id: 'ITEM-' + Math.random().toString(36).substr(2, 6),
-        sku: matchedMaterial.sku,
-        name: matchedMaterial.name,
-        unit: matchedMaterial.unit || 'PC',
-        qty: qty,
-        price: price,
-        total: qty * price * VAT_RATE,
-        confidence: 'High (Mapped)',
-        sourceQuery: sourceQuery,
-        matchedAlias: isNewAliasWorthLearning(sourceQuery, matchedMaterial) ? sourceQuery : ''
-      });
+  let matchedClient = null;
+  if (aiResult.client && aiResult.client.code) {
+    matchedClient = activeClients.find(c => c.code === aiResult.client.code) || null;
+    if (!matchedClient) {
+      warnings.push(`Claude trả về mã KH "${aiResult.client.code}" nhưng không khớp khách hàng Active nào — vui lòng chọn tay.`);
     }
-  };
+  }
+  if (!matchedClient) {
+    matchedClient = {
+      name: '⚠️ Chưa xác định khách hàng — vui lòng ghi rõ tên/alias KH trong lệnh',
+      code: '',
+      codeSearch: '',
+      alias: '',
+      status: 'Active'
+    };
+  }
 
-  // Patterns for number/quantity extraction (e.g. "300 cái", "300 bộ", "x300", "300")
-  lines.forEach((line) => {
-    // Look for numbers in line
-    const numMatches = line.match(/\d+[\d,.]*/g);
-    if (!numMatches) return;
-
-    // Estimate quantity (usually numbers like 10, 50, 100, 300, 1000)
-    let qty = 0;
-    for (const numStr of numMatches) {
-      const parsed = parseInt(numStr.replace(/[,.]/g, ''), 10);
-      if (parsed > 0 && parsed < 1000000 && parsed !== parseInt(matchedClient.code)) {
-        qty = parsed;
-        break;
-      }
+  const items = [];
+  (aiResult.items || []).forEach(raw => {
+    const material = materialBySku.get(raw.sku);
+    if (!material) {
+      warnings.push(`Claude trả về mã SKU "${raw.sku}" không có trong danh mục — đã bỏ qua dòng "${raw.sourceText || ''}".`);
+      return;
     }
-
-    if (qty <= 0) qty = 100; // default estimate
-
-    // "bộ" = a product set: pull in every material sharing the same alias as the
-    // best match, not just the single closest one (a "bộ" order line usually means
-    // several related SKUs, e.g. a filter + housing sold as one kit).
-    // Note: JS's \b treats accented letters as non-word chars, so \bbộ\b would
-    // silently fail to match Vietnamese text — anchor on whitespace/string edges instead.
-    const isProductSet = /(^|\s)bộ(\s|$)/i.test(line);
-
-    // Clean line from quantity numbers to match product
-    const productQuery = line.replace(/\d+[\d,.]*/g, '').replace(/cái|bộ|chiếc|bao|cuộn|chủ|khái|pc|pcs|đơn|giá|cho|lấy|cần/gi, '').trim();
-
-    const sourceQuery = productQuery || line;
-
-    // "+" joins accompanying products requested together on the same line
-    // (e.g. "van xả + phin lọc") — each side needs its own lookup, not just
-    // whichever one scores highest for the whole line.
-    const segments = sourceQuery.split('+').map(s => s.trim()).filter(Boolean);
-    if (!segments.length) segments.push(sourceQuery);
-
-    segments.forEach((segment) => {
-      const primaryMatch = findMatchingMaterial(segment, materialsCatalog, clientOrderedSkus);
-      if (!primaryMatch) return;
-
-      const matchedMaterials = (isProductSet && primaryMatch.alias)
-        ? materialsCatalog.filter(m => m.alias && m.alias === primaryMatch.alias)
-        : [primaryMatch];
-
-      matchedMaterials.forEach(mat => pushOrAccumulate(mat, qty, segment));
+    const qty = Number(raw.qty) || 0;
+    if (qty <= 0) {
+      warnings.push(`Dòng "${raw.sourceText || material.name}" không có số lượng hợp lệ — đã bỏ qua.`);
+      return;
+    }
+    const price = getHistoricalUnitPrice(matchedClient.name, material.sku, transactions, material.avgPrice);
+    items.push({
+      id: 'ITEM-' + Math.random().toString(36).substr(2, 6),
+      sku: material.sku,
+      name: material.name,
+      unit: material.unit || 'PC',
+      qty,
+      price,
+      total: qty * price * VAT_RATE,
+      confidence: typeof raw.confidence === 'number' ? raw.confidence : null,
+      sourceQuery: raw.sourceText || '',
+      matchedAlias: isNewAliasWorthLearning(raw.sourceText, material) ? raw.sourceText : ''
     });
   });
 
-  // Fallback demo order items if prompt was vague
-  if (orderItems.length === 0) {
-    const m1 = materialsCatalog[0] || { sku: '2013070081', name: 'Block Qiangsheng QD25H (MD-2)', unit: 'PC', avgPrice: 305556 };
-    const m2 = materialsCatalog[1] || { sku: '3004090173', name: 'Phin lọc 2 đầu', unit: 'PC', avgPrice: 11111 };
-
-    const p1 = getHistoricalUnitPrice(matchedClient.name, m1.sku, transactions, m1.avgPrice) || m1.avgPrice || 305556;
-    const p2 = getHistoricalUnitPrice(matchedClient.name, m2.sku, transactions, m2.avgPrice) || m2.avgPrice || 11111;
-
-    orderItems.push({
-      id: 'ITEM-1',
-      sku: m1.sku,
-      name: m1.name,
-      unit: m1.unit,
-      qty: 300,
-      price: p1,
-      total: 300 * p1 * VAT_RATE,
-      confidence: 'Gợi ý từ AI',
-      sourceQuery: '',
-      matchedAlias: ''
-    });
-
-    orderItems.push({
-      id: 'ITEM-2',
-      sku: m2.sku,
-      name: m2.name,
-      unit: m2.unit,
-      qty: 200,
-      price: p2,
-      total: 200 * p2 * VAT_RATE,
-      confidence: 'Gợi ý từ AI',
-      sourceQuery: '',
-      matchedAlias: ''
-    });
-  }
-
-  const grandTotal = orderItems.reduce((sum, item) => sum + item.total, 0);
+  const grandTotal = items.reduce((sum, i) => sum + i.total, 0);
 
   return {
     client: matchedClient,
     orderNo: 'SAP-SO-' + Math.floor(100000 + Math.random() * 900000),
-    items: orderItems,
-    grandTotal: grandTotal,
-    timestamp: new Date().toLocaleString('vi-VN')
+    items,
+    grandTotal,
+    timestamp: new Date().toLocaleString('vi-VN'),
+    warnings
   };
 }
 
 // Generate TSV string for copy-pasting directly into SAP GUI / SAP Web
 export function generateSAPCopyString(orderData) {
   if (!orderData || !orderData.items) return '';
-  
+
   // Headers tab-separated
   let tsv = `Mã vật tư\tTên vật tư\tSố lượng\tĐVT\tĐơn giá VND\tThành tiền VND\tMã KH\tTên KH\n`;
-  
+
   orderData.items.forEach(item => {
     tsv += `${item.sku}\t${item.name}\t${item.qty}\t${item.unit}\t${item.price}\t${item.total}\t${orderData.client.code || ''}\t${orderData.client.name || ''}\n`;
   });
-  
+
   return tsv;
 }
