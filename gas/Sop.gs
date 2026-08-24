@@ -349,5 +349,27 @@ function oemAppSopDiag_() {
     out.sopFound = false;
     out.sopError = e.message;
   }
+  try {
+    // oemAppLoadMaterialCatalog_ reads the Products sheet live (no cache), so
+    // this checks the real column value directly — separate from whatever the
+    // (cached, up to 10 min stale) getBootstrap payload is currently serving.
+    var bySku = oemAppLoadMaterialCatalog_().bySku;
+    var skus = Object.keys(bySku);
+    out.productCount = skus.length;
+    out.productExclusiveNonEmptyCount = skus.filter(function (s) { return bySku[s].exclusiveTo; }).length;
+    out.productExclusiveDistinctValues = Array.from(new Set(skus.map(function (s) { return bySku[s].exclusiveTo; }).filter(Boolean))).sort();
+  } catch (e) {
+    out.productError = e.message;
+  }
   return out;
+}
+
+
+// Forces getBootstrap's next call (any user) to recompute instead of serving
+// the up-to-10-min-old cached payload — same bump oemAppInvalidateBootstrap_
+// already does after every write, just reachable without a login for
+// troubleshooting (it only invalidates a cache key, never touches real data).
+function oemAppForceRefreshBootstrap_() {
+  oemAppInvalidateBootstrap_();
+  return { ok: true };
 }

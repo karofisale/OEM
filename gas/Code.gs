@@ -107,7 +107,8 @@ var oemAppApiMap_ = {
   getSopPendingReview: oemAppGetSopPendingReview_,
   approveSop: oemAppApproveSop_,
   getSopView: oemAppGetSopView_,
-  sopDiag: oemAppSopDiag_
+  sopDiag: oemAppSopDiag_,
+  forceRefreshBootstrap: oemAppForceRefreshBootstrap_
 };
 
 
