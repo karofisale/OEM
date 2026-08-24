@@ -242,7 +242,13 @@ function oemAppAiChat_(token, message, history) {
 
     var functionCallPart = modelParts.filter(function (p) { return p.functionCall; })[0];
     if (functionCallPart) {
-      contents.push({ role: 'model', parts: [{ functionCall: functionCallPart.functionCall }] });
+      // Push the WHOLE part object back exactly as Gemini returned it, not a
+      // rebuilt {functionCall:...} — "thinking" models attach a
+      // thought_signature alongside functionCall in that same part, which
+      // the API requires to see again on the next call. Reconstructing the
+      // part from just .functionCall silently dropped it (live error: HTTP
+      // 400 "Function call is missing a thought_signature").
+      contents.push({ role: 'model', parts: [functionCallPart] });
       var toolResult;
       try {
         toolResult = oemAppAiExecTool_(functionCallPart.functionCall.name, functionCallPart.functionCall.args || {}, scope);
