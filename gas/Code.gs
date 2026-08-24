@@ -120,4 +120,14 @@ function oemAppPing_() {
   return { ok: true, time: new Date().toISOString() };
 }
 
+// TEMPORARY — select this in the editor's function dropdown and click Run
+// once, to trigger the OAuth consent screen for UrlFetchApp (needed by
+// Ai.gs/AiChat.gs). Every other function in this project ends in "_" by
+// convention, which Apps Script's editor hides from that dropdown — this one
+// deliberately doesn't, so it's the only one you'll actually find to run.
+// Safe to delete after authorizing once; it's not called from anywhere.
+function authorizeExternalRequest() {
+  UrlFetchApp.fetch('https://www.google.com');
+}
+
 // ---------- Sheet helpers ----------
