@@ -249,7 +249,11 @@ function oemAppAiChat_(token, message, history) {
       } catch (e) {
         toolResult = { error: e.message };
       }
-      contents.push({ role: 'function', parts: [{ functionResponse: { name: functionCallPart.functionCall.name, response: toolResult } }] });
+      // The live API rejects role "function" ("Role 'function' is not
+      // supported... valid role: ... USER ... MODEL ...") despite that being
+      // the commonly-documented convention — a functionResponse part goes
+      // under role "user" instead.
+      contents.push({ role: 'user', parts: [{ functionResponse: { name: functionCallPart.functionCall.name, response: toolResult } }] });
       continue;
     }
 
