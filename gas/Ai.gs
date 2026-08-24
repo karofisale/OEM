@@ -19,13 +19,10 @@ function oemAppAiApiKey_() {
   return key;
 }
 
-// Overridable via Script Property "GEMINI_MODEL". Default is a guess at a
-// current fast/cheap Gemini model at the time this was written — Google
-// renames/retires model ids over time, so if this errors with something like
-// "model not found", check console.cloud.google.com/... or aistudio.google.com
-// for a valid current model id and set it here instead.
+// Overridable via Script Property "GEMINI_MODEL" — default set per the user's
+// own trial key/tier (2026-08-24: Gemini 3.6 Flash).
 function oemAppAiModel_() {
-  return PropertiesService.getScriptProperties().getProperty('GEMINI_MODEL') || 'gemini-2.0-flash';
+  return PropertiesService.getScriptProperties().getProperty('GEMINI_MODEL') || 'gemini-3.6-flash';
 }
 
 // Gemini's structured-output schema is a restricted OpenAPI subset (upper-case
