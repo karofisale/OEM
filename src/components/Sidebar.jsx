@@ -7,7 +7,6 @@ import {
   Users,
   CalendarRange,
   FileSpreadsheet,
-  Settings,
   Sparkles,
   PieChart,
   ChevronLeft,
@@ -47,8 +46,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
     { id: 'clients', label: 'Khách hàng OEM', icon: Users },
     { id: 'sales-plan', label: 'Kế hoạch kinh doanh', icon: CalendarRange },
     { id: 'sop', label: 'Kế hoạch SOP', icon: CalendarClock },
-    { id: 'debt-importer', label: 'Công nợ', icon: FileSpreadsheet },
-    { id: 'settings', label: 'Cấu hình Google Sheet', icon: Settings }
+    { id: 'debt-importer', label: 'Công nợ', icon: FileSpreadsheet }
   ];
 
   const [expandedGroup, setExpandedGroup] = useState(null);

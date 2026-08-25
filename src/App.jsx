@@ -14,7 +14,6 @@ import ClientManagement from './components/ClientManagement';
 import SalesPlan from './components/SalesPlan';
 import SopPlan from './components/SopPlan';
 import DebtManagement from './components/DebtManagement';
-import GoogleSheetSettings from './components/GoogleSheetSettings';
 import LoadingScreen from './components/LoadingScreen';
 import KeepAliveTab from './components/KeepAliveTab';
 import { RefreshCw } from 'lucide-react';
@@ -361,9 +360,6 @@ export default function App() {
             <DebtManagement token={session.token} activeUser={activeUser} />
           </KeepAliveTab>
 
-          <KeepAliveTab isActive={activeTab === 'settings'} hasVisited={visitedTabs.has('settings')}>
-            <GoogleSheetSettings />
-          </KeepAliveTab>
         </main>
         )}
       </div>

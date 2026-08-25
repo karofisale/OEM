@@ -53,7 +53,7 @@ export default function SopPlan({ token, activeUser, materials }) {
             <SopMyPlanPanel
               token={token}
               refreshTick={refreshTick}
-              onEditCurrentPeriod={() => setSubView('plan')}
+              onSubmitted={bumpRefresh}
             />
           )}
           <SopViewPanel token={token} refreshTick={refreshTick} />
