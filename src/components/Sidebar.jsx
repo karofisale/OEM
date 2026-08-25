@@ -1,17 +1,18 @@
-import React from 'react';
-import { 
-  Bot, 
-  BarChart3, 
-  Table, 
-  Package, 
-  Users, 
-  CalendarRange, 
-  FileSpreadsheet, 
+import React, { useState, useEffect } from 'react';
+import {
+  Bot,
+  BarChart3,
+  Table,
+  Package,
+  Users,
+  CalendarRange,
+  FileSpreadsheet,
   Settings,
   Sparkles,
   PieChart,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   ClipboardList,
   CalendarClock
 } from 'lucide-react';
@@ -26,21 +27,56 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
     if (onCloseMobile) onCloseMobile();
   };
 
-  const menuItems = [
-    { id: 'ai-agent', label: 'AI Agent Đặt Hàng SAP', icon: Bot },
-    { id: 'pending-orders', label: 'Đơn Hàng Chờ Duyệt', icon: ClipboardList },
+  // "Doanh thu" groups 3 previously-separate top-level items into one
+  // accordion entry (2026-08-25) — they stay real flat activeTab ids
+  // underneath (App.jsx/KeepAliveTab never changed), this is purely a
+  // sidebar-presentation grouping.
+  const revenueChildren = [
     { id: 'revenue-reports', label: 'Báo cáo doanh thu', icon: PieChart },
     { id: 'dashboard', label: 'Tổng quan Metric', icon: BarChart3 },
     // Real loaded row count. This used to be the literal string '1,890+', which
     // never changed no matter what was actually in the Sheet.
-    { id: 'transactions', label: 'Lịch sử doanh thu', icon: Table, count: transactionCount ? transactionCount.toLocaleString('vi-VN') : '' },
+    { id: 'transactions', label: 'Lịch sử doanh thu', icon: Table, count: transactionCount ? transactionCount.toLocaleString('vi-VN') : '' }
+  ];
+
+  const menuItems = [
+    { id: 'ai-agent', label: 'AI Agent Đặt Hàng SAP', icon: Bot },
+    { id: 'pending-orders', label: 'Đơn Hàng Chờ Duyệt', icon: ClipboardList },
+    { id: 'doanh-thu', label: 'Doanh thu', icon: PieChart, children: revenueChildren },
     { id: 'products', label: 'Sản phẩm & Bảng giá', icon: Package },
     { id: 'clients', label: 'Khách hàng OEM', icon: Users },
     { id: 'sales-plan', label: 'Kế hoạch kinh doanh', icon: CalendarRange },
     { id: 'sop', label: 'Kế hoạch SOP', icon: CalendarClock },
-    { id: 'debt-importer', label: 'Nhập công nợ Excel', icon: FileSpreadsheet },
+    { id: 'debt-importer', label: 'Công nợ', icon: FileSpreadsheet },
     { id: 'settings', label: 'Cấu hình Google Sheet', icon: Settings }
   ];
+
+  const [expandedGroup, setExpandedGroup] = useState(null);
+
+  // Auto-open the group that owns whatever tab is currently active, so
+  // navigating there (eg. the app's initial tab, or a future direct
+  // setActiveTab elsewhere) never leaves the active item hidden inside a
+  // collapsed accordion.
+  useEffect(() => {
+    const owner = menuItems.find((m) => m.children && m.children.some((c) => c.id === activeTab));
+    if (owner) setExpandedGroup(owner.id);
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const baseButtonStyle = (isActive) => ({
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: effectiveCollapsed ? 'center' : 'space-between',
+    width: '100%',
+    padding: effectiveCollapsed ? '12px' : '11px 14px',
+    borderRadius: 'var(--radius-md)',
+    border: isActive ? '1px solid var(--karofi-cyan-border)' : '1px solid transparent',
+    background: isActive ? 'var(--karofi-cyan-light)' : 'transparent',
+    color: isActive ? 'var(--karofi-cyan)' : 'var(--text-muted)',
+    fontWeight: isActive ? 800 : 500,
+    fontSize: '0.85rem',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease'
+  });
 
   return (
     <>
@@ -89,27 +125,67 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
       {/* Menu List */}
       {menuItems.map(item => {
         const Icon = item.icon;
+
+        if (item.children) {
+          const isGroupActive = item.children.some((c) => c.id === activeTab);
+          const isOpen = expandedGroup === item.id;
+          return (
+            <div key={item.id}>
+              <button
+                onClick={() => {
+                  // Collapsed sidebar has no room to show children inline —
+                  // jump straight to the first one, same as a normal item.
+                  if (effectiveCollapsed) { handleSelect(item.children[0].id); return; }
+                  setExpandedGroup(isOpen ? null : item.id);
+                }}
+                title={effectiveCollapsed ? item.label : ''}
+                style={baseButtonStyle(isGroupActive)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <Icon size={18} color={isGroupActive ? 'var(--karofi-cyan)' : 'var(--text-dim)'} />
+                  {!effectiveCollapsed && <span>{item.label}</span>}
+                </div>
+                {!effectiveCollapsed && (
+                  <ChevronDown size={14} color="var(--text-dim)" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
+                )}
+              </button>
+
+              {!effectiveCollapsed && isOpen && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '16px', marginTop: '4px', marginBottom: '2px', borderLeft: '2px solid var(--border-color)' }}>
+                  {item.children.map((child) => {
+                    const ChildIcon = child.icon;
+                    const isActive = activeTab === child.id;
+                    return (
+                      <button
+                        key={child.id}
+                        onClick={() => handleSelect(child.id)}
+                        style={{ ...baseButtonStyle(isActive), padding: '9px 12px', fontSize: '0.8rem' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <ChildIcon size={15} color={isActive ? 'var(--karofi-cyan)' : 'var(--text-dim)'} />
+                          <span>{child.label}</span>
+                        </div>
+                        {child.count && (
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', background: 'var(--surface-sunk)', padding: '2px 6px', borderRadius: '4px' }}>
+                            {child.count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        }
+
         const isActive = activeTab === item.id;
         return (
           <button
             key={item.id}
             onClick={() => handleSelect(item.id)}
             title={effectiveCollapsed ? item.label : ''}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: effectiveCollapsed ? 'center' : 'space-between',
-              width: '100%',
-              padding: effectiveCollapsed ? '12px' : '11px 14px',
-              borderRadius: 'var(--radius-md)',
-              border: isActive ? '1px solid var(--karofi-cyan-border)' : '1px solid transparent',
-              background: isActive ? 'var(--karofi-cyan-light)' : 'transparent',
-              color: isActive ? 'var(--karofi-cyan)' : 'var(--text-muted)',
-              fontWeight: isActive ? 800 : 500,
-              fontSize: '0.85rem',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
+            style={baseButtonStyle(isActive)}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <Icon size={18} color={isActive ? 'var(--karofi-cyan)' : 'var(--text-dim)'} />
