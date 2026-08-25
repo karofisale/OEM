@@ -39,13 +39,24 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
   }, [clients]);
 
   const scopedClients = useMemo(() => {
-    return clients.filter(c => {
+    const filtered = clients.filter(c => {
       if (c.status && c.status !== 'Active') return false;
       if (canFilterAllSales) {
         return selectedSale === 'ALL' || (c.sale || '').toLowerCase().includes(selectedSale.toLowerCase());
       }
       return (c.sale || '').toLowerCase().includes((activeUser.saleId || '').toLowerCase());
     });
+    // Unique by Mã KH chữ (codeSearch) — the Clients tab can carry more than
+    // one row per real client (different addresses/contacts), which used to
+    // show as duplicate rows in this table for the same Plan_Thang key.
+    const seen = new Set();
+    const unique = [];
+    filtered.forEach(c => {
+      if (!c.codeSearch || seen.has(c.codeSearch)) return;
+      seen.add(c.codeSearch);
+      unique.push(c);
+    });
+    return unique;
   }, [clients, canFilterAllSales, selectedSale, activeUser]);
 
   const filteredClients = useMemo(() => {
@@ -209,7 +220,6 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
           <thead>
             <tr>
               <th>Mã KH</th>
-              <th>Tên khách hàng</th>
               <th style={{ textAlign: 'right', width: '130px' }}>Plan KPI</th>
               <th style={{ textAlign: 'right', width: '100px' }}>Tuần 1</th>
               <th style={{ textAlign: 'right', width: '100px' }}>Tuần 2</th>
@@ -227,7 +237,6 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
               return (
                 <tr key={c.codeSearch || c.code}>
                   <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{c.codeSearch}</td>
-                  <td style={{ fontWeight: 600 }}>{c.name}</td>
                   <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                     {planKpiFor(c).toLocaleString('vi-VN')}
                   </td>
