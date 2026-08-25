@@ -365,6 +365,13 @@ function oemAppSopDiag_() {
     out.productCount = skus.length;
     out.productExclusiveNonEmptyCount = skus.filter(function (s) { return bySku[s].exclusiveTo; }).length;
     out.productExclusiveDistinctValues = Array.from(new Set(skus.map(function (s) { return bySku[s].exclusiveTo; }).filter(Boolean))).sort();
+    // Sample of aliases that actually contain a comma (the multi-name-in-one-
+    // cell pattern findMatchingMaterial's splitMultiValue_ now handles) — capped
+    // at 10 so this stays a quick sanity check, not a full alias dump.
+    out.productAliasWithCommaSample = skus
+      .filter(function (s) { return String(bySku[s].alias || '').indexOf(',') !== -1; })
+      .slice(0, 10)
+      .map(function (s) { return { sku: s, alias: bySku[s].alias }; });
   } catch (e) {
     out.productError = e.message;
   }
