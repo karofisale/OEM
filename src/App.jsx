@@ -43,6 +43,8 @@ export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [plans, setPlans] = useState([]);
+  const [plan2026, setPlan2026] = useState({});
+  const [planDefaultMonth, setPlanDefaultMonth] = useState('');
   const [kits, setKits] = useState([]);
   const [baselines2025, setBaselines2025] = useState(new Map());
   const [isSyncing, setIsSyncing] = useState(false);
@@ -69,6 +71,8 @@ export default function App() {
     setTransactions(data.transactions || []);
     setMaterials(data.materials || []);
     setPlans(data.plans || []);
+    setPlan2026(data.plan2026 || {});
+    setPlanDefaultMonth(data.planDefaultMonth || '');
     setKits(data.kits || []);
     setBaselines2025(new Map(Object.entries(data.baselines2025 || {})));
   };
@@ -132,6 +136,8 @@ export default function App() {
     setTransactions([]);
     setMaterials([]);
     setPlans([]);
+    setPlan2026({});
+    setPlanDefaultMonth('');
     setKits([]);
     setHasLoadedOnce(false);
     setIsShowingCached(false);
@@ -190,16 +196,6 @@ export default function App() {
       () => setClients(prev),
       () => api.editClient(session.token, updatedClient),
       'Không cập nhật được khách hàng lên Google Sheet'
-    );
-  };
-
-  const handleAddPlan = async (newPlan) => {
-    const prev = plans;
-    await withOptimistic(
-      () => setPlans(p => [newPlan, ...p]),
-      () => setPlans(prev),
-      () => api.addPlan(session.token, newPlan),
-      'Không ghi được kế hoạch mới lên Google Sheet'
     );
   };
 
@@ -343,11 +339,13 @@ export default function App() {
 
           <KeepAliveTab isActive={activeTab === 'sales-plan'} hasVisited={visitedTabs.has('sales-plan')}>
             <SalesPlan
+              token={session.token}
               plans={plans}
               clients={clients}
-              transactions={transactions}
+              plan2026={plan2026}
+              planDefaultMonth={planDefaultMonth}
               activeUser={activeUser}
-              onAddPlan={handleAddPlan}
+              onDataChanged={fetchAllData}
             />
           </KeepAliveTab>
 

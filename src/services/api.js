@@ -152,8 +152,13 @@ export async function editMaterial(token, sku, updates) {
   return callApi('editMaterial', [token, sku, updates]);
 }
 
-export async function addPlan(token, plan) {
-  return callApi('addPlan', [token, plan]);
+// Bulk upsert (by month + client) — replaces the old single-row addPlan.
+export async function submitSalesPlan(token, thang, rows) {
+  return callApi('submitSalesPlan', [token, thang, rows]);
+}
+
+export async function approveSalesPlan(token, thang) {
+  return callApi('approveSalesPlan', [token, thang]);
 }
 
 export async function changePassword(token, oldPin, newPin) {

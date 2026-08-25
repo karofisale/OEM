@@ -127,6 +127,23 @@ Thêm "Bộ" mới bằng cách thêm dòng mới cùng `Tên gọi Bộ` — kh
 
 **Nhiều tên gọi cho cùng 1 Bộ**: gõ nhiều cách gọi cách nhau bằng dấu phẩy trong CÙNG 1 ô `Tên gọi Bộ`, vd `Bộ cốc ĐL, Bộ cốc Đài Loan` — khớp được với BẤT KỲ cách gọi nào trong đó, không cần lệnh gõ đúng y nguyên cả cụm. (2026-08-25: đây từng là lỗi — code cũ so khớp cả cụm có dấu phẩy như 1 chuỗi duy nhất nên gần như không bao giờ khớp; đã sửa để tách theo dấu phẩy trước khi so khớp — áp dụng luôn cho cột Alias trên tab Products và Clients.)
 
+## Tab "Plan_Thang" và "Plan2026" — Kế hoạch kinh doanh (đổi lớn 2026-08-25)
+
+Trước 2026-08-25, mỗi lần chỉ có 1 tháng "đang hoạt động" cho cả tab (dòng 0 giữ 1 ô tháng chung ở cột D). Từ 2026-08-25, mỗi dòng tự mang tháng riêng (giống cách `SOP_Plan` làm), nên nhiều tháng có thể tồn tại song song. Hai cột mới được thêm SAU cột `Note` (không đụng cột `Chênh` hiện có):
+
+| Cột | Vị trí (1-indexed) | Tên | Ví dụ |
+|---|---|---|---|
+| O | 15 | Tháng | `T09-2026` |
+| P | 16 | Trạng thái | `Chờ duyệt` / `Đã duyệt` |
+
+Toàn bộ 14 cột cũ (A-N: Code, Search_code, Tên KH, Sale, Plan KPI, Plan_Update, Done, Chênh, Tuần 1-5, Note) giữ nguyên vị trí — `oemAppSubmitSalesPlan_` khi sửa 1 dòng đã có **cố tình không đụng cột G (Done) và H (Chênh)**: Done là số liệu thực tế được cập nhật ở nơi khác, còn Chênh là công thức sống trong Sheet — `getValues()` trả về GIÁ TRỊ đã tính của công thức đó, nên ghi lại y nguyên số này sẽ vô tình xoá công thức.
+
+**64 dòng cũ (trước khi có cột Tháng)**: cột Tháng của chúng để trống — `oemAppLoadSalesPlans_`/`oemAppSubmitSalesPlan_`/`oemAppApproveSalesPlan_` đều tự hiểu các dòng trống này thuộc về tháng ghi trong ô tiêu đề cũ (dòng 1, cột D) + năm hiện tại (`oemAppPlanLegacyMonth_`), không cần tự điền lại tay. Đây là cầu nối 1 lần cho lô dữ liệu đã có sẵn, KHÔNG áp dụng cho dòng mới — mọi dòng ghi mới đều có Tháng tường minh.
+
+Ghi (`oemAppSubmitSalesPlan_`, hàm `submitSalesPlan`): upsert theo cặp (Tháng, Search_code) — sửa dòng đã có hoặc thêm dòng mới cho khách chưa có kế hoạch tháng đó; sửa lại 1 dòng (kể cả dòng đã Đã duyệt) sẽ đưa Trạng thái về `Chờ duyệt` để chờ duyệt lại. Duyệt (`oemAppApproveSalesPlan_`, hàm `approveSalesPlan`): duyệt cả 1 tháng 1 lần (mọi dòng `Chờ duyệt` của tháng đó → `Đã duyệt`), giống cách `oemAppApproveSop_` duyệt cả kỳ.
+
+**Tab "Plan2026"** (tạo tay, không theo gid) — lưới KPI theo năm, đọc bởi `oemAppLoadPlan2026_`, dùng để tự động điền "Plan KPI" khi Sale đề xuất kế hoạch tháng (không gõ tay): dòng 0-4 là các dòng tổng/subtotal, **dòng 6 (1-indexed) mới là dòng tiêu đề thật**: `Mã KH | Tên Khách hàng | PIC | Năm 2026 | Tháng 1 | ... | Tháng 12` (cột A-P, A=0-indexed 0). Khớp bằng "Mã KH" — đúng định dạng text-code (`TECOM`, `CTQTSONHA`...) dùng chung với `codeSearch`/`searchCode` ở mọi nơi khác trong app. Nếu tab này không tồn tại, `plan2026` trong `getBootstrap` trả về rỗng và Plan KPI hiển thị `0` (không lỗi).
+
 ## Những gì backend này CHƯA làm (có chủ đích)
 
 - **Đồng bộ Công Nợ Excel** (`DebtImporter.jsx`) vẫn chỉ lưu tạm — tab `Debt_Tracking`/`Debt` đã có quy trình cập nhật riêng qua skill `cong-no-oem` (đối chiếu Mã KH/Tên KH); một luồng ghi tự động thứ 2 từ app này rủi ro làm hai luồng đá nhau.
