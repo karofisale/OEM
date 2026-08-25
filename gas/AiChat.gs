@@ -222,7 +222,7 @@ function oemAppAiChat_(token, message, history) {
       tools: [{ functionDeclarations: OEMAPP_AI_CHAT_TOOLS_ }]
     };
     var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + oemAppAiModel_() + ':generateContent?key=' + encodeURIComponent(oemAppAiApiKey_());
-    var response = UrlFetchApp.fetch(url, {
+    var response = oemAppAiFetchWithRetry_(url, {
       method: 'post',
       contentType: 'application/json',
       payload: JSON.stringify(body),
@@ -234,6 +234,9 @@ function oemAppAiChat_(token, message, history) {
     if (status !== 200) {
       var errMsg = raw;
       try { errMsg = JSON.parse(raw).error.message; } catch (e) {}
+      if (status === 429) {
+        throw new Error('Đã hết hạn mức gọi Gemini API (HTTP 429) - có thể do giới hạn số lệnh/phút hoặc hạn mức miễn phí trong ngày của API key này đã dùng hết (mỗi câu hỏi ở đây có thể gọi API vài lần liên tiếp nếu cần tra nhiều bước). Kiểm tra lại quota trong Google AI Studio / Cloud Console, hoặc thử lại sau ít phút. Chi tiết: ' + errMsg);
+      }
       throw new Error('Lỗi gọi Gemini API (HTTP ' + status + '): ' + errMsg);
     }
 

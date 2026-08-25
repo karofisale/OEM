@@ -11,6 +11,24 @@
  * project, untouched by push/pull.
  */
 
+// Shared by Ai.gs and AiChat.gs. HTTP 429 ("You exceeded your current
+// quota") from Gemini is the SAME message for a transient per-minute rate
+// limit and a fully exhausted daily/plan quota — there's no way to tell
+// which from the response alone, so retry a couple of times with backoff
+// (handles the transient case) and just surface the same error if it still
+// 429s after that (a real exhausted quota needs the account/plan fixed, not
+// more retries).
+function oemAppAiFetchWithRetry_(url, options) {
+  var delaysMs = [1500, 4000];
+  var response;
+  for (var attempt = 0; attempt <= delaysMs.length; attempt++) {
+    response = UrlFetchApp.fetch(url, options);
+    if (response.getResponseCode() !== 429 || attempt === delaysMs.length) return response;
+    Utilities.sleep(delaysMs[attempt]);
+  }
+  return response;
+}
+
 function oemAppAiApiKey_() {
   var key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
   if (!key) {
@@ -161,7 +179,7 @@ function oemAppAiParseOrder_(token, input) {
 
   var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + oemAppAiModel_() + ':generateContent?key=' + encodeURIComponent(oemAppAiApiKey_());
 
-  var response = UrlFetchApp.fetch(url, {
+  var response = oemAppAiFetchWithRetry_(url, {
     method: 'post',
     contentType: 'application/json',
     payload: JSON.stringify(body),
@@ -174,6 +192,9 @@ function oemAppAiParseOrder_(token, input) {
   if (status !== 200) {
     var errMsg = raw;
     try { errMsg = JSON.parse(raw).error.message; } catch (e) {}
+    if (status === 429) {
+      throw new Error('Đã hết hạn mức gọi Gemini API (HTTP 429) - có thể do giới hạn số lệnh/phút hoặc hạn mức miễn phí trong ngày của API key này đã dùng hết. Kiểm tra lại quota trong Google AI Studio / Cloud Console, hoặc thử lại sau ít phút. Chi tiết: ' + errMsg);
+    }
     throw new Error('Lỗi gọi Gemini API (HTTP ' + status + '): ' + errMsg);
   }
 
