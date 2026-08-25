@@ -4,6 +4,7 @@ import * as api from '../../services/api';
 import { useToast } from '../ToastProvider';
 
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
+const fmtMoney = (v) => (v || 0).toLocaleString('vi-VN') + ' đ';
 
 function StatusBadge({ status }) {
   if (status === 'Đã duyệt') {
@@ -76,11 +77,14 @@ export default function SopMyPlanPanel({ token, refreshTick, onSubmitted }) {
     return currentGroup.rows.filter((r) => (editedSl[r.sku] || r.sl).some((v) => v > 0));
   }, [currentGroup, editedSl, hideZeroRows]);
 
+  // SUMPRODUCT(SL x Giá bán) per month — same calc as Admin/Creator's "Doanh
+  // thu dự kiến" cards on the approve screen, so both sides read the total
+  // the same way instead of one showing raw quantity and the other revenue.
   const totals = useMemo(() => {
     if (!currentGroup) return [0, 0, 0, 0];
     return currentGroup.rows.reduce((acc, r) => {
       const sl = editedSl[r.sku] || r.sl;
-      sl.forEach((v, i) => { acc[i] += v || 0; });
+      sl.forEach((v, i) => { acc[i] += (v || 0) * (r.price || 0); });
       return acc;
     }, [0, 0, 0, 0]);
   }, [currentGroup, editedSl]);
@@ -137,15 +141,16 @@ export default function SopMyPlanPanel({ token, refreshTick, onSubmitted }) {
                 <tr>
                   <th>Mã SKU</th>
                   <th>Tên SP</th>
+                  <th style={{ textAlign: 'right', width: '110px' }}>Giá bán</th>
                   {currentGroup.monthLabels.map((label, i) => <th key={label + i} style={{ width: '110px', textAlign: 'right' }}>{label}</th>)}
                   <th style={{ width: '110px' }}>Trạng thái</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="top-summary-row">
-                  <td colSpan={2} style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>Σ TỔNG CỘNG</td>
+                  <td colSpan={3} style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>Σ TỔNG DOANH THU DỰ KIẾN</td>
                   {totals.map((v, i) => (
-                    <td key={i} style={{ textAlign: 'right', color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(v)}</td>
+                    <td key={i} style={{ textAlign: 'right', color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmtMoney(v)}</td>
                   ))}
                   <td />
                 </tr>
@@ -155,6 +160,7 @@ export default function SopMyPlanPanel({ token, refreshTick, onSubmitted }) {
                     <tr key={r.sku}>
                       <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{r.sku}</td>
                       <td style={{ fontWeight: 600 }}>{r.name}</td>
+                      <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(r.price)}</td>
                       {sl.map((v, i) => (
                         <td key={i}>
                           <input

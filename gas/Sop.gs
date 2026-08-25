@@ -55,6 +55,23 @@ function oemAppSopLabel_(ym) {
   return 'T' + (p.month < 10 ? '0' + p.month : p.month) + '-' + p.year;
 }
 
+// Column A "Kỳ" is meant to always hold the plain string "yyyy-MM", but
+// Google Sheets can silently reinterpret a value that LOOKS date-like (eg.
+// "2026-09") as an actual Date cell — found in production 2026-08-25: one
+// Sale's current-period rows all had column A read back as a real Date
+// object instead of the string, so `String(anchor) === String(cell)` never
+// matched, and every resubmit appended a fresh ~450-row batch instead of
+// overwriting (7943 raw rows for 452 real SKUs, i.e. that Sale's whole
+// period was invisible to Admin's approve screen and to their own "Xem SOP"
+// current-period section — silently orphaned, not merely duplicated).
+// Every read AND every write-side match of column A goes through this so a
+// Date-coerced cell is transparently treated the same as the string it was
+// supposed to be.
+function oemAppSopNormalizePeriod_(raw) {
+  if (raw instanceof Date) return Utilities.formatDate(raw, 'GMT+7', 'yyyy-MM');
+  return String(raw || '');
+}
+
 // The period a Sale opening the planning screen today should fill in: always
 // the calendar month AFTER the current one. Computed here — not in the
 // frontend — so a submission and its later approval can never disagree about
@@ -82,7 +99,7 @@ function oemAppLoadSopPlanRows_() {
     if (!r[2]) continue; // no SKU = blank row
     out.push({
       rowIndex: i + 1,
-      period: String(r[0] || ''),
+      period: oemAppSopNormalizePeriod_(r[0]),
       sale: String(r[1] || ''),
       sku: String(r[2] || ''),
       sl: [oemAppParseNum_(r[3]), oemAppParseNum_(r[4]), oemAppParseNum_(r[5]), oemAppParseNum_(r[6])],
@@ -92,7 +109,27 @@ function oemAppLoadSopPlanRows_() {
       approvedAt: r[10] || ''
     });
   }
-  return out;
+
+  // SOP_Plan is documented as "1 dòng = 1 (Kỳ, Sale, SKU)", but every write
+  // path only matches an existing row by (period, sale, sku) before deciding
+  // update-vs-append — a race between two overlapping submits (eg. two tabs,
+  // or a retried request) can still leave more than one physical row for the
+  // same triple. Found in production 2026-08-25 (a Sale saw each SKU tripled
+  // in "Xem SOP", and the "Ẩn mã không có số lượng" filter looked broken
+  // because of it — duplicate React keys on 3 near-identical rows confuse
+  // list reconciliation). Defensively collapse to the LATEST row (highest
+  // rowIndex — rows are append-only, never reordered) per (period, sale,
+  // sku), so every reader (this function's callers: planning context,
+  // aggregation/approve, "Xem SOP") sees exactly one row per triple
+  // regardless of stray duplicates left sitting in the sheet.
+  var latestByKey = {};
+  var order = [];
+  out.forEach(function (r) {
+    var key = r.period + '|' + r.sale + '|' + r.sku;
+    if (!latestByKey[key]) order.push(key);
+    latestByKey[key] = r; // later in append order = higher rowIndex = wins
+  });
+  return order.map(function (key) { return latestByKey[key]; });
 }
 
 // This Sale's identity for SOP_Plan attribution — a real Sale uses saleId
@@ -187,11 +224,12 @@ function oemAppSubmitSopDraft_(token, anchor, rows) {
   var rowIndexBySku = {};
   for (var i = 1; i < existing.length; i++) {
     var r = existing[i];
-    if (String(r[0]) === String(anchor) && String(r[1]) === saleKey) {
+    if (oemAppSopNormalizePeriod_(r[0]) === String(anchor) && String(r[1]) === saleKey) {
       rowIndexBySku[String(r[2])] = i + 1;
     }
   }
 
+  var nextAppendRow = existing.length + 1;
   var now = Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH:mm');
   rows.forEach(function (item) {
     if (!item || !item.sku) return;
@@ -201,11 +239,17 @@ function oemAppSubmitSopDraft_(token, anchor, rows) {
       'Chờ duyệt', now, '', ''
     ];
     var rowIndex = rowIndexBySku[item.sku];
-    if (rowIndex) {
-      sheet.getRange(rowIndex, 1, 1, 11).setValues([values]);
-    } else {
-      sheet.appendRow(values);
+    if (!rowIndex) {
+      rowIndex = nextAppendRow;
+      nextAppendRow++;
+      rowIndexBySku[item.sku] = rowIndex; // guards against a duplicate sku within the same payload
     }
+    // Force column A to plain text BEFORE writing — otherwise Sheets can
+    // silently reinterpret a "yyyy-MM" string as a real Date cell (see
+    // oemAppSopNormalizePeriod_), which then breaks this exact match on the
+    // next submit and piles up duplicate rows instead of overwriting.
+    sheet.getRange(rowIndex, 1, 1, 1).setNumberFormat('@');
+    sheet.getRange(rowIndex, 1, 1, 11).setValues([values]);
   });
 
   return { ok: true, savedCount: rows.length };
@@ -231,6 +275,7 @@ function oemAppGetMySopPlan_(token) {
         monthLabels: oemAppSopPeriodMonths_(r.period).map(oemAppSopLabel_),
         sku: r.sku,
         name: entry.name || r.sku,
+        price: entry.suggestedPrice || 0,
         sl: r.sl,
         status: r.status,
         submittedAt: r.submittedAt,
@@ -348,7 +393,7 @@ function oemAppApproveSop_(token, anchor, overrideRows) {
   var planRows = planSheet.getDataRange().getValues();
   var now = Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH:mm');
   for (var i = 1; i < planRows.length; i++) {
-    if (String(planRows[i][0]) === String(anchor) && String(planRows[i][7]) === 'Chờ duyệt') {
+    if (oemAppSopNormalizePeriod_(planRows[i][0]) === String(anchor) && String(planRows[i][7]) === 'Chờ duyệt') {
       planSheet.getRange(i + 1, 8, 1, 3).setValues([['Đã duyệt', user.name, now]]);
     }
   }
@@ -402,11 +447,31 @@ function oemAppSopDiag_() {
     // Data-shape summary only — distinct labels + counts, never quantities —
     // so seeded rows (period/sale spelling/status text) can be sanity-checked
     // without a login and without exposing any real numbers.
-    var planRows = oemAppLoadSopPlanRows_();
+    var planRows = oemAppLoadSopPlanRows_(); // already deduped (latest per period+sale+sku)
     out.planRowCount = planRows.length;
     out.planDistinctPeriods = Array.from(new Set(planRows.map(function (r) { return r.period; }))).sort();
     out.planDistinctSales = Array.from(new Set(planRows.map(function (r) { return r.sale; }))).sort();
     out.planDistinctStatuses = Array.from(new Set(planRows.map(function (r) { return r.status; }))).sort();
+
+    // Raw (pre-dedup) vs deduped counts per (period, sale) — quantifies
+    // exactly how many duplicate physical rows still sit in the sheet for
+    // each period+sale, without ever reading a quantity column.
+    var rawValues = planSheet.getDataRange().getValues();
+    var rawCountByKey = {};
+    for (var i = 1; i < rawValues.length; i++) {
+      var rr = rawValues[i];
+      if (!rr[2]) continue;
+      var k = oemAppSopNormalizePeriod_(rr[0]) + ' | ' + String(rr[1] || '');
+      rawCountByKey[k] = (rawCountByKey[k] || 0) + 1;
+    }
+    var dedupedCountByKey = {};
+    planRows.forEach(function (r) {
+      var k = r.period + ' | ' + r.sale;
+      dedupedCountByKey[k] = (dedupedCountByKey[k] || 0) + 1;
+    });
+    out.rowCountByPeriodSale = Object.keys(rawCountByKey).sort().map(function (k) {
+      return { key: k, rawRowCount: rawCountByKey[k], dedupedSkuCount: dedupedCountByKey[k] || 0 };
+    });
   } catch (e) {
     out.planFound = false;
     out.planError = e.message;
