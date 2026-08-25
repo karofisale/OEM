@@ -59,15 +59,24 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
     return unique;
   }, [clients, canFilterAllSales, selectedSale, activeUser]);
 
+  const planKpiFor = (client) => {
+    const p = parseMonthKey(month);
+    const months = plan2026[client.codeSearch];
+    if (!p || !months) return 0;
+    return months[p.month - 1] || 0;
+  };
+
+  // Cao -> thấp theo Plan KPI của đúng tháng đang chọn, để những khách trọng
+  // tâm (KPI lớn) luôn nổi lên đầu bảng thay vì lẫn theo thứ tự tab Clients.
   const filteredClients = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return scopedClients;
-    return scopedClients.filter(c =>
+    const base = !q ? scopedClients : scopedClients.filter(c =>
       c.name.toLowerCase().includes(q) ||
       (c.codeSearch || '').toLowerCase().includes(q) ||
       String(c.code || '').toLowerCase().includes(q)
     );
-  }, [scopedClients, searchTerm]);
+    return [...base].sort((a, b) => planKpiFor(b) - planKpiFor(a));
+  }, [scopedClients, searchTerm, month, plan2026]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { safePage, pageItems: pagedClients } = usePagedSlice(filteredClients, page, PAGE_SIZE);
 
@@ -99,13 +108,6 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
       else next[field] = value === '' ? 0 : (parseFloat(value) || 0);
       return { ...prev, [client.codeSearch]: next };
     });
-  };
-
-  const planKpiFor = (client) => {
-    const p = parseMonthKey(month);
-    const months = plan2026[client.codeSearch];
-    if (!p || !months) return 0;
-    return months[p.month - 1] || 0;
   };
 
   const revenueTotal = useMemo(() => {
