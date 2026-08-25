@@ -54,17 +54,24 @@ export default function SopApprovePanel({ token, onApproved }) {
     });
   };
 
-  // SUMPRODUCT(SL x Giá bán) per month over the EDITED quantities — so
-  // Admin/Creator sees the revenue impact of what they're about to actually
-  // approve, not the original submitted numbers. Declared before any early
-  // return (loading/error/empty) so hook order stays fixed across renders.
+  // SUMPRODUCT(SL x Giá bán) per month. Over the EDITED aggregate quantities
+  // when no Sale filter is picked (so Admin/Creator sees the revenue impact
+  // of what they're about to actually approve) — but once a Sale is picked
+  // in "Xem đóng góp theo Sale", these cards switch to THAT Sale's own
+  // detail lines instead, so the headline number always matches what's
+  // currently selected rather than staying frozen on the full-batch total.
   const revenueByMonth = useMemo(() => {
-    if (!data || !data.rows || !data.rows.length) return [];
-    return (data.monthLabels || []).map((_, i) => data.rows.reduce((sum, r) => {
+    if (!data || !data.monthLabels) return [];
+    if (saleFilter !== 'ALL' && data.detail) {
+      const lines = data.detail.filter((d) => d.sale === saleFilter);
+      return data.monthLabels.map((_, i) => lines.reduce((sum, d) => sum + (d.sl[i] || 0) * (d.price || 0), 0));
+    }
+    if (!data.rows || !data.rows.length) return [];
+    return data.monthLabels.map((_, i) => data.rows.reduce((sum, r) => {
       const sl = editedSl[r.sku] || r.sl;
       return sum + (sl[i] || 0) * (r.price || 0);
     }, 0));
-  }, [data, editedSl]);
+  }, [data, editedSl, saleFilter]);
 
   const salesList = useMemo(() => {
     if (!data || !data.detail) return [];
@@ -90,16 +97,17 @@ export default function SopApprovePanel({ token, onApproved }) {
 
   // Read-only — this Sale's own submitted lines, unaffected by any edit made
   // to the aggregate above (that edit only changes what gets PUBLISHED, not
-  // who is credited with what).
+  // who is credited with what). Revenue itself is now shown by the cards
+  // above (revenueByMonth switches to this same `detail` slice once a Sale
+  // is picked) — this just keeps the quantity breakdown + line list.
   const saleContribution = useMemo(() => {
     if (!data || !data.detail || saleFilter === 'ALL') return null;
     const lines = data.detail.filter((d) => d.sale === saleFilter);
-    const totals = lines.reduce((acc, d) => {
-      for (let i = 0; i < 4; i++) acc.sl[i] += d.sl[i] || 0;
-      acc.revenue += d.sl.reduce((s, v) => s + (v || 0), 0) * (d.price || 0);
+    const totalSl = lines.reduce((acc, d) => {
+      for (let i = 0; i < 4; i++) acc[i] += d.sl[i] || 0;
       return acc;
-    }, { sl: [0, 0, 0, 0], revenue: 0 });
-    return { lines, totals };
+    }, [0, 0, 0, 0]);
+    return { lines, totalSl };
   }, [data, saleFilter]);
 
   const handleApprove = async () => {
@@ -152,7 +160,9 @@ export default function SopApprovePanel({ token, onApproved }) {
             <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", marginTop: '4px' }}>
               {fmtMoney(revenueByMonth[i])}
             </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>Doanh thu dự kiến (chờ duyệt)</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
+              {saleFilter === 'ALL' ? 'Doanh thu dự kiến (chờ duyệt)' : `Doanh thu dự kiến của ${saleFilter}`}
+            </div>
           </div>
         ))}
       </div>
@@ -183,8 +193,8 @@ export default function SopApprovePanel({ token, onApproved }) {
       {saleContribution && (
         <div className="glass-card animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--karofi-navy)' }}>
-            Tổng đóng góp của <strong>{saleFilter}</strong>: {saleContribution.lines.length.toLocaleString('vi-VN')} mã SKU, {fmtMoney(saleContribution.totals.revenue)}
-            {' '}({data.monthLabels.map((label, i) => `${label}: ${fmtNum(saleContribution.totals.sl[i])}`).join(' · ')})
+            Tổng đóng góp của <strong>{saleFilter}</strong>: {saleContribution.lines.length.toLocaleString('vi-VN')} mã SKU
+            {' '}({data.monthLabels.map((label, i) => `${label}: ${fmtNum(saleContribution.totalSl[i])}`).join(' · ')})
           </span>
           <div className="table-container" style={{ maxHeight: '260px', overflowY: 'auto' }}>
             <table className="custom-table">

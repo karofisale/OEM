@@ -394,7 +394,14 @@ function oemAppApproveSop_(token, anchor, overrideRows) {
   var now = Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH:mm');
   for (var i = 1; i < planRows.length; i++) {
     if (oemAppSopNormalizePeriod_(planRows[i][0]) === String(anchor) && String(planRows[i][7]) === 'Chờ duyệt') {
-      planSheet.getRange(i + 1, 8, 1, 3).setValues([['Đã duyệt', user.name, now]]);
+      // Columns 8-11 are Trạng thái | Ngày gửi | Người duyệt | Ngày duyệt —
+      // a contiguous 3-wide write starting at 8 used to land on 8,9,10
+      // (Trạng thái, Ngày gửi, Người duyệt), stomping the real "Ngày gửi"
+      // with the approver's name and leaving "Ngày duyệt" blank. Trạng thái
+      // (8) is separate from Người duyệt/Ngày duyệt (10-11) so "Ngày gửi" (9)
+      // is never touched.
+      planSheet.getRange(i + 1, 8, 1, 1).setValue('Đã duyệt');
+      planSheet.getRange(i + 1, 10, 1, 2).setValues([[user.name, now]]);
     }
   }
 
