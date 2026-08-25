@@ -110,6 +110,7 @@ var oemAppApiMap_ = {
   approveSop: oemAppApproveSop_,
   getSopView: oemAppGetSopView_,
   sopDiag: oemAppSopDiag_,
+  kitsDiag: oemAppKitsDiag_,
   forceRefreshBootstrap: oemAppForceRefreshBootstrap_,
   aiParseOrder: oemAppAiParseOrder_,
   aiChat: oemAppAiChat_

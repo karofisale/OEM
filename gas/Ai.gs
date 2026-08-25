@@ -139,6 +139,20 @@ function oemAppLoadKits_() {
   return out;
 }
 
+// No-login structural diagnostic (same tier as ping/sopDiag) — checks the
+// real "Kits" tab content directly (oemAppLoadKits_ reads the Sheet live, no
+// cache), for telling apart "tab/rows wrong" from "frontend served a stale
+// getBootstrap cached before this field existed".
+function oemAppKitsDiag_() {
+  var kits = oemAppLoadKits_();
+  var byName = {};
+  kits.forEach(function (k) {
+    if (!byName[k.kitName]) byName[k.kitName] = [];
+    byName[k.kitName].push({ sku: k.sku, role: k.role, qtyPerKit: k.qtyPerKit, note: k.note });
+  });
+  return { rowCount: kits.length, kitNames: Object.keys(byName), components: byName };
+}
+
 // DORMANT since 2026-08-25: AIOrderAgent.jsx rolled back to the local
 // heuristic parser (src/services/aiAgent.js) after repeated API quota/auth
 // issues, so nothing currently calls this — still routed in Code.gs, kept

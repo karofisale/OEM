@@ -13,9 +13,24 @@
 // low-confidence (33%) miss — matching is now explicit priority tiers
 // (exact SKU code > Alias/learned alias > Tên SP > historical order text),
 // not one blended max() score across every signal at once.
+//
+// 2026-08-25 (same day, again): real alias/Kits data turned out to pack
+// several alternative names into one cell, comma-separated (eg Products'
+// alias, Clients' alias, Kits' "Tên gọi Bộ" — "Bộ cốc ĐL, Bộ cốc Đài Loan"
+// meaning "either phrase names this kit"). Treating the whole cell as one
+// literal string to search for meant it almost never matched. Every place
+// that reads one of these fields now splits on "," first (splitMultiValue_)
+// and checks each candidate independently.
 
 // Thành Tiền / Tổng Giá Trị are shown VAT-inclusive per request; Đơn Giá stays pre-VAT.
 export const VAT_RATE = 1.08;
+
+// "Bộ cốc ĐL, Bộ cốc Đài Loan" -> ["Bộ cốc ĐL", "Bộ cốc Đài Loan"] — several
+// alternative names/aliases packed into one Sheet cell, comma-separated.
+// A field with no comma just yields its own single value back unchanged.
+function splitMultiValue_(field) {
+  return String(field || '').split(',').map(s => s.trim()).filter(Boolean);
+}
 
 // Fuzzy text matching helper
 function similarityScore(str1, str2) {
@@ -119,7 +134,9 @@ export function findMatchingMaterial(queryText, materialsCatalog, clientOrderedS
   if (skuInText) return { material: skuInText, confidence: 1 };
 
   const aliasHit = bestByScorer_(materialsCatalog, mat => {
-    const aliasScore = mat.alias ? similarityScore(q, mat.alias) : 0;
+    const aliasScore = splitMultiValue_(mat.alias).reduce(
+      (best, term) => Math.max(best, similarityScore(q, term)), 0
+    );
     const learnedScore = (mat.learnedAliases || []).reduce(
       (best, term) => Math.max(best, similarityScore(q, term)), 0
     );
@@ -180,7 +197,7 @@ export function isNewAliasWorthLearning(queryText, material) {
   if (!queryText || !material) return false;
   const q = queryText.trim();
   if (q.length < 2) return false;
-  const known = [material.alias, material.name, ...(material.learnedAliases || [])].filter(Boolean);
+  const known = [...splitMultiValue_(material.alias), material.name, ...(material.learnedAliases || [])].filter(Boolean);
   return !known.some(term => similarityScore(q, term) >= 0.6);
 }
 
@@ -200,12 +217,14 @@ function findMatchingClient(textInput, clientList) {
   let best = null;
   let bestLen = 0;
   activeClients.forEach(client => {
-    [client.name, client.alias, client.codeSearch].filter(Boolean).forEach(candidate => {
-      const c = candidate.toLowerCase().trim();
-      if (c.length >= 2 && lowerInput.includes(c) && c.length > bestLen) {
-        bestLen = c.length;
-        best = client;
-      }
+    [client.name, client.alias, client.codeSearch].forEach(field => {
+      splitMultiValue_(field).forEach(candidate => {
+        const c = candidate.toLowerCase();
+        if (c.length >= 2 && lowerInput.includes(c) && c.length > bestLen) {
+          bestLen = c.length;
+          best = client;
+        }
+      });
     });
   });
   if (best) return best;
@@ -221,12 +240,14 @@ function findMatchingClient(textInput, clientList) {
   let bestScore = 0;
   snippets.forEach(snippet => {
     activeClients.forEach(client => {
-      [client.name, client.alias].filter(Boolean).forEach(candidate => {
-        const score = similarityScore(snippet, candidate);
-        if (score > bestScore && score >= 0.4) {
-          bestScore = score;
-          best = client;
-        }
+      [client.name, client.alias].forEach(field => {
+        splitMultiValue_(field).forEach(candidate => {
+          const score = similarityScore(snippet, candidate);
+          if (score > bestScore && score >= 0.4) {
+            bestScore = score;
+            best = client;
+          }
+        });
       });
     });
   });
@@ -266,16 +287,27 @@ function noteKeyword_(note) {
   return words[words.length - 1] || '';
 }
 
-// If `line` mentions a known kit ("Bộ <tên>" matching kits[].kitName),
-// deterministically expand it into its component SKUs x qty (qty = SL/Bộ x
-// số Bộ đặt), picking the one variant row per "Vai trò" whose note keyword
-// appears in the line. Returns null if no kit name matches (caller falls
-// back to the old same-alias grouping guess) — never invents a recipe.
+// If `line` mentions a known kit ("Bộ <tên>" matching one of kits[].kitName's
+// comma-separated alternative names — eg "Bộ cốc ĐL, Bộ cốc Đài Loan" matches
+// either phrase), deterministically expand it into its component SKUs x qty
+// (qty = SL/Bộ x số Bộ đặt), picking the one variant row per "Vai trò" whose
+// note keyword appears in the line. Returns null if no kit name matches
+// (caller treats the line as one ordinary product) — never invents a recipe.
 function expandKit_(line, qty, materialsCatalog, kits, warnings) {
   if (!kits || !kits.length) return null;
   const lower = line.toLowerCase();
   const kitNames = [...new Set(kits.map(k => k.kitName))];
-  const matchedName = kitNames.find(name => name && lower.includes(name.toLowerCase()));
+
+  let matchedName = null;
+  let matchedAlias = null;
+  for (const name of kitNames) {
+    const alias = splitMultiValue_(name).find(a => lower.includes(a.toLowerCase()));
+    if (alias) {
+      matchedName = name;
+      matchedAlias = alias;
+      break;
+    }
+  }
   if (!matchedName) return null;
 
   const components = kits.filter(k => k.kitName === matchedName);
@@ -294,13 +326,13 @@ function expandKit_(line, qty, materialsCatalog, kits, warnings) {
         return kw && lower.includes(kw.toLowerCase());
       });
       if (!chosen) {
-        warnings.push(`"${matchedName}" có nhiều biến thể cho thành phần "${role}" nhưng lệnh không nói rõ biến thể nào — đã bỏ qua, vui lòng thêm dòng thủ công.`);
+        warnings.push(`"${matchedAlias}" có nhiều biến thể cho thành phần "${role}" nhưng lệnh không nói rõ biến thể nào — đã bỏ qua, vui lòng thêm dòng thủ công.`);
         return;
       }
     }
     const material = materialsCatalog.find(m => m.sku === chosen.sku);
     if (!material) {
-      warnings.push(`Công thức "${matchedName}" tham chiếu mã "${chosen.sku}" nhưng mã này không có trong danh mục sản phẩm.`);
+      warnings.push(`Công thức "${matchedAlias}" tham chiếu mã "${chosen.sku}" nhưng mã này không có trong danh mục sản phẩm.`);
       return;
     }
     resolved.push({ material, qty: qty * (chosen.qtyPerKit || 0), confidence: 0.9, sourceQuery: line });

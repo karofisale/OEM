@@ -125,6 +125,8 @@ Với dữ liệu trên, lệnh "2 bộ cốc màu xanh" sẽ tách thành 3 dò
 
 Thêm "Bộ" mới bằng cách thêm dòng mới cùng `Tên gọi Bộ` — không cần sửa code, đây là dữ liệu, không phải cấu hình.
 
+**Nhiều tên gọi cho cùng 1 Bộ**: gõ nhiều cách gọi cách nhau bằng dấu phẩy trong CÙNG 1 ô `Tên gọi Bộ`, vd `Bộ cốc ĐL, Bộ cốc Đài Loan` — khớp được với BẤT KỲ cách gọi nào trong đó, không cần lệnh gõ đúng y nguyên cả cụm. (2026-08-25: đây từng là lỗi — code cũ so khớp cả cụm có dấu phẩy như 1 chuỗi duy nhất nên gần như không bao giờ khớp; đã sửa để tách theo dấu phẩy trước khi so khớp — áp dụng luôn cho cột Alias trên tab Products và Clients.)
+
 ## Những gì backend này CHƯA làm (có chủ đích)
 
 - **Đồng bộ Công Nợ Excel** (`DebtImporter.jsx`) vẫn chỉ lưu tạm — tab `Debt_Tracking`/`Debt` đã có quy trình cập nhật riêng qua skill `cong-no-oem` (đối chiếu Mã KH/Tên KH); một luồng ghi tự động thứ 2 từ app này rủi ro làm hai luồng đá nhau.
