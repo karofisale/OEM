@@ -5,9 +5,14 @@
 // unreliable for what needs to work every time Sale places an order. Kept
 // from that detour: real numeric confidence per item (was a hardcoded
 // "High (Mapped)" label before), and deterministic "Bộ sản phẩm" (kit)
-// expansion driven by the optional "Kits" tab (gas/Ai.gs's
-// oemAppLoadKits_, now also exposed via getBootstrap) instead of only ever
-// guessing from same-alias grouping.
+// expansion driven by the optional "Kits" tab (gas/Ai.gs's oemAppLoadKits_,
+// exposed via getBootstrap) — "Kits" is now the ONLY source of truth for
+// what a "Bộ" contains, no more guessing from same-alias grouping.
+//
+// 2026-08-25 (same day): re-tuned findMatchingMaterial after a reported
+// low-confidence (33%) miss — matching is now explicit priority tiers
+// (exact SKU code > Alias/learned alias > Tên SP > historical order text),
+// not one blended max() score across every signal at once.
 
 // Thành Tiền / Tổng Giá Trị are shown VAT-inclusive per request; Đơn Giá stays pre-VAT.
 export const VAT_RATE = 1.08;
@@ -65,47 +70,87 @@ export function clientMatchesQuery(client, query) {
   return tokens.every(t => haystack.includes(t));
 }
 
-// Match material from catalog. clientOrderedSkus (optional Set<sku>) boosts the
-// score of SKUs this specific client has ordered before — the same free-text
-// wording ("phin lọc", "block"...) often maps to a different SKU per client's
-// product line, so prior purchase history is a strong tiebreaker.
+const MATCH_MIN_SCORE = 0.25;
+const HISTORY_ORDER_BOOST = 0.15; // clientOrderedSkus tie-breaker, applied within whichever tier is active
+
+// Shared by every fuzzy tier below: score every material with `scorer`, add
+// the small clientOrderedSkus nudge, keep the best. `scorer` returns 0 (or
+// falsy) for materials with nothing to compare (eg no alias set).
+function bestByScorer_(materialsCatalog, scorer, clientOrderedSkus) {
+  let best = null;
+  let bestScore = 0;
+  materialsCatalog.forEach(mat => {
+    let score = scorer(mat);
+    if (!score) return;
+    if (clientOrderedSkus && clientOrderedSkus.has(mat.sku)) score += HISTORY_ORDER_BOOST;
+    if (score > bestScore) {
+      bestScore = score;
+      best = mat;
+    }
+  });
+  return best && bestScore >= MATCH_MIN_SCORE ? { material: best, confidence: Math.min(bestScore, 1) } : null;
+}
+
+// Match material from catalog, checked in priority order:
+//   0. An exact/substring SKU code already in the text — used directly, no
+//      fuzzy scoring at all (a real code beats any guess).
+//   1. Alias (own alias, or a free-text term previously learned for this SKU
+//      — see isNewAliasWorthLearning) — Sale's shorthand wording usually
+//      matches the alias better than the formal catalog name.
+//   2. Product name (Tên SP).
+//   3. Historical order text ("Data" tab's recorded product name at the time
+//      of a past transaction, which can differ from both the current alias
+//      and name) — last resort, confidence discounted since it's the
+//      weakest signal.
+// clientOrderedSkus (optional Set<sku>) nudges the score within whichever
+// tier is active toward SKUs this specific client has ordered before — the
+// same free-text wording often maps to a different SKU per client's product
+// line, so prior purchase history is a useful tiebreaker, but never enough
+// on its own to jump a tier.
 // Returns { material, confidence } (confidence 0-1, exact SKU hits = 1) or null.
-export function findMatchingMaterial(queryText, materialsCatalog, clientOrderedSkus) {
+export function findMatchingMaterial(queryText, materialsCatalog, clientOrderedSkus, transactions) {
   if (!queryText || !materialsCatalog.length) return null;
   const q = queryText.toLowerCase().trim();
 
-  // 1. Direct SKU match
   const skuMatch = materialsCatalog.find(m => m.sku.toLowerCase() === q);
   if (skuMatch) return { material: skuMatch, confidence: 1 };
 
-  // 2. Direct SKU inside text
   const skuInText = materialsCatalog.find(m => q.includes(m.sku.toLowerCase()));
   if (skuInText) return { material: skuInText, confidence: 1 };
 
-  // 3. Name or Alias match with highest score
-  const HISTORY_BOOST = 0.15;
-  let bestMatch = null;
-  let highestScore = 0;
-
-  materialsCatalog.forEach(mat => {
-    const nameScore = similarityScore(q, mat.name);
+  const aliasHit = bestByScorer_(materialsCatalog, mat => {
     const aliasScore = mat.alias ? similarityScore(q, mat.alias) : 0;
-    // learnedAliases: free-text terms Sale/Admin previously used that got mapped to this
-    // SKU (see isNewAliasWorthLearning below) — lets the matcher improve from real
-    // corrections instead of only ever knowing the auto-derived alias.
     const learnedScore = (mat.learnedAliases || []).reduce(
       (best, term) => Math.max(best, similarityScore(q, term)), 0
     );
-    let maxScore = Math.max(nameScore, aliasScore, learnedScore);
-    if (clientOrderedSkus && clientOrderedSkus.has(mat.sku)) maxScore += HISTORY_BOOST;
+    return Math.max(aliasScore, learnedScore);
+  }, clientOrderedSkus);
+  if (aliasHit) return aliasHit;
 
-    if (maxScore > highestScore && maxScore >= 0.25) {
-      highestScore = maxScore;
-      bestMatch = mat;
+  const nameHit = bestByScorer_(materialsCatalog, mat => similarityScore(q, mat.name), clientOrderedSkus);
+  if (nameHit) return nameHit;
+
+  if (transactions && transactions.length) {
+    let bestSku = null;
+    let bestScore = 0;
+    const scoredSkus = new Set();
+    transactions.forEach(t => {
+      if (!t.sku || !t.skuName || scoredSkus.has(t.sku)) return;
+      scoredSkus.add(t.sku);
+      const score = similarityScore(q, t.skuName);
+      if (score > bestScore) {
+        bestScore = score;
+        bestSku = t.sku;
+      }
+    });
+    if (bestSku && bestScore >= MATCH_MIN_SCORE) {
+      const material = materialsCatalog.find(m => m.sku === bestSku);
+      // Discounted — this tier only ever fires when alias AND name both missed.
+      if (material) return { material, confidence: Math.min(bestScore, 1) * 0.8 };
     }
-  });
+  }
 
-  return bestMatch ? { material: bestMatch, confidence: Math.min(highestScore, 1) } : null;
+  return null;
 }
 
 // SKUs a given client has ordered before, per the Data tab's transaction history —
@@ -266,8 +311,8 @@ function expandKit_(line, qty, materialsCatalog, kits, warnings) {
 
 // Process Order Prompt or OCR text into SAP-structured Order Lines.
 // `kits` (optional, from getBootstrap) enables deterministic "Bộ sản phẩm"
-// expansion — see expandKit_. Without it, "bộ" falls back to the older,
-// weaker same-alias grouping guess.
+// expansion — see expandKit_. Without a matching recipe, "bộ"/"combo"
+// wording is just stripped and the line matches as one ordinary product.
 export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, transactions, kits }) {
   const lines = textInput.split(/\n|,|;/).map(l => l.trim()).filter(Boolean);
   const warnings = [];
@@ -334,8 +379,10 @@ export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, t
     }
     if (qty <= 0) qty = 100; // default estimate
 
-    // Known kit recipe ("Kits" tab, gas/Ai.gs) — deterministic, takes priority
-    // over the generic same-alias guess below.
+    // Known kit recipe ("Kits" tab, gas/Ai.gs) — deterministic, and now the
+    // ONLY mechanism that expands a "Bộ" into multiple SKUs. No matching
+    // recipe means the line is just one ordinary product mention (see below)
+    // — no more guessing same-alias siblings.
     const kitResolved = expandKit_(line, qty, materialsCatalog, kits, warnings);
     if (kitResolved) {
       if (!kitResolved.length) {
@@ -345,13 +392,9 @@ export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, t
       return;
     }
 
-    // "bộ" without a matching Kits recipe: same weaker guess as before — pull
-    // in every material sharing the best match's alias, since a "bộ" order
-    // line usually means several related SKUs but there's no recipe to
-    // follow exactly.
-    const isProductSet = /(^|\s)bộ(\s|$)/i.test(line);
-
-    const productQuery = line.replace(/\d+[\d,.]*/g, '').replace(UNIT_WORDS_RE, '').replace(/chủ|khái|đơn|giá|cho|lấy|cần/gi, '').trim();
+    // "bộ"/"combo" wording with no matching recipe is just noise here, same
+    // as "cái"/"chiếc" — stripped so the rest of the line matches normally.
+    const productQuery = line.replace(/\d+[\d,.]*/g, '').replace(UNIT_WORDS_RE, '').replace(/bộ|combo|chủ|khái|đơn|giá|cho|lấy|cần/gi, '').trim();
     const sourceQuery = productQuery || line;
 
     // "+" joins accompanying products requested together on the same line.
@@ -359,23 +402,12 @@ export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, t
     if (!segments.length) segments.push(sourceQuery);
 
     segments.forEach((segment) => {
-      const match = findMatchingMaterial(segment, materialsCatalog, clientOrderedSkus);
+      const match = findMatchingMaterial(segment, materialsCatalog, clientOrderedSkus, transactions);
       if (!match) {
         warnings.push(`Không tìm thấy sản phẩm nào khớp với "${segment}" — vui lòng thêm dòng thủ công.`);
         return;
       }
-      const { material: primaryMatch, confidence } = match;
-      const matchedMaterials = (isProductSet && primaryMatch.alias)
-        ? materialsCatalog.filter(m => m.alias && m.alias === primaryMatch.alias)
-        : [primaryMatch];
-
-      matchedMaterials.forEach(mat => {
-        // Members pulled in only because they share the primary match's alias
-        // (not a real text match) get a visibly lower confidence than the
-        // actual match, since that grouping is a guess, not a lookup.
-        const matConfidence = mat === primaryMatch ? confidence : confidence * 0.6;
-        pushOrAccumulate(mat, qty, segment, matConfidence);
-      });
+      pushOrAccumulate(match.material, qty, segment, match.confidence);
     });
   });
 
