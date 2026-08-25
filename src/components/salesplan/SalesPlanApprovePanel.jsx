@@ -1,12 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { CheckCircle2, TrendingUp, Users } from 'lucide-react';
+import { CheckCircle2, Users } from 'lucide-react';
 import * as api from '../../services/api';
 import ConfirmDialog from '../ConfirmDialog';
 import { useToast } from '../ToastProvider';
 import { monthSortValue } from '../../utils/period';
 
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
-const fmtMoney = (v) => (v || 0).toLocaleString('vi-VN') + ' đ';
 
 // Admin/Creator reviews every pending ('Chờ duyệt') row for one month and
 // approves the whole month in one action — mirrors SopApprovePanel, but no
@@ -29,8 +28,9 @@ export default function SalesPlanApprovePanel({ token, plans, onApproved }) {
   const totals = useMemo(() => pendingRows.reduce((acc, p) => {
     acc.planKpi += p.planKpi || 0;
     acc.planUpdate += p.planUpdate || 0;
+    acc.w1 += p.w1 || 0; acc.w2 += p.w2 || 0; acc.w3 += p.w3 || 0; acc.w4 += p.w4 || 0; acc.w5 += p.w5 || 0;
     return acc;
-  }, { planKpi: 0, planUpdate: 0 }), [pendingRows]);
+  }, { planKpi: 0, planUpdate: 0, w1: 0, w2: 0, w3: 0, w4: 0, w5: 0 }), [pendingRows]);
 
   const handleApprove = async () => {
     setIsApproving(true);
@@ -67,21 +67,6 @@ export default function SalesPlanApprovePanel({ token, plans, onApproved }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-        <div className="glass-card" style={{ padding: '14px', textAlign: 'center' }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-            <TrendingUp size={13} color="var(--accent-emerald)" /> Plan KPI (chờ duyệt)
-          </div>
-          <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", marginTop: '4px' }}>{fmtMoney(totals.planKpi)}</div>
-        </div>
-        <div className="glass-card" style={{ padding: '14px', textAlign: 'center' }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-            <TrendingUp size={13} color="var(--karofi-cyan)" /> Plan_Update (chờ duyệt)
-          </div>
-          <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", marginTop: '4px' }}>{fmtMoney(totals.planUpdate)}</div>
-        </div>
-      </div>
-
       <div className="table-container animate-fade-in" style={{ maxHeight: '600px', overflowY: 'auto' }}>
         <table className="custom-table">
           <thead>
@@ -89,18 +74,39 @@ export default function SalesPlanApprovePanel({ token, plans, onApproved }) {
               <th>Mã KH</th>
               <th>Khách hàng</th>
               <th><Users size={12} /> SALE</th>
-              <th style={{ textAlign: 'right' }}>Plan KPI</th>
-              <th style={{ textAlign: 'right' }}>Plan_Update</th>
+              <th style={{ textAlign: 'right', width: '140px' }}>Plan KPI</th>
+              <th style={{ textAlign: 'right', width: '120px' }}>Tuần 1</th>
+              <th style={{ textAlign: 'right', width: '120px' }}>Tuần 2</th>
+              <th style={{ textAlign: 'right', width: '120px' }}>Tuần 3</th>
+              <th style={{ textAlign: 'right', width: '120px' }}>Tuần 4</th>
+              <th style={{ textAlign: 'right', width: '120px' }}>Tuần 5</th>
+              <th style={{ textAlign: 'right', width: '140px' }}>Plan_Update</th>
               <th>Note</th>
             </tr>
           </thead>
           <tbody>
+            <tr className="top-summary-row">
+              <td colSpan={3} style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>Σ TỔNG CỘNG (chờ duyệt)</td>
+              <td style={{ textAlign: 'right', color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.planKpi)}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.w1)}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.w2)}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.w3)}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.w4)}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.w5)}</td>
+              <td style={{ textAlign: 'right', color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.planUpdate)}</td>
+              <td />
+            </tr>
             {pendingRows.map((p, idx) => (
               <tr key={`${p.searchCode}_${idx}`}>
                 <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{p.searchCode}</td>
                 <td style={{ fontWeight: 600 }}>{p.clientName}</td>
                 <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{p.sale}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(p.planKpi)}</td>
+                <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(p.w1)}</td>
+                <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(p.w2)}</td>
+                <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(p.w3)}</td>
+                <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(p.w4)}</td>
+                <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(p.w5)}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(p.planUpdate)}</td>
                 <td style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>{p.note || '-'}</td>
               </tr>

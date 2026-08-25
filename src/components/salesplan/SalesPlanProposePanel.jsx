@@ -68,12 +68,20 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
 
   // Cao -> thấp theo Plan KPI của đúng tháng đang chọn, để những khách trọng
   // tâm (KPI lớn) luôn nổi lên đầu bảng thay vì lẫn theo thứ tự tab Clients.
+  // Diacritics-insensitive + case-insensitive substring match. Sheet-sourced
+  // Vietnamese text (copy/pasted into Google Sheets from all sorts of places)
+  // can land as NFD (decomposed accents) while a query typed straight into
+  // the browser is NFC — visually identical, but plain .includes() on the two
+  // different Unicode forms silently never matches. Mã KH/mã code are ASCII,
+  // so they never hit this; tên khách hàng, being Vietnamese, did.
+  const normalizeForSearch = (s) => String(s || '').normalize('NFC').toLowerCase();
+
   const filteredClients = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
+    const q = normalizeForSearch(searchTerm.trim());
     const base = !q ? scopedClients : scopedClients.filter(c =>
-      c.name.toLowerCase().includes(q) ||
-      (c.codeSearch || '').toLowerCase().includes(q) ||
-      String(c.code || '').toLowerCase().includes(q)
+      normalizeForSearch(c.name).includes(q) ||
+      normalizeForSearch(c.codeSearch).includes(q) ||
+      normalizeForSearch(c.code).includes(q)
     );
     return [...base].sort((a, b) => planKpiFor(b) - planKpiFor(a));
   }, [scopedClients, searchTerm, month, plan2026]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -105,19 +113,36 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
       const current = prev[client.codeSearch] || getDraft(client);
       const next = { ...current };
       if (field === 'note') next.note = value;
-      else next[field] = value === '' ? 0 : (parseFloat(value) || 0);
+      else next[field] = typeof value === 'number' ? value : (value === '' ? 0 : (parseFloat(value) || 0));
       return { ...prev, [client.codeSearch]: next };
     });
   };
 
-  const revenueTotal = useMemo(() => {
-    return filteredClients.reduce((sum, c) => {
-      const d = getDraft(c);
-      return sum + (d.w1 || 0) + (d.w2 || 0) + (d.w3 || 0) + (d.w4 || 0) + (d.w5 || 0);
-    }, 0);
-  }, [filteredClients, draftMap, existingByCode]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Tuần 1-5 are revenue figures (hundreds of millions/billions) — a plain
+  // <input type="number"> in a ~100px cell shows only the leading digits, cut
+  // off mid-number. Displaying with thousand separators (like the read-only
+  // Plan KPI/Plan_Update cells already do) needs a text input: strip
+  // everything but digits on change, format with separators for display.
+  const parseDigits = (text) => {
+    const digits = String(text).replace(/[^\d]/g, '');
+    return digits ? parseInt(digits, 10) : 0;
+  };
+  const formatDigits = (v) => (v ? Number(v).toLocaleString('vi-VN') : '');
 
-  const fmtBillion = (v) => (v / 1e9).toLocaleString('vi-VN', { maximumFractionDigits: 2, minimumFractionDigits: 0 });
+  // Full-column totals (Plan KPI, từng Tuần, Plan_Update) over the whole
+  // filtered table — not just rows touched this session — so the summary row
+  // reflects what's actually on screen while filling in the table, same idea
+  // as SalesPlanViewPanel's Σ TỔNG CỘNG row.
+  const totals = useMemo(() => {
+    return filteredClients.reduce((acc, c) => {
+      const d = getDraft(c);
+      acc.planKpi += planKpiFor(c);
+      acc.w1 += d.w1 || 0; acc.w2 += d.w2 || 0; acc.w3 += d.w3 || 0; acc.w4 += d.w4 || 0; acc.w5 += d.w5 || 0;
+      return acc;
+    }, { planKpi: 0, w1: 0, w2: 0, w3: 0, w4: 0, w5: 0 });
+  }, [filteredClients, draftMap, existingByCode, month, plan2026]); // eslint-disable-line react-hooks/exhaustive-deps
+  const totalPlanUpdate = totals.w1 + totals.w2 + totals.w3 + totals.w4 + totals.w5;
+  const fmt = (v) => (v || 0).toLocaleString('vi-VN');
 
   const handleSubmit = async () => {
     // Only rows the Sale actually EDITED this session (present in draftMap) —
@@ -186,11 +211,6 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div className="glass-card" style={{ padding: '14px', textAlign: 'center' }}>
-        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>Tổng Plan_Update đang nhập — {month}</div>
-        <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace" }}>{fmtBillion(revenueTotal)} tỷ đ</div>
-      </div>
-
       <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
           <Search size={16} color="var(--text-dim)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
@@ -222,17 +242,28 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
           <thead>
             <tr>
               <th>Mã KH</th>
-              <th style={{ textAlign: 'right', width: '130px' }}>Plan KPI</th>
-              <th style={{ textAlign: 'right', width: '100px' }}>Tuần 1</th>
-              <th style={{ textAlign: 'right', width: '100px' }}>Tuần 2</th>
-              <th style={{ textAlign: 'right', width: '100px' }}>Tuần 3</th>
-              <th style={{ textAlign: 'right', width: '100px' }}>Tuần 4</th>
-              <th style={{ textAlign: 'right', width: '100px' }}>Tuần 5</th>
-              <th style={{ textAlign: 'right', width: '130px' }}>Plan_Update</th>
+              <th style={{ textAlign: 'right', width: '150px' }}>Plan KPI</th>
+              <th style={{ textAlign: 'right', width: '140px' }}>Tuần 1</th>
+              <th style={{ textAlign: 'right', width: '140px' }}>Tuần 2</th>
+              <th style={{ textAlign: 'right', width: '140px' }}>Tuần 3</th>
+              <th style={{ textAlign: 'right', width: '140px' }}>Tuần 4</th>
+              <th style={{ textAlign: 'right', width: '140px' }}>Tuần 5</th>
+              <th style={{ textAlign: 'right', width: '150px' }}>Plan_Update</th>
               <th style={{ minWidth: '150px' }}>Note</th>
             </tr>
           </thead>
           <tbody>
+            <tr className="top-summary-row">
+              <td style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>Σ TỔNG CỘNG</td>
+              <td style={{ textAlign: 'right', color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.planKpi)}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.w1)}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.w2)}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.w3)}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.w4)}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.w5)}</td>
+              <td style={{ textAlign: 'right', color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totalPlanUpdate)}</td>
+              <td style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>Tổng kế hoạch đang nhập</td>
+            </tr>
             {pagedClients.map(c => {
               const d = getDraft(c);
               const sum = (d.w1 || 0) + (d.w2 || 0) + (d.w3 || 0) + (d.w4 || 0) + (d.w5 || 0);
@@ -245,10 +276,11 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
                   {['w1', 'w2', 'w3', 'w4', 'w5'].map(field => (
                     <td key={field}>
                       <input
-                        type="number" className="input-field" style={{ textAlign: 'right', padding: '6px 8px' }}
-                        value={d[field] || ''}
+                        type="text" inputMode="numeric" className="input-field"
+                        style={{ textAlign: 'right', padding: '6px 8px', fontFamily: "'JetBrains Mono', monospace" }}
+                        value={formatDigits(d[field])}
                         placeholder="0"
-                        onChange={(e) => setCell(c, field, e.target.value)}
+                        onChange={(e) => setCell(c, field, parseDigits(e.target.value))}
                       />
                     </td>
                   ))}
