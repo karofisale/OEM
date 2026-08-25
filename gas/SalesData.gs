@@ -40,13 +40,53 @@ function oemAppLoadTransactions_() {
 // it to the frontend as material.learnedAliases lets future free-text orders match
 // correctly on the first try instead of repeating the same manual SKU correction.
 
+// ---------- Plan_Thang month helpers ("T09-2026", same format as src/utils/period.js) ----------
+// 2026-08-25: columns O (Tháng) and P (Trạng thái) were added after Note so
+// several months can coexist as separate rows (like SOP_Plan), instead of the
+// old single-global-month title row. The 64 pre-existing rows were never
+// migrated to have an explicit Tháng, so they're read back as whatever month
+// row0's title cell (col D) held — this is a one-time bridge for that already-
+// existing batch, not something new rows should ever rely on.
+function oemAppPlanFormatMonth_(year, month) {
+  return 'T' + (month < 10 ? '0' + month : month) + '-' + year;
+}
+
+function oemAppPlanLegacyMonth_(rows) {
+  var monthNum = oemAppParseNum_(rows[0] && rows[0][3]);
+  if (!monthNum) return '';
+  var year = parseInt(Utilities.formatDate(new Date(), 'GMT+7', 'yyyy'), 10);
+  return oemAppPlanFormatMonth_(year, monthNum);
+}
+
+// Default month a Sale proposing/editing today should land on: the current
+// month while it's still early/mid-month (ngày 1-24), the next month once
+// it's late (ngày 25-31) — so a plan typed in the last week of the month
+// defaults to the month it's actually meant for. Just a UI default (the
+// frontend still shows a picker), so unlike SOP's anchor this doesn't need to
+// be the single source of truth server-side — kept here anyway so the
+// approve/pending-review math and the frontend's default never disagree.
+function oemAppPlanDefaultMonth_() {
+  var now = new Date();
+  var tz = 'GMT+7';
+  var year = parseInt(Utilities.formatDate(now, tz, 'yyyy'), 10);
+  var month = parseInt(Utilities.formatDate(now, tz, 'MM'), 10);
+  var day = parseInt(Utilities.formatDate(now, tz, 'dd'), 10);
+  if (day >= 25) {
+    month += 1;
+    if (month > 12) { month = 1; year += 1; }
+  }
+  return oemAppPlanFormatMonth_(year, month);
+}
+
 function oemAppLoadSalesPlans_() {
   var rows = oemAppGetRows_(OEMAPP_GIDS.PLAN_THANG);
+  var legacyMonth = oemAppPlanLegacyMonth_(rows);
   var dataRows = rows.slice(2); // row0 = title/totals, row1 = column labels
-  return dataRows.map(function (r) {
+  return dataRows.map(function (r, idx) {
     var clientName = String(r[2] || 'Khách hàng OEM');
     var searchCode = r[1] ? String(r[1]).trim() : oemAppGetClientTextCode_(clientName, r[0], r[1]);
     return {
+      rowIndex: idx + 3, // physical 1-indexed sheet row (data starts at row 3)
       searchCode: searchCode,
       clientName: clientName,
       sale: String(r[3] || 'KH Đình Hoan'),
@@ -58,13 +98,36 @@ function oemAppLoadSalesPlans_() {
       w3: oemAppParseNum_(r[10]),
       w4: oemAppParseNum_(r[11]),
       w5: oemAppParseNum_(r[12]),
-      note: String(r[13] || '')
-      // No `status` field: tab Plan_Thang has no approval column, so this used to
-      // hardcode 'Đã duyệt' for every row — the UI then showed every plan as
-      // approved regardless of reality. Until a real approval column exists, the
-      // frontend renders "chưa theo dõi" rather than inventing a state.
+      note: String(r[13] || ''),
+      month: String(r[14] || '').trim() || legacyMonth,
+      status: String(r[15] || '')
     };
   }).filter(function (p) { return p.searchCode && p.searchCode !== 'Search_code'; });
+}
+
+// ---------- Plan2026 (per-client annual KPI grid, tab created by hand) ----------
+// Rows 0-4: aggregate/subtotal rows (Tổng DT 2025, per-Sale subtotals, etc).
+// Row 5 (0-indexed): real header — Mã KH, Tên Khách hàng, PIC, Năm 2026,
+// Tháng 1..Tháng 12 (columns 4-15). Data starts row 6. Keyed by "Mã KH", which
+// is the same text-code format as codeSearch/searchCode elsewhere in this app.
+function oemAppLoadPlan2026_() {
+  var sheet;
+  try {
+    sheet = oemAppSS_().getSheetByName('Plan2026');
+  } catch (e) {
+    return {};
+  }
+  if (!sheet) return {};
+  var rows = sheet.getDataRange().getValues();
+  var map = {};
+  for (var i = 6; i < rows.length; i++) {
+    var code = String(rows[i][0] || '').trim();
+    if (!code) continue;
+    var months = [];
+    for (var m = 0; m < 12; m++) months.push(oemAppParseNum_(rows[i][4 + m]));
+    map[code] = { pic: String(rows[i][2] || ''), months: months };
+  }
+  return map;
 }
 
 
@@ -186,11 +249,23 @@ function oemAppBuildBootstrap_(scope) {
     return oemAppMatchesSale_(p.sale, scope);
   });
 
+  var plan2026Full = oemAppLoadPlan2026_();
+  var plan2026 = {};
+  Object.keys(plan2026Full).forEach(function (code) {
+    if (scope.all || oemAppMatchesSale_(plan2026Full[code].pic, scope)) {
+      plan2026[code] = plan2026Full[code].months;
+    }
+  });
+
   return {
     clients: oemAppLoadClients_(),
     transactions: transactions,
     materials: materials,
     plans: plans,
+    planDefaultMonth: oemAppPlanDefaultMonth_(),
+    // Mã KH -> [Tháng 1..Tháng 12] KPI, from tab "Plan2026". Scoped like plans:
+    // a Sale only sees their own clients' figures.
+    plan2026: plan2026,
     baselines2025: oemAppLoad2025Baselines_(),
     // "Bộ sản phẩm" recipes (optional tab "Kits") — see Ai.gs. Same for every
     // user regardless of scope, like materials: kit definitions aren't per-Sale.
@@ -215,24 +290,90 @@ function oemAppInvalidateBootstrap_() {
 // Chữ, Ngày tạo, PIC, Update alias).
 
 
-function oemAppAddPlan_(token, plan) {
-  oemAppRequireSession_(token);
-  oemAppGetSheetByGid_(OEMAPP_GIDS.PLAN_THANG).appendRow([
-    '',
-    plan.searchCode || '',
-    plan.clientName || '',
-    plan.sale || '',
-    plan.planKpi || 0,
-    plan.planUpdate || 0,
-    plan.done || 0,
-    '',
-    plan.w1 || 0,
-    plan.w2 || 0,
-    plan.w3 || 0,
-    plan.w4 || 0,
-    plan.w5 || 0,
-    plan.note || ''
-  ]);
+// Leader is view-only for the business plan, same posture as orders/SOP.
+function oemAppRequirePlanEditRole_(user) {
+  if (!['sale', 'admin', 'creator'].includes(user.role)) {
+    throw new Error('Không có quyền đề xuất kế hoạch kinh doanh (Leader chỉ xem).');
+  }
+}
+
+// Bulk upsert — Sale fills in a table of their own clients for one month and
+// submits once, same "ghi cả bảng đã lọc" pattern as oemAppSubmitSopDraft_.
+// Matches existing rows by (Tháng, Search_code); a client with no existing row
+// for this month gets appended. Columns G (Done) and H (Chênh) are NEVER
+// touched by an upsert-edit — Done is the actual-achieved figure tracked
+// separately, and Chênh is a live formula read back by getValues() as its
+// computed number, so blindly writing that number back would silently replace
+// the formula with a static value.
+function oemAppSubmitSalesPlan_(token, thang, rows) {
+  var user = oemAppRequireSession_(token);
+  oemAppRequirePlanEditRole_(user);
+  if (!thang) throw new Error('Thiếu tháng kế hoạch.');
+  if (!rows || !rows.length) throw new Error('Không có dòng nào để lưu.');
+
+  var sheet = oemAppGetSheetByGid_(OEMAPP_GIDS.PLAN_THANG);
+  var existing = sheet.getDataRange().getValues();
+  var legacyMonth = oemAppPlanLegacyMonth_(existing);
+
+  // Legacy rows (blank Tháng) fall back to legacyMonth here too, so a Sale
+  // resubmitting for the current (pre-migration) month upserts into their
+  // existing row instead of appending a duplicate that double-counts totals.
+  var rowIndexByCode = {};
+  for (var i = 2; i < existing.length; i++) {
+    var rowMonth = String(existing[i][14] || '').trim() || legacyMonth;
+    if (rowMonth === thang && existing[i][1]) {
+      rowIndexByCode[String(existing[i][1]).trim()] = i + 1; // 1-indexed sheet row
+    }
+  }
+
+  rows.forEach(function (plan) {
+    if (!plan || !plan.searchCode) return;
+    var planUpdate = (plan.w1 || 0) + (plan.w2 || 0) + (plan.w3 || 0) + (plan.w4 || 0) + (plan.w5 || 0);
+    var rowIndex = rowIndexByCode[String(plan.searchCode).trim()];
+
+    if (rowIndex) {
+      sheet.getRange(rowIndex, 2, 1, 3).setValues([[plan.searchCode || '', plan.clientName || '', plan.sale || '']]); // B-D
+      sheet.getRange(rowIndex, 5, 1, 2).setValues([[plan.planKpi || 0, planUpdate]]); // E-F (Plan KPI, Plan_Update)
+      // G (Done) and H (Chênh) intentionally skipped.
+      sheet.getRange(rowIndex, 9, 1, 5).setValues([[plan.w1 || 0, plan.w2 || 0, plan.w3 || 0, plan.w4 || 0, plan.w5 || 0]]); // I-M
+      sheet.getRange(rowIndex, 14, 1, 1).setValues([[plan.note || '']]); // N
+      sheet.getRange(rowIndex, 16, 1, 1).setValues([['Chờ duyệt']]); // P (Trạng thái) — any resubmit re-queues for approval
+    } else {
+      sheet.appendRow([
+        '', plan.searchCode || '', plan.clientName || '', plan.sale || '',
+        plan.planKpi || 0, planUpdate, 0, '',
+        plan.w1 || 0, plan.w2 || 0, plan.w3 || 0, plan.w4 || 0, plan.w5 || 0,
+        plan.note || '', thang, 'Chờ duyệt'
+      ]);
+    }
+  });
+
   oemAppInvalidateBootstrap_();
-  return { ok: true };
+  return { ok: true, savedCount: rows.length, thang: thang };
+}
+
+// Admin/Creator approves every 'Chờ duyệt' row for one month in a single
+// action (duyệt cả tháng, không duyệt từng dòng) — mirrors oemAppApproveSop_.
+function oemAppApproveSalesPlan_(token, thang) {
+  var user = oemAppRequireSession_(token);
+  if (!['admin', 'creator'].includes(user.role)) {
+    throw new Error('Chỉ Admin mới có quyền duyệt kế hoạch kinh doanh.');
+  }
+  if (!thang) throw new Error('Thiếu tháng cần duyệt.');
+
+  var sheet = oemAppGetSheetByGid_(OEMAPP_GIDS.PLAN_THANG);
+  var rows = sheet.getDataRange().getValues();
+  var legacyMonth = oemAppPlanLegacyMonth_(rows);
+  var count = 0;
+  for (var i = 2; i < rows.length; i++) {
+    var rowMonth = String(rows[i][14] || '').trim() || legacyMonth;
+    if (rowMonth === thang && String(rows[i][15] || '') === 'Chờ duyệt') {
+      sheet.getRange(i + 1, 16, 1, 1).setValues([['Đã duyệt']]);
+      count++;
+    }
+  }
+  if (!count) throw new Error('Không có kế hoạch nào đang chờ duyệt cho tháng này.');
+
+  oemAppInvalidateBootstrap_();
+  return { ok: true, approvedCount: count, thang: thang };
 }
