@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { CheckCircle2, RefreshCw, Users } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { CheckCircle2, RefreshCw, Users, TrendingUp } from 'lucide-react';
 import * as api from '../../services/api';
 import LoadingScreen from '../LoadingScreen';
 import ConfirmDialog from '../ConfirmDialog';
 import { useToast } from '../ToastProvider';
 
 const fmtNum = (v) => (v || 0).toLocaleString('vi-VN');
+const fmtMoney = (v) => (v || 0).toLocaleString('vi-VN') + ' đ';
 
 // Admin/Creator reviews every Sale's submitted-but-not-yet-approved rows for
 // the current period, ALREADY summed by SKU, and approves the whole batch in
@@ -33,6 +34,16 @@ export default function SopApprovePanel({ token, onApproved }) {
   };
 
   useEffect(() => { fetchPending(); }, [token]);
+
+  // SUMPRODUCT(SL x Giá bán) per month over the pending-review rows — same
+  // calc as the approved-plan summary in "Xem SOP", so Admin/Creator sees the
+  // revenue impact of what they're about to approve, not just after the fact.
+  // Declared before any early return (loading/error/empty) so hook order
+  // stays fixed across renders — it's just a no-op ([]) while data is null.
+  const revenueByMonth = useMemo(() => {
+    if (!data || !data.rows || !data.rows.length) return [];
+    return (data.monthLabels || []).map((_, i) => data.rows.reduce((sum, r) => sum + (r.sl[i] || 0) * (r.price || 0), 0));
+  }, [data]);
 
   const handleApprove = async () => {
     setIsApproving(true);
@@ -70,6 +81,21 @@ export default function SopApprovePanel({ token, onApproved }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Doanh thu dự kiến của bảng CHỜ DUYỆT — tính trước khi bấm Duyệt */}
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${data.monthLabels.length || 4}, 1fr)`, gap: '12px' }}>
+        {data.monthLabels.map((label, i) => (
+          <div key={label + i} className="glass-card" style={{ padding: '14px', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+              <TrendingUp size={13} color="var(--accent-emerald)" /> {label}
+            </div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", marginTop: '4px' }}>
+              {fmtMoney(revenueByMonth[i])}
+            </div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>Doanh thu dự kiến (chờ duyệt)</div>
+          </div>
+        ))}
+      </div>
+
       <div className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
         <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
           <strong>{data.rows.length.toLocaleString('vi-VN')}</strong> mã SKU, tổng hợp từ <strong>{data.pendingCount.toLocaleString('vi-VN')}</strong> dòng kế hoạch chờ duyệt — kỳ {data.monthLabels[0]} → {data.monthLabels[data.monthLabels.length - 1]}.
