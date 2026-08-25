@@ -211,17 +211,51 @@ function oemAppSubmitSopDraft_(token, anchor, rows) {
   return { ok: true, savedCount: rows.length };
 }
 
+// What THIS Sale has ever submitted, across every period — status included —
+// so "Xem SOP" can show it back to them (period, SKU, status, ngày gửi/duyệt)
+// instead of only the read-facing aggregate tab. `anchor` tells the frontend
+// which period group is still editable via "Lập Kế Hoạch" (only the current
+// one — the planning screen itself has no way to target an older period).
+function oemAppGetMySopPlan_(token) {
+  var user = oemAppRequireSession_(token);
+  var saleKey = oemAppSopSaleKey_(user);
+  var catalog = oemAppLoadMaterialCatalog_().bySku;
+  var anchor = oemAppSopCurrentAnchor_();
+
+  var rows = oemAppLoadSopPlanRows_()
+    .filter(function (r) { return r.sale === saleKey; })
+    .map(function (r) {
+      var entry = catalog[r.sku] || {};
+      return {
+        period: r.period,
+        monthLabels: oemAppSopPeriodMonths_(r.period).map(oemAppSopLabel_),
+        sku: r.sku,
+        name: entry.name || r.sku,
+        sl: r.sl,
+        status: r.status,
+        submittedAt: r.submittedAt,
+        approvedAt: r.approvedAt
+      };
+    })
+    .sort(function (a, b) {
+      if (a.period !== b.period) return a.period < b.period ? 1 : -1; // newest period first
+      return a.sku < b.sku ? -1 : (a.sku > b.sku ? 1 : 0);
+    });
+
+  return { anchor: anchor, rows: rows };
+}
+
 // ---------- Aggregation (shared by the pre-approval preview and the real approve) ----------
 
 function oemAppAggregateSopPeriod_(anchor) {
   var catalog = oemAppLoadMaterialCatalog_().bySku;
-  var rows = oemAppLoadSopPlanRows_().filter(function (r) {
+  var pendingRows = oemAppLoadSopPlanRows_().filter(function (r) {
     return r.period === anchor && r.status === 'Chờ duyệt';
   });
 
   var bySku = {};
   var order = [];
-  rows.forEach(function (r) {
+  pendingRows.forEach(function (r) {
     if (!bySku[r.sku]) { bySku[r.sku] = { sl: [0, 0, 0, 0], sales: {} }; order.push(r.sku); }
     var acc = bySku[r.sku];
     for (var i = 0; i < 4; i++) acc.sl[i] += r.sl[i];
@@ -241,7 +275,14 @@ function oemAppAggregateSopPeriod_(anchor) {
     };
   });
 
-  return { rows: result, monthLabels: months.map(oemAppSopLabel_), pendingCount: rows.length };
+  // Per-line detail (one entry per Sale+SKU, pre-aggregation) — lets the
+  // approve screen filter "tổng đóng góp của mỗi sale" without a second read.
+  var detail = pendingRows.map(function (r) {
+    var entry = catalog[r.sku] || {};
+    return { sale: r.sale, sku: r.sku, name: entry.name || r.sku, price: entry.suggestedPrice || 0, sl: r.sl };
+  });
+
+  return { rows: result, detail: detail, monthLabels: months.map(oemAppSopLabel_), pendingCount: pendingRows.length };
 }
 
 // Admin/Creator preview before committing — same numbers oemAppApproveSop_
@@ -251,7 +292,10 @@ function oemAppGetSopPendingReview_(token, anchor) {
   if (!['admin', 'creator'].includes(user.role)) {
     throw new Error('Chỉ Admin mới xem được bảng tổng hợp chờ duyệt.');
   }
-  return oemAppAggregateSopPeriod_(anchor || oemAppSopCurrentAnchor_());
+  anchor = anchor || oemAppSopCurrentAnchor_();
+  var agg = oemAppAggregateSopPeriod_(anchor);
+  agg.anchor = anchor;
+  return agg;
 }
 
 // Approve the WHOLE batch for a period in one action (duyệt cả bảng đã cộng
@@ -259,7 +303,13 @@ function oemAppGetSopPendingReview_(token, anchor) {
 // with the aggregated result, then marks every contributing SOP_Plan row as
 // Đã duyệt so it stops showing as pending and starts counting toward "SL đã
 // duyệt tháng trước" for whoever plans the next period.
-function oemAppApproveSop_(token, anchor) {
+// overrideRows (optional): [{ sku, sl1, sl2, sl3, sl4 }, ...] — Admin/Creator
+// may adjust quantities on the approve screen before committing. Only SKUs
+// already part of this batch (agg.rows) can be overridden — this replaces
+// what gets PUBLISHED to tab "SOP", it never changes who gets credited or
+// which underlying SOP_Plan rows are marked Đã duyệt (that still follows the
+// real submitted data, below).
+function oemAppApproveSop_(token, anchor, overrideRows) {
   var user = oemAppRequireSession_(token);
   if (!['admin', 'creator'].includes(user.role)) {
     throw new Error('Chỉ Admin mới có quyền duyệt kế hoạch SOP.');
@@ -268,6 +318,13 @@ function oemAppApproveSop_(token, anchor) {
   var agg = oemAppAggregateSopPeriod_(anchor);
   if (!agg.rows.length) throw new Error('Không có kế hoạch nào đang chờ duyệt cho kỳ này.');
 
+  var slBySku = {};
+  agg.rows.forEach(function (r) { slBySku[r.sku] = r.sl; });
+  (overrideRows || []).forEach(function (o) {
+    if (!o || !o.sku || !slBySku[o.sku]) return;
+    slBySku[o.sku] = [Number(o.sl1) || 0, Number(o.sl2) || 0, Number(o.sl3) || 0, Number(o.sl4) || 0];
+  });
+
   var sopSheet = oemAppGetSopSheet_();
   var lastRow = sopSheet.getLastRow();
   if (lastRow > 1) sopSheet.getRange(2, 1, lastRow - 1, 7).clearContent();
@@ -275,8 +332,15 @@ function oemAppApproveSop_(token, anchor) {
     'Mã', 'Tên SP', 'Giá bán',
     'SL ' + agg.monthLabels[0], 'SL ' + agg.monthLabels[1], 'SL ' + agg.monthLabels[2], 'SL ' + agg.monthLabels[3]
   ]]);
-  var body = agg.rows.map(function (r) {
-    return [r.sku, r.name, r.price, r.sl[0], r.sl[1], r.sl[2], r.sl[3]];
+  // Only publish SKUs with quantity > 0 in at least one of the 4 months — an
+  // all-zero row (a Sale's "no longer planning this SKU" line, or one edited
+  // down to zero above) has nothing to forecast, so it's dropped from tab
+  // "SOP" rather than published as a row of zeroes.
+  var publishSkus = agg.rows.filter(function (r) { return slBySku[r.sku].some(function (v) { return v > 0; }); });
+
+  var body = publishSkus.map(function (r) {
+    var sl = slBySku[r.sku];
+    return [r.sku, r.name, r.price, sl[0], sl[1], sl[2], sl[3]];
   });
   if (body.length) sopSheet.getRange(2, 1, body.length, 7).setValues(body);
 
@@ -289,7 +353,7 @@ function oemAppApproveSop_(token, anchor) {
     }
   }
 
-  return { ok: true, skuCount: agg.rows.length, monthLabels: agg.monthLabels };
+  return { ok: true, skuCount: publishSkus.length, monthLabels: agg.monthLabels };
 }
 
 // ---------- SOP (read-facing forecast) ----------

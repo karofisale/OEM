@@ -13,7 +13,7 @@ import ProductManagement from './components/ProductManagement';
 import ClientManagement from './components/ClientManagement';
 import SalesPlan from './components/SalesPlan';
 import SopPlan from './components/SopPlan';
-import DebtImporter from './components/DebtImporter';
+import DebtManagement from './components/DebtManagement';
 import GoogleSheetSettings from './components/GoogleSheetSettings';
 import LoadingScreen from './components/LoadingScreen';
 import KeepAliveTab from './components/KeepAliveTab';
@@ -358,7 +358,7 @@ export default function App() {
           </KeepAliveTab>
 
           <KeepAliveTab isActive={activeTab === 'debt-importer'} hasVisited={visitedTabs.has('debt-importer')}>
-            <DebtImporter />
+            <DebtManagement token={session.token} activeUser={activeUser} />
           </KeepAliveTab>
 
           <KeepAliveTab isActive={activeTab === 'settings'} hasVisited={visitedTabs.has('settings')}>

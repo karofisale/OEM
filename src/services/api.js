@@ -205,12 +205,24 @@ export async function getSopPendingReview(token, anchor) {
   return callApi('getSopPendingReview', [token, anchor]);
 }
 
-export async function approveSop(token, anchor) {
-  return callApi('approveSop', [token, anchor]);
+export async function approveSop(token, anchor, overrideRows) {
+  return callApi('approveSop', [token, anchor, overrideRows]);
 }
 
 export async function getSopView(token) {
   return callApi('getSopView', [token]);
+}
+
+export async function getMySopPlan(token) {
+  return callApi('getMySopPlan', [token]);
+}
+
+export async function getDebtView(token) {
+  return callApi('getDebtView', [token]);
+}
+
+export async function importDebtExcel(token, rows) {
+  return callApi('importDebtExcel', [token, rows]);
 }
 
 // Dormant since the 2026-08-25 rollback (see aiAgent.js) — AIOrderAgent.jsx

@@ -3,6 +3,7 @@ import { CalendarClock, ClipboardList, ClipboardCheck } from 'lucide-react';
 import SopViewPanel from './sop/SopViewPanel';
 import SopPlanPanel from './sop/SopPlanPanel';
 import SopApprovePanel from './sop/SopApprovePanel';
+import SopMyPlanPanel from './sop/SopMyPlanPanel';
 
 export default function SopPlan({ token, activeUser, materials }) {
   const [subView, setSubView] = useState('view'); // 'view' | 'plan' | 'approve'
@@ -46,7 +47,18 @@ export default function SopPlan({ token, activeUser, materials }) {
         </div>
       </div>
 
-      {subView === 'view' && <SopViewPanel token={token} refreshTick={refreshTick} />}
+      {subView === 'view' && (
+        <>
+          {canPlan && (
+            <SopMyPlanPanel
+              token={token}
+              refreshTick={refreshTick}
+              onEditCurrentPeriod={() => setSubView('plan')}
+            />
+          )}
+          <SopViewPanel token={token} refreshTick={refreshTick} />
+        </>
+      )}
 
       {subView === 'plan' && canPlan && (
         <SopPlanPanel token={token} materials={materials} onSubmitted={bumpRefresh} />

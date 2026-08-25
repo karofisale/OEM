@@ -144,6 +144,27 @@ Ghi (`oemAppSubmitSalesPlan_`, hàm `submitSalesPlan`): upsert theo cặp (Thán
 
 **Tab "Plan2026"** (tạo tay, không theo gid) — lưới KPI theo năm, đọc bởi `oemAppLoadPlan2026_`, dùng để tự động điền "Plan KPI" khi Sale đề xuất kế hoạch tháng (không gõ tay): dòng 0-4 là các dòng tổng/subtotal, **dòng 6 (1-indexed) mới là dòng tiêu đề thật**: `Mã KH | Tên Khách hàng | PIC | Năm 2026 | Tháng 1 | ... | Tháng 12` (cột A-P, A=0-indexed 0). Khớp bằng "Mã KH" — đúng định dạng text-code (`TECOM`, `CTQTSONHA`...) dùng chung với `codeSearch`/`searchCode` ở mọi nơi khác trong app. Nếu tab này không tồn tại, `plan2026` trong `getBootstrap` trả về rỗng và Plan KPI hiển thị `0` (không lỗi).
 
-## Những gì backend này CHƯA làm (có chủ đích)
+## SOP: xem lại kế hoạch đã gửi + duyệt có thể sửa số/lọc theo Sale (2026-08-25)
 
-- **Đồng bộ Công Nợ Excel** (`DebtImporter.jsx`) vẫn chỉ lưu tạm — tab `Debt_Tracking`/`Debt` đã có quy trình cập nhật riêng qua skill `cong-no-oem` (đối chiếu Mã KH/Tên KH); một luồng ghi tự động thứ 2 từ app này rủi ro làm hai luồng đá nhau.
+- **`getMySopPlan`** (mới) — trả về TOÀN BỘ dòng `SOP_Plan` của chính Sale đang đăng nhập (mọi kỳ, kèm Trạng thái/Ngày gửi/Ngày duyệt), hiển thị trong `SopMyPlanPanel.jsx` ngay trong tab "Xem SOP" (chỉ hiện với ai có quyền lập kế hoạch). Kỳ trùng với `anchor` hiện tại (kỳ đang mở) có nút "Sửa & Gửi duyệt lại" — bấm vào chuyển sang "Lập Kế Hoạch", màn đó vốn đã tự tải lại đúng bản nháp/đã gửi của kỳ hiện tại (`myDraft` trong `oemAppGetSopPlanningContext_`) nên không cần đổi gì ở đó. Gửi lại đơn giản là gọi lại `submitSopDraft` như bình thường — hàm này vốn đã ghi đè đúng dòng cũ và đặt lại Trạng thái = `Chờ duyệt`, kể cả khi dòng đó đã từng `Đã duyệt`.
+- **`getSopPendingReview`** giờ trả thêm `detail` (mảng từng dòng Sale+SKU trước khi gộp) và `anchor` — `SopApprovePanel.jsx` dùng `detail` để cho Admin/Creator lọc xem tổng đóng góp của 1 Sale cụ thể (bảng phụ, chỉ để xem, không ảnh hưởng số liệu sẽ duyệt).
+- **`approveSop`** nhận thêm tham số `overrideRows` (tuỳ chọn) — Admin/Creator có thể sửa trực tiếp số lượng trên bảng tổng hợp trước khi bấm Duyệt; số đã sửa mới là số được ghi vào tab "SOP", việc đánh dấu `Đã duyệt` cho các dòng `SOP_Plan` gốc thì KHÔNG đổi theo (vẫn theo đúng số Sale đã gửi thật). Chỉ được sửa số cho SKU đã có trong lô đang chờ duyệt — không thể thêm SKU mới qua đường này.
+- **Lọc dòng toàn số 0**: `SopApprovePanel.jsx` có tick "Ẩn mã không có số lượng" (chỉ ẩn hiển thị, dòng ẩn vẫn được duyệt/xoá khỏi hàng chờ bình thường). Nhưng khi thực sự bấm Duyệt, `oemAppApproveSop_` **tự động bỏ qua** mọi SKU có số lượng = 0 ở cả 4 tháng (sau khi áp dụng overrideRows) khi ghi vào tab "SOP" — không xuất bản dòng toàn số 0, dù vẫn đánh dấu các dòng `SOP_Plan` liên quan là Đã duyệt để chúng thoát khỏi hàng chờ.
+
+## Tab "Debt" — Công nợ khách hàng (thêm 2026-08-25)
+
+Tab tìm theo TÊN ("Debt", không theo gid). **Cấu trúc khác mọi tab khác trong app**: dòng 1 có 1 giá trị rác ở cột G (bỏ qua), dòng 2 trống, **dòng 3 mới là tiêu đề thật**, dữ liệu từ dòng 4:
+
+| Cột | Vị trí (1-indexed) | Tên | Ghi chú |
+|---|---|---|---|
+| A | 1 | Mã KH | text-code, cùng quy ước `codeSearch` dùng chung toàn app |
+| B | 2 | MÃ SỐ CŨ | mã số cũ, app KHÔNG đọc/ghi cột này |
+| C | 3 | Tên Khách hàng | |
+| D | 4 | PIC | tên Sale, dùng để scope theo `oemAppMatchesSale_` giống mọi tab khác |
+| E | 5 | Hạn mức | số, ghi được |
+| F | 6 | Vượt hạn mức | **CÔNG THỨC** — 1 ô `=ARRAYFORMULA(G4:G-E4:E)` duy nhất ở F4, tràn xuống cả cột. App **KHÔNG BAO GIỜ** ghi vào cột này (kể cả ghi chuỗi rỗng) — ghi vào bất kỳ ô nào trong cột có thể phá công thức tràn cho toàn bộ phần còn lại. |
+| G | 7 | Số dư công nợ | số, ghi được |
+
+- **`getDebtView`** — đọc toàn bộ, scope theo Sale (PIC) giống `getBootstrap`; hiển thị ở `DebtViewPanel.jsx` (tab "Bảng Công Nợ").
+- **`importDebtExcel`** (role admin/creator, giống tầng quyền duyệt Sop/SalesPlan) — nhận file Excel với cột Mã KH, Tên khách hàng, HM công nợ, Công nợ vượt HM (chỉ để xem trước, không ghi), Số dư công nợ; upsert theo Mã KH (trim + uppercase) vào cột A/C/D/E/G — ghi theo khối cột 1 lần (không phải từng dòng) để nhanh với vài trăm dòng. Cột PIC không nằm trong file import nên **giữ nguyên giá trị cũ** nếu dòng đã tồn tại, để trống nếu là khách hàng mới.
+- **Tab này CŨNG được ghi bởi skill `cong-no-oem` riêng** (dự án khác, đối chiếu Mã KH/Tên KH) — `importDebtExcel` là luồng ghi tự động THỨ 2 vào cùng tab, theo quyết định rõ ràng của người dùng (2026-08-25, đảo ngược quyết định "chỉ lưu tạm, chưa nối" trước đó) — cần cẩn trọng khi cả 2 luồng cùng chạy gần nhau.

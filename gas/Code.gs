@@ -34,6 +34,7 @@
  *   SalesData.gs         - transactions, sales plans, baselines, getBootstrap
  *   Orders.gs            - AI Order Agent -> SAP staging tab "Orders"
  *   Sop.gs                - SOP monthly per-SKU quantity plan (draft + approve)
+ *   Debt.gs               - customer debt (công nợ) view + Excel import
  *   Ai.gs                 - Gemini API order parsing (replaces the old client-side heuristic matcher)
  *   AiChat.gs             - Gemini function-calling lookup chat (separate feature from Ai.gs)
  */
@@ -110,7 +111,11 @@ var oemAppApiMap_ = {
   getSopPendingReview: oemAppGetSopPendingReview_,
   approveSop: oemAppApproveSop_,
   getSopView: oemAppGetSopView_,
+  getMySopPlan: oemAppGetMySopPlan_,
   sopDiag: oemAppSopDiag_,
+  getDebtView: oemAppGetDebtView_,
+  importDebtExcel: oemAppImportDebtExcel_,
+  debtDiag: oemAppDebtDiag_,
   kitsDiag: oemAppKitsDiag_,
   forceRefreshBootstrap: oemAppForceRefreshBootstrap_,
   aiParseOrder: oemAppAiParseOrder_,
