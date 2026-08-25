@@ -191,7 +191,10 @@ function oemAppBuildBootstrap_(scope) {
     transactions: transactions,
     materials: materials,
     plans: plans,
-    baselines2025: oemAppLoad2025Baselines_()
+    baselines2025: oemAppLoad2025Baselines_(),
+    // "Bộ sản phẩm" recipes (optional tab "Kits") — see Ai.gs. Same for every
+    // user regardless of scope, like materials: kit definitions aren't per-Sale.
+    kits: oemAppLoadKits_()
   };
 }
 

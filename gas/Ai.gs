@@ -139,6 +139,11 @@ function oemAppLoadKits_() {
   return out;
 }
 
+// DORMANT since 2026-08-25: AIOrderAgent.jsx rolled back to the local
+// heuristic parser (src/services/aiAgent.js) after repeated API quota/auth
+// issues, so nothing currently calls this — still routed in Code.gs, kept
+// working (see the unit test) in case order parsing switches back to Gemini.
+//
 // input = { text, imageBase64 (không kèm prefix data:), imageMimeType, materials: [{sku,name,alias,group}], clients: [{code,name,alias}] }
 function oemAppAiParseOrder_(token, input) {
   oemAppRequireSession_(token);

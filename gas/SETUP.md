@@ -108,6 +108,8 @@ Cột "Độc quyền" trên tab **Products** (cột thứ 9, do người dùng 
 
 ## Tab tuỳ chọn "Kits" — công thức "Bộ sản phẩm" cho AI Agent (thêm 2026-08-24)
 
+**Cập nhật 2026-08-25**: AI Agent đặt hàng đã rollback về xử lý cục bộ (không gọi API ngoài — xem `src/services/aiAgent.js`), sau khi gặp lỗi hạn mức/xác thực API liên tục. Tab "Kits" vẫn hoạt động y hệt: đọc qua `oemAppLoadKits_` (Ai.gs), đưa vào `getBootstrap` (trường `kits`), và việc TÁCH "Bộ" thành các SKU thành phần giờ chạy ở frontend (`expandKit_` trong `aiAgent.js`) thay vì trong prompt Gemini — không cần đổi gì trên Sheet. Đường Gemini (`gas/Ai.gs`'s `oemAppAiParseOrder_`, route `aiParseOrder`) vẫn còn nguyên, chỉ tạm không có nơi nào gọi tới — dễ bật lại nếu muốn.
+
 Không bắt buộc — nếu tab "Kits" không tồn tại, `oemAppLoadKits_` trả về mảng rỗng và AI Agent xử lý "bộ"/"combo" như 1 sản phẩm đơn lẻ như trước (không tách dòng). Tạo tab này khi muốn dạy cho AI Agent biết một "Bộ <tên>" cụ thể gồm những SKU nào, mỗi SKU bao nhiêu cái.
 
 5 cột: `Tên gọi Bộ | Mã SKU thành phần | Vai trò | SL trong 1 Bộ | Ghi chú`. Mỗi dòng = 1 thành phần của 1 Bộ. Ví dụ "Bộ cốc" gồm cốc trong, cốc màu (2 lựa chọn theo màu — cùng "Vai trò" nhưng khác SKU, AI Agent sẽ tự chọn đúng SKU theo màu được nhắc trong đơn), và nắp cốc:

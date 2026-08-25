@@ -13,12 +13,11 @@ import {
   PlusCircle
 } from 'lucide-react';
 import {
-  buildAiPromptContext,
-  buildOrderFromAiResult,
-  fileToBase64,
+  extractTextFromImage,
   generateSAPCopyString,
   getHistoricalUnitPrice,
   isNewAliasWorthLearning,
+  parseOrderTextToSAP,
   VAT_RATE
 } from '../services/aiAgent';
 import * as api from '../services/api';
@@ -40,11 +39,11 @@ const createBlankItem = () => ({
   matchedAlias: ''
 });
 
-// Gemini returns a real 0-1 confidence per item (see gas/Ai.gs's response
-// schema) — shown as a colored % instead of the old hardcoded "High (Mapped)"
-// label every match used to get regardless of how weak the match actually
-// was. Manual edits (createBlankItem/handleSkuChange) still set a plain
-// string label instead of a score, which falls through to the neutral badge.
+// findMatchingMaterial returns a real 0-1 confidence — shown as a colored %
+// instead of a hardcoded "High (Mapped)" label every match used to get
+// regardless of how weak the match actually was. Manual edits
+// (createBlankItem/handleSkuChange) still set a plain string label instead
+// of a score, which falls through to the neutral badge.
 function ConfidenceBadge({ confidence }) {
   if (typeof confidence !== 'number') {
     return <span className="badge badge-purple" style={{ fontSize: '0.625rem' }}>{confidence}</span>;
@@ -54,7 +53,7 @@ function ConfidenceBadge({ confidence }) {
   return <span className={`badge ${cls}`} style={{ fontSize: '0.625rem' }}>{pct}% tin cậy</span>;
 }
 
-export default function AIOrderAgent({ clients, materials, transactions, token, onOrderSaved }) {
+export default function AIOrderAgent({ clients, materials, transactions, kits, token, onOrderSaved }) {
   const toast = useToast();
   const [promptText, setPromptText] = useState('');
   const [imageFile, setImageFile] = useState(null);
@@ -67,55 +66,51 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
   // Processed order state — starts empty until Sale actually enters a command.
   const [orderResult, setOrderResult] = useState(null);
 
-  // Handle Text Prompt Submission — a real Gemini call now (gas/Ai.gs), not a
-  // local heuristic, so this is a network round-trip and can fail (bad/missing
-  // API key, rate limit, no network).
-  const handleGenerateOrder = async () => {
+  // Handle Text Prompt Submission — local heuristic (aiAgent.js), no network
+  // call. Runs synchronously (measured ~11ms even against the full 440-SKU
+  // catalogue + transaction history) — wrapped in isProcessing/setTimeout-free
+  // just to keep the button's disabled state consistent with the image path.
+  const handleGenerateOrder = () => {
     if (!promptText.trim() || isProcessing) return;
     setSaved(false);
-    setIsProcessing(true);
-    setOcrStatus('Đang gửi cho Gemini phân tích...');
-    try {
-      const { materials: materialsForPrompt, clients: clientsForPrompt } = buildAiPromptContext(clients, materials);
-      const aiResult = await api.aiParseOrder(token, { text: promptText, materials: materialsForPrompt, clients: clientsForPrompt });
-      setOrderResult(buildOrderFromAiResult(aiResult, clients, materials, transactions));
-    } catch (err) {
-      toast.error('Không phân tích được lệnh: ' + err.message);
-    } finally {
-      setIsProcessing(false);
-      setOcrStatus('');
-    }
+    const result = parseOrderTextToSAP({
+      textInput: promptText,
+      clientList: clients,
+      materialsCatalog: materials,
+      transactions: transactions,
+      kits: kits
+    });
+    setOrderResult(result);
   };
 
-  // Handle Image Upload — shared by the file-picker button and pasting an
-  // image directly into the textarea (Ctrl+V). The image goes straight to
-  // Gemini (multimodal) instead of running local OCR first — one pipeline
-  // instead of two, and handwriting/screenshots read better through an actual
-  // model than through Tesseract's generic OCR.
-  const MAX_OCR_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB — larger images can hang the tab reading/encoding
+  // Handle Image Upload & OCR — shared by the file-picker button and pasting
+  // an image directly into the textarea (Ctrl+V), so both paths run the same
+  // size check + OCR + parse flow.
+  const MAX_OCR_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB — larger images can hang the tab during OCR
 
   const processImageFile = async (file) => {
     if (!file) return;
     if (file.size > MAX_OCR_IMAGE_BYTES) {
-      toast.error(`Ảnh quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Vui lòng chọn ảnh dưới 8MB.`);
+      toast.error(`Ảnh quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Vui lòng chọn ảnh dưới 8MB để tránh treo trình duyệt khi quét OCR.`);
       return;
     }
     setImageFile(file);
     setIsProcessing(true);
     setSaved(false);
-    setOcrStatus('Đang gửi ảnh cho Gemini đọc và phân tích...');
+    setOcrStatus('Đang quét OCR nhận diện chữ trên hình ảnh...');
 
     try {
-      const imageBase64 = await fileToBase64(file);
-      const { materials: materialsForPrompt, clients: clientsForPrompt } = buildAiPromptContext(clients, materials);
-      const aiResult = await api.aiParseOrder(token, {
-        imageBase64,
-        imageMimeType: file.type || 'image/jpeg',
-        materials: materialsForPrompt,
-        clients: clientsForPrompt
+      const extractedText = await extractTextFromImage(file, (msg) => setOcrStatus(msg));
+      setPromptText(extractedText || 'Đơn hàng từ ảnh chụp');
+
+      const result = parseOrderTextToSAP({
+        textInput: extractedText,
+        clientList: clients,
+        materialsCatalog: materials,
+        transactions: transactions,
+        kits: kits
       });
-      setPromptText('(Đơn hàng từ ảnh chụp)');
-      setOrderResult(buildOrderFromAiResult(aiResult, clients, materials, transactions));
+      setOrderResult(result);
     } catch (err) {
       toast.error(err.message || 'Lỗi đọc ảnh.');
     } finally {
@@ -281,7 +276,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
         </div>
 
         <span className="badge badge-purple" style={{ padding: '6px 14px', fontSize: '0.8rem' }}>
-          <Sparkles size={14} /> Gemini AI
+          <Sparkles size={14} /> Tự động, không dùng API ngoài
         </span>
       </div>
 
@@ -327,7 +322,7 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
                 htmlFor="ocr-upload"
                 className="btn btn-secondary btn-sm"
                 style={{ cursor: 'pointer', justifyContent: 'center' }}
-                title="Tải ảnh chụp đơn hàng / chữ viết tay — Gemini đọc trực tiếp"
+                title="Tải ảnh chụp đơn hàng / chữ viết tay (OCR)"
               >
                 <Upload size={14} /> Tải Ảnh
               </label>
@@ -415,9 +410,9 @@ export default function AIOrderAgent({ clients, materials, transactions, token, 
                 </div>
               </div>
 
-              {/* Gemini's own uncertainty notes — things it couldn't map to a
-                  real SKU/client, or judged ambiguous — surfaced verbatim so
-                  Sale knows exactly what to double-check before saving. */}
+              {/* Lines the matcher couldn't map to a real SKU/client, or a kit
+                  component it had to skip for lack of a clear variant —
+                  surfaced verbatim so Sale knows exactly what to add by hand. */}
               {orderResult.warnings && orderResult.warnings.length > 0 && (
                 <div style={{
                   display: 'flex', flexDirection: 'column', gap: '6px',

@@ -208,6 +208,10 @@ export async function getSopView(token) {
   return callApi('getSopView', [token]);
 }
 
+// Dormant since the 2026-08-25 rollback (see aiAgent.js) — AIOrderAgent.jsx
+// no longer calls this, order parsing is back to the local heuristic. Left
+// wired (gas/Code.gs still routes it) so switching back to Gemini-backed
+// order parsing later doesn't need re-plumbing, just a caller again.
 export async function aiParseOrder(token, input) {
   return callApi('aiParseOrder', [token, input]);
 }

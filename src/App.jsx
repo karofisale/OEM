@@ -4,7 +4,7 @@ import Sidebar from './components/Sidebar';
 import LoginModal from './components/LoginModal';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import AIOrderAgent from './components/AIOrderAgent';
-import AiLookupChat from './components/AiLookupChat';
+import AiChatWidget from './components/AiChatWidget';
 import OrdersReview from './components/OrdersReview';
 import RevenueReports from './components/RevenueReports';
 import Dashboard from './components/Dashboard';
@@ -43,6 +43,7 @@ export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [plans, setPlans] = useState([]);
+  const [kits, setKits] = useState([]);
   const [baselines2025, setBaselines2025] = useState(new Map());
   const [isSyncing, setIsSyncing] = useState(false);
   const [bootstrapError, setBootstrapError] = useState('');
@@ -68,6 +69,7 @@ export default function App() {
     setTransactions(data.transactions || []);
     setMaterials(data.materials || []);
     setPlans(data.plans || []);
+    setKits(data.kits || []);
     setBaselines2025(new Map(Object.entries(data.baselines2025 || {})));
   };
 
@@ -130,6 +132,7 @@ export default function App() {
     setTransactions([]);
     setMaterials([]);
     setPlans([]);
+    setKits([]);
     setHasLoadedOnce(false);
     setIsShowingCached(false);
   };
@@ -279,13 +282,10 @@ export default function App() {
               clients={clients}
               materials={materials}
               transactions={transactions}
+              kits={kits}
               token={session.token}
               onOrderSaved={() => setOrdersStale(true)}
             />
-          </KeepAliveTab>
-
-          <KeepAliveTab isActive={activeTab === 'ai-chat'} hasVisited={visitedTabs.has('ai-chat')}>
-            <AiLookupChat token={session.token} />
           </KeepAliveTab>
 
           <KeepAliveTab isActive={activeTab === 'pending-orders'} hasVisited={visitedTabs.has('pending-orders')}>
@@ -385,6 +385,9 @@ export default function App() {
           onClose={() => setShowChangePasswordModal(false)}
         />
       )}
+
+      {/* Floating widget, reachable from every tab — not a sidebar entry. */}
+      <AiChatWidget token={session.token} />
     </div>
   );
 }
