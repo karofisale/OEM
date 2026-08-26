@@ -18,9 +18,58 @@ const parseNum = (v) => {
   return parseFloat(clean) || 0;
 };
 
-// Upload Excel: Mã KH | Tên khách hàng | HM công nợ | Công nợ vượt HM | Số dư
-// công nợ -> upsert into tab "Debt" by Mã KH. "Công nợ vượt HM" is shown in
-// the preview for reference only — the sheet computes it itself (a single
+// The real weekly file ("BÁO CÁO KẾ HOẠCH -THỰC THU CÔNG NỢ OEM...xlsx", tab
+// "TỔNG HỢP" — checked directly 2026-08-25) is NOT a plain 5-column sheet:
+// rows 0-6 are a title/pivot block (per-Sale + grand-total rows, weekly plan
+// columns stretching to column EH), and only row 7 carries "Mã KH" in column
+// A — everything from row 8 down is the real per-customer table, laid out by
+// FIXED POSITION exactly like the Google Sheet "Debt" tab itself: Mã KH | Mã
+// Số Cũ | Tên Khách hàng | PIC | Hạn mức | Vượt hạn mức | Số dư công nợ. So
+// this scans column A for the "Mã KH" header cell (wherever it lands — the
+// pivot block above it isn't a fixed size) and reads by position from there,
+// the same convention as every sheet this app touches.
+function parseDebtSheetByPosition_(ws, XLSX) {
+  const raw = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+  const headerRowIndex = raw.findIndex((r) => String(r[0] || '').trim().toLowerCase() === 'mã kh');
+  if (headerRowIndex === -1) return [];
+
+  const out = [];
+  for (let i = headerRowIndex + 1; i < raw.length; i++) {
+    const r = raw[i];
+    const code = String(r[0] || '').trim();
+    if (!code) continue;
+    out.push({
+      code,
+      oldCode: String(r[1] || '').trim(),
+      name: String(r[2] || '').trim(),
+      pic: String(r[3] || '').trim(),
+      creditLimit: parseNum(r[4]),
+      overLimitFromFile: parseNum(r[5]),
+      balance: parseNum(r[6])
+    });
+  }
+  return out;
+}
+
+// Fallback for a simplified export that really is just named columns in row
+// 1 (no pivot block) — tries common header spellings.
+function parseDebtSheetByHeaderName_(ws, XLSX) {
+  const data = XLSX.utils.sheet_to_json(ws);
+  return data
+    .map((row) => ({
+      code: String(pick(row, ['Mã KH', 'Ma KH', 'Code']) || '').trim(),
+      oldCode: String(pick(row, ['MÃ SỐ CŨ', 'Mã Số Cũ']) || '').trim(),
+      name: String(pick(row, ['Tên khách hàng', 'Tên Khách hàng', 'Tên KH', 'Client Name']) || '').trim(),
+      pic: String(pick(row, ['PIC', 'Sale', 'KINH DOANH QL']) || '').trim(),
+      creditLimit: parseNum(pick(row, ['HM công nợ', 'Hạn mức', 'Hạn Mức'])),
+      overLimitFromFile: parseNum(pick(row, ['Công nợ vượt HM', 'Vượt hạn mức'])),
+      balance: parseNum(pick(row, ['Số dư công nợ', 'Số dư', 'Công Nợ Cuối Kỳ']))
+    }))
+    .filter((r) => r.code);
+}
+
+// Upload Excel -> upsert into tab "Debt" by Mã KH. "Công nợ vượt HM" is shown
+// in the preview for reference only — the sheet computes it itself (a single
 // ARRAYFORMULA over Hạn mức/Số dư), so this app never writes that column;
 // see gas/Debt.gs.
 export default function DebtImportPanel({ token, activeUser, onImported }) {
@@ -44,18 +93,13 @@ export default function DebtImportPanel({ token, activeUser, onImported }) {
       try {
         const XLSX = await import('xlsx');
         const wb = XLSX.read(evt.target.result, { type: 'binary' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws);
+        // "TỔNG HỢP" is the real consolidated tab in the weekly report (same
+        // convention the cong-no-oem skill uses) — the file also carries a
+        // dozen other working tabs (ZFI402, FAGLL03, ...) that aren't data.
+        const ws = wb.Sheets['TỔNG HỢP'] || wb.Sheets[wb.SheetNames[0]];
 
-        const parsed = data
-          .map((row) => ({
-            code: String(pick(row, ['Mã KH', 'Ma KH', 'Code']) || '').trim(),
-            name: String(pick(row, ['Tên khách hàng', 'Tên Khách hàng', 'Tên KH', 'Client Name']) || '').trim(),
-            creditLimit: parseNum(pick(row, ['HM công nợ', 'Hạn mức', 'Hạn Mức'])),
-            overLimitFromFile: parseNum(pick(row, ['Công nợ vượt HM', 'Vượt hạn mức'])),
-            balance: parseNum(pick(row, ['Số dư công nợ', 'Số dư', 'Công Nợ Cuối Kỳ']))
-          }))
-          .filter((r) => r.code);
+        let parsed = parseDebtSheetByPosition_(ws, XLSX);
+        if (!parsed.length) parsed = parseDebtSheetByHeaderName_(ws, XLSX);
 
         setRows(parsed);
         if (!parsed.length) toast.error('Không đọc được dòng nào — kiểm tra file có đúng cột "Mã KH" không.');
@@ -71,7 +115,7 @@ export default function DebtImportPanel({ token, activeUser, onImported }) {
   const handleImport = async () => {
     setIsImporting(true);
     try {
-      const payload = rows.map((r) => ({ code: r.code, name: r.name, creditLimit: r.creditLimit, balance: r.balance }));
+      const payload = rows.map((r) => ({ code: r.code, oldCode: r.oldCode, name: r.name, pic: r.pic, creditLimit: r.creditLimit, balance: r.balance }));
       const result = await api.importDebtExcel(token, payload);
       toast.success(`Đã cập nhật ${result.updatedCount} khách hàng, thêm mới ${result.addedCount} khách hàng vào tab Debt.`);
       setConfirming(false);
@@ -103,7 +147,7 @@ export default function DebtImportPanel({ token, activeUser, onImported }) {
         <div>
           <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Tải file Excel Công Nợ</h3>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Chấp nhận <code>.xlsx</code>/<code>.xls</code> chứa cột: <strong>Mã KH</strong>, <strong>Tên khách hàng</strong>, <strong>HM công nợ</strong>, <strong>Công nợ vượt HM</strong>, <strong>Số dư công nợ</strong>.
+            Nhận đúng file báo cáo tuần "BÁO CÁO KẾ HOẠCH -THỰC THU CÔNG NỢ OEM..." (tab "TỔNG HỢP"), hoặc file đơn giản có cột <strong>Mã KH</strong>, <strong>Tên khách hàng</strong>, <strong>HM công nợ</strong>, <strong>Công nợ vượt HM</strong>, <strong>Số dư công nợ</strong>.
           </p>
         </div>
         <input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} id="debt-excel-input" style={{ display: 'none' }} />
@@ -128,6 +172,7 @@ export default function DebtImportPanel({ token, activeUser, onImported }) {
                 <tr>
                   <th>Mã KH</th>
                   <th>Tên khách hàng</th>
+                  <th>PIC</th>
                   <th style={{ textAlign: 'right' }}>Hạn mức</th>
                   <th style={{ textAlign: 'right' }}>Vượt hạn mức (trong file)</th>
                   <th style={{ textAlign: 'right' }}>Số dư công nợ</th>
@@ -138,6 +183,7 @@ export default function DebtImportPanel({ token, activeUser, onImported }) {
                   <tr key={`${r.code}_${idx}`}>
                     <td className="code-font" style={{ color: 'var(--accent-purple)', fontWeight: 600 }}>{r.code}</td>
                     <td style={{ fontWeight: 600 }}>{r.name}</td>
+                    <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{r.pic}</td>
                     <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace" }}>{fmt(r.creditLimit)}</td>
                     <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-dim)' }}>{fmt(r.overLimitFromFile)}</td>
                     <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>{fmt(r.balance)}</td>

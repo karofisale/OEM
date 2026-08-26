@@ -12,12 +12,12 @@
  * living in cell F4 — it is NOT a per-row formula, it spills its result down
  * the whole column from a single anchor cell. Writing ANYTHING into column F
  * on ANY row (even '' from an appendRow call) can break the spill for the
- * entire column below it. Column B "MÃ SỐ CŨ" (legacy numeric code) is also
- * left alone — this app's import doesn't carry it. So every write here — one
- * plain narrow-column overwrite for existing rows, and a matching narrow
- * append block for new customers — touches ONLY columns A, C, D, E, G and
- * never B or F. Same precaution as Plan_Thang's "Chênh" column
- * (see SalesData.gs / SETUP.md).
+ * entire column below it — this app NEVER writes it, on any row. Column B
+ * "MÃ SỐ CŨ" (legacy numeric code) is only ever written for a brand-new
+ * customer row (the real import file does carry it, see DebtImportPanel.jsx)
+ * — an EXISTING row's legacy code is left exactly as-is, never overwritten,
+ * so a manual correction there can't be clobbered by a later import. Same
+ * precaution as Plan_Thang's "Chênh" column (see SalesData.gs / SETUP.md).
  *
  * This tab is ALSO written by the separate `cong-no-oem` skill/project (see
  * SETUP.md) — this app's import is a second, independent write path onto the
@@ -79,15 +79,16 @@ function oemAppGetDebtView_(token) {
 
 // Bulk upsert by Mã KH (trimmed, case-insensitive match — the codeSearch text
 // code convention shared with Clients/Plan2026/Plan_Thang everywhere else in
-// this app). Only touches columns A (Mã KH), C (Tên KH), D (PIC), E (Hạn
-// mức), G (Số dư công nợ) — see file header comment for why B and F are
-// never written. Column-batched (5 setValues calls total, never one per row)
-// so a few hundred rows imports in one round trip instead of hundreds.
+// this app). Touches columns A (Mã KH), C (Tên KH), D (PIC), E (Hạn mức), G
+// (Số dư công nợ) for every row, plus B (Mã Số Cũ) for brand-new rows only —
+// see file header comment for why B is append-only and F is never written.
+// Column-batched (a handful of setValues calls total, never one per row) so
+// a few hundred rows imports in one round trip instead of hundreds.
 //
-// The import file has no PIC column (see Debt.gs history) — item.pic is only
-// ever set if a future caller adds one, so an existing row's PIC is left
-// untouched unless explicitly provided; a brand-new customer gets a blank PIC
-// (assigned to a Sale by hand later), never a false attribution.
+// item.pic may be blank (a simplified upload with no PIC column) — an
+// existing row's PIC is left untouched unless explicitly provided; a
+// brand-new customer gets a blank PIC in that case (assigned to a Sale by
+// hand later), never a false attribution.
 function oemAppImportDebtExcel_(token, rows) {
   var user = oemAppRequireSession_(token);
   oemAppRequireDebtImportRole_(user);
@@ -115,7 +116,7 @@ function oemAppImportDebtExcel_(token, rows) {
   var colE = existing.map(function (r) { return r.creditLimit; });
   var colG = existing.map(function (r) { return r.balance; });
 
-  var newColA = [], newColC = [], newColD = [], newColE = [], newColG = [];
+  var newColA = [], newColB = [], newColC = [], newColD = [], newColE = [], newColG = [];
   var updatedCount = 0, addedCount = 0;
 
   order.forEach(function (key) {
@@ -134,6 +135,10 @@ function oemAppImportDebtExcel_(token, rows) {
       updatedCount++;
     } else {
       newColA.push(item.code);
+      // "Mã Số Cũ" only makes sense to fill in for a customer that doesn't
+      // exist yet — an existing row's legacy code is never touched above, so
+      // this can't silently overwrite a manually-corrected one.
+      newColB.push(item.oldCode || '');
       newColC.push(name);
       newColD.push(item.pic || '');
       newColE.push(creditLimit);
@@ -155,6 +160,7 @@ function oemAppImportDebtExcel_(token, rows) {
   if (newColA.length) {
     var appendAt = OEMAPP_DEBT_DATA_START_ROW_ + colA.length;
     sheet.getRange(appendAt, 1, newColA.length, 1).setValues(toColumn(newColA));
+    sheet.getRange(appendAt, 2, newColB.length, 1).setValues(toColumn(newColB));
     sheet.getRange(appendAt, 3, newColC.length, 1).setValues(toColumn(newColC));
     sheet.getRange(appendAt, 4, newColD.length, 1).setValues(toColumn(newColD));
     sheet.getRange(appendAt, 5, newColE.length, 1).setValues(toColumn(newColE));
