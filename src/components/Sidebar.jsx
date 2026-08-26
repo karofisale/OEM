@@ -16,7 +16,13 @@ import {
   CalendarClock
 } from 'lucide-react';
 
-export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, transactionCount = 0 }) {
+// Vai trò "account" (kế toán) chỉ cần Sản phẩm & Bảng giá, Khách hàng, Công
+// nợ — không liên quan tới đặt hàng/doanh thu/kế hoạch kinh doanh nội bộ Sale
+// (2026-08-26). Mọi vai trò khác vẫn thấy đủ menu như trước — phân quyền chi
+// tiết hơn (view-only, ai được sửa gì) nằm trong từng trang, không phải ở đây.
+const OEMAPP_ACCOUNT_MENU_IDS_ = ['products', 'clients', 'debt-importer'];
+
+export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, transactionCount = 0, activeUser }) {
   // The mobile drawer always shows full labels — icon-only collapse is a
   // desktop-only space-saving mode, not something worth doing in an overlay.
   const effectiveCollapsed = isMobileOpen ? false : isCollapsed;
@@ -38,7 +44,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
     { id: 'transactions', label: 'Lịch sử doanh thu', icon: Table, count: transactionCount ? transactionCount.toLocaleString('vi-VN') : '' }
   ];
 
-  const menuItems = [
+  const allMenuItems = [
     { id: 'ai-agent', label: 'AI Agent Đặt Hàng SAP', icon: Bot },
     { id: 'pending-orders', label: 'Đơn Hàng Chờ Duyệt', icon: ClipboardList },
     { id: 'doanh-thu', label: 'Doanh thu', icon: PieChart, children: revenueChildren },
@@ -48,6 +54,10 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
     { id: 'sop', label: 'Kế hoạch SOP', icon: CalendarClock },
     { id: 'debt-importer', label: 'Công nợ', icon: FileSpreadsheet }
   ];
+
+  const menuItems = activeUser && activeUser.role === 'account'
+    ? allMenuItems.filter((m) => OEMAPP_ACCOUNT_MENU_IDS_.includes(m.id))
+    : allMenuItems;
 
   const [expandedGroup, setExpandedGroup] = useState(null);
 

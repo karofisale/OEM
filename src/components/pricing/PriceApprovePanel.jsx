@@ -22,8 +22,11 @@ function todayStr() {
 // Admin/Creator xem TỪNG ĐỢT đề xuất giá đang chờ duyệt (nhóm theo Mã đợt),
 // sửa số nếu cần, chọn Ngày hiệu lực, rồi Duyệt (ghi thẳng vào Products hoặc
 // Gia_KhachHang tuỳ đợt là giá chung hay giá riêng) hoặc Từ chối cả đợt.
-export default function PriceApprovePanel({ token, onApproved }) {
+// Cột Giá vốn (VAT)/LNG % chỉ hiện cho Creator — theo đúng yêu cầu, Admin
+// duyệt được giá nhưng không xem giá vốn.
+export default function PriceApprovePanel({ token, activeUser, onApproved }) {
   const toast = useToast();
+  const isCreator = activeUser.role === 'creator';
   const [rows, setRows] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -32,6 +35,7 @@ export default function PriceApprovePanel({ token, onApproved }) {
   const [effectiveDate, setEffectiveDate] = useState(todayStr());
   const [confirmAction, setConfirmAction] = useState(null); // 'approve' | 'reject' | null
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [costBySku, setCostBySku] = useState({});
 
   const fetchPending = async () => {
     setIsLoading(true);
@@ -47,6 +51,11 @@ export default function PriceApprovePanel({ token, onApproved }) {
   };
 
   useEffect(() => { fetchPending(); }, [token]);
+
+  useEffect(() => {
+    if (!isCreator) return;
+    api.getCostBySku(token).then((res) => setCostBySku(res.bySku || {})).catch(() => setCostBySku({}));
+  }, [token, isCreator]);
 
   const batches = useMemo(() => {
     const order = [];
@@ -78,6 +87,15 @@ export default function PriceApprovePanel({ token, onApproved }) {
 
   const setCell = (sku, field, value) => {
     setEditedRows((prev) => ({ ...prev, [sku]: { ...prev[sku], [field]: value === '' ? 0 : (parseFloat(value) || 0) } }));
+  };
+
+  // LNG % = (Giá đề xuất - Giá vốn+VAT) / Giá đề xuất — cả 2 vế đều sau VAT
+  // theo đúng yêu cầu ("Cost + VAT để so với giá đề xuất sau VAT"). null khi
+  // chưa có giá vốn cho SKU này — hiện cảnh báo thay vì %.
+  const marginFor = (sku, retailValue) => {
+    const cost = costBySku[sku];
+    if (!cost || !retailValue) return null;
+    return ((retailValue - cost.costWithVat) / retailValue) * 100;
   };
 
   const handleApprove = async () => {
@@ -184,11 +202,15 @@ export default function PriceApprovePanel({ token, onApproved }) {
                 <th style={{ textAlign: 'right', width: '110px' }}>SL KM ĐX</th>
                 <th style={{ textAlign: 'right', width: '140px' }}>Giá KM ĐX</th>
                 <th style={{ textAlign: 'right', width: '90px' }}>% thay đổi</th>
+                {isCreator && <th style={{ textAlign: 'right', width: '130px' }}>Giá vốn (VAT)</th>}
+                {isCreator && <th style={{ textAlign: 'right', width: '90px' }}>LNG %</th>}
               </tr>
             </thead>
             <tbody>
               {currentBatch.rows.map((r) => {
                 const e = editedRows[r.sku] || {};
+                const cost = costBySku[r.sku];
+                const margin = isCreator ? marginFor(r.sku, e.retail) : null;
                 return (
                   <tr key={r.sku}>
                     <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{r.sku}</td>
@@ -205,6 +227,16 @@ export default function PriceApprovePanel({ token, onApproved }) {
                       <input type="number" className="input-field" style={{ textAlign: 'right', padding: '6px 8px' }} value={e.promoPrice ?? ''} onChange={(ev) => setCell(r.sku, 'promoPrice', ev.target.value)} />
                     </td>
                     <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', fontWeight: 700 }}>{fmtPct(r.pctChange)}</td>
+                    {isCreator && (
+                      <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                        {cost ? fmt(cost.costWithVat) : <span style={{ color: 'var(--danger)' }} title="Chưa có giá vốn cho SKU này">⚠️ Chưa có</span>}
+                      </td>
+                    )}
+                    {isCreator && (
+                      <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', fontWeight: 700, color: margin == null ? 'var(--text-dim)' : (margin >= 0 ? 'var(--accent-emerald-text)' : 'var(--danger)') }}>
+                        {margin == null ? '-' : `${margin.toFixed(1)}%`}
+                      </td>
+                    )}
                   </tr>
                 );
               })}

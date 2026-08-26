@@ -35,8 +35,8 @@ function oemAppGetDebtSheet_() {
 }
 
 function oemAppRequireDebtImportRole_(user) {
-  if (!['admin', 'creator'].includes(user.role)) {
-    throw new Error('Chỉ Admin/Creator mới có quyền nhập công nợ.');
+  if (!['admin', 'creator', 'account'].includes(user.role)) {
+    throw new Error('Chỉ Admin/Creator/Account mới có quyền nhập công nợ.');
   }
 }
 

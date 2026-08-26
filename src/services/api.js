@@ -245,6 +245,18 @@ export async function getClientPriceOverrides(token, clientCode) {
   return callApi('getClientPriceOverrides', [token, clientCode]);
 }
 
+export async function getCostBySku(token) {
+  return callApi('getCostBySku', [token]);
+}
+
+export async function calculateSuggestedPrice(token, sku, targetMarginPct) {
+  return callApi('calculateSuggestedPrice', [token, sku, targetMarginPct]);
+}
+
+export async function importCostExcel(token, monthLabel, rows) {
+  return callApi('importCostExcel', [token, monthLabel, rows]);
+}
+
 // Dormant since the 2026-08-25 rollback (see aiAgent.js) — AIOrderAgent.jsx
 // no longer calls this, order parsing is back to the local heuristic. Left
 // wired (gas/Code.gs still routes it) so switching back to Gemini-backed

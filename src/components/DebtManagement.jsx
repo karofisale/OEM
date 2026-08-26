@@ -8,7 +8,7 @@ import DebtImportPanel from './debt/DebtImportPanel';
 export default function DebtManagement({ token, activeUser, clients }) {
   const [subView, setSubView] = useState('view'); // 'view' | 'import'
   const [refreshTick, setRefreshTick] = useState(0);
-  const canImport = ['admin', 'creator'].includes(activeUser.role);
+  const canImport = ['admin', 'creator', 'account'].includes(activeUser.role);
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>

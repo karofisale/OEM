@@ -36,6 +36,7 @@
  *   Sop.gs                - SOP monthly per-SKU quantity plan (draft + approve)
  *   Debt.gs               - customer debt (công nợ) view + Excel import
  *   PricePlan.gs           - bảng giá bán: đề xuất/duyệt giá lẻ+KM (chung hoặc theo khách)
+ *   Cost.gs                - giá vốn theo tháng: so sánh LNG khi duyệt giá, công cụ tính giá gợi ý
  *   Ai.gs                 - Gemini API order parsing (replaces the old client-side heuristic matcher)
  *   AiChat.gs             - Gemini function-calling lookup chat (separate feature from Ai.gs)
  */
@@ -123,6 +124,9 @@ var oemAppApiMap_ = {
   approvePriceBatch: oemAppApprovePriceBatch_,
   rejectPriceBatch: oemAppRejectPriceBatch_,
   getClientPriceOverrides: oemAppGetClientPriceOverrides_,
+  getCostBySku: oemAppGetCostBySku_,
+  calculateSuggestedPrice: oemAppCalculateSuggestedPrice_,
+  importCostExcel: oemAppImportCostExcel_,
   forceRefreshBootstrap: oemAppForceRefreshBootstrap_,
   aiParseOrder: oemAppAiParseOrder_,
   aiChat: oemAppAiChat_

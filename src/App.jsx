@@ -125,6 +125,11 @@ export default function App() {
   const handleLoginSuccess = (newSession) => {
     setSession(newSession);
     setShowLoginModal(false);
+    // Vai trò "account" không có trong menu "AI Agent Đặt Hàng SAP" (mặc định
+    // của mọi vai trò khác) — landing thẳng vào đó vẫn hiển thị được nội dung
+    // dù sidebar đã ẩn link, gây lẫn lộn. Đưa họ thẳng tới trang đầu tiên họ
+    // thực sự được vào.
+    if (newSession?.user?.role === 'account') setActiveTab('products');
   };
 
   const handleLogout = () => {
@@ -219,6 +224,7 @@ export default function App() {
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
         transactionCount={transactions.length}
+        activeUser={activeUser}
       />
 
       {/* Main Container */}

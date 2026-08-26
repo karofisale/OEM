@@ -97,7 +97,7 @@ export default function DebtImportPanel({ token, activeUser, clients, onImported
   const [isImporting, setIsImporting] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
-  const canImport = ['admin', 'creator'].includes(activeUser.role);
+  const canImport = ['admin', 'creator', 'account'].includes(activeUser.role);
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -151,7 +151,7 @@ export default function DebtImportPanel({ token, activeUser, clients, onImported
     return (
       <div className="glass-card" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', color: 'var(--warning-text)', background: 'var(--warning-bg)' }}>
         <ShieldAlert size={18} style={{ flexShrink: 0, marginTop: '1px' }} />
-        <span>Chỉ Admin/Creator mới có quyền nhập công nợ từ Excel.</span>
+        <span>Chỉ Admin/Creator/Account mới có quyền nhập công nợ từ Excel.</span>
       </div>
     );
   }
