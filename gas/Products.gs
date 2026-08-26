@@ -61,6 +61,8 @@ function oemAppDeriveMaterials_(transactions, aliasHints, catalogMap) {
       latestPriceVat: Math.round(m.latestPrice * (1 + m.latestTaxRate)),
       suggestedPrice: override.suggestedPrice || 0,
       exclusiveTo: override.exclusiveTo || '',
+      promoPrice: override.promoPrice || 0,
+      promoQty: override.promoQty || 0,
       learnedAliases: (aliasHints && aliasHints[sku]) || []
     };
   });
@@ -74,6 +76,8 @@ function oemAppDeriveMaterials_(transactions, aliasHints, catalogMap) {
       sku: sku, name: c.name || sku, alias: c.alias || '', unit: 'PC', group: c.group || 'Linh kiện OEM',
       totalQty: 0, avgPrice: 0, latestPrice: 0, latestPriceVat: 0, suggestedPrice: c.suggestedPrice || 0,
       exclusiveTo: c.exclusiveTo || '',
+      promoPrice: c.promoPrice || 0,
+      promoQty: c.promoQty || 0,
       learnedAliases: (aliasHints && aliasHints[sku]) || []
     });
   });
@@ -85,26 +89,21 @@ function oemAppDeriveMaterials_(transactions, aliasHints, catalogMap) {
 // user-created, same precedent as "Orders": found by name, NOT auto-created,
 // throws if missing) ----------
 // Columns (1-indexed): CateID, Ma LK (SKU), Ten LK, Nhom SP, Alias, Gia ban,
-// Duyet gia, Ngay duyet. CateID is a per-Nhom-SP lookup number (19 existing
-// groups = CateID 1..19) - NOT touched by "Duyet gia"/"Ngay duyet", which stay
-// reserved for a future price-approval flow (out of scope here; the existing
-// "De Xuat Gia" button in ProductManagement.jsx is a separate, still-unwired
-// UI stub - this Sua/Them flow only ever writes CateID/SKU/Ten/Nhom/Alias/Gia ban).
-
-// ---------- Product catalogue (tab "Products", already exists in the Sheet —
-// user-created, same precedent as "Orders": found by name, NOT auto-created,
-// throws if missing) ----------
-// Columns (1-indexed): CateID, Ma LK (SKU), Ten LK, Nhom SP, Alias, Gia ban,
-// Duyet gia, Ngay duyet, Doc quyen. CateID is a per-Nhom-SP lookup number (19
-// existing groups = CateID 1..19) - NOT touched by "Duyet gia"/"Ngay duyet",
-// which stay reserved for a future price-approval flow (out of scope here;
-// the existing "De Xuat Gia" button in ProductManagement.jsx is a separate,
-// still-unwired UI stub - this Sua/Them flow only ever writes
-// CateID/SKU/Ten/Nhom/Alias/Gia ban/Doc quyen). "Doc quyen" (2026-08-22, added
-// by the user for the SOP planning filter) is FREE TEXT - eg the name of the
-// client/brand holding exclusivity on that SKU, not a yes/no flag - so the
-// SOP planning filter is a dropdown of distinct values, same treatment as
+// Duyet gia, Ngay duyet, Doc quyen, Gia KM, SL KM. CateID is a per-Nhom-SP
+// lookup number (19 existing groups = CateID 1..19). "Doc quyen" (2026-08-22,
+// added by the user for the SOP planning filter) is FREE TEXT - eg the name
+// of the client/brand holding exclusivity on that SKU, not a yes/no flag - so
+// the SOP planning filter is a dropdown of distinct values, same treatment as
 // "Nhom SP", not a checkbox.
+//
+// "Duyet gia"/"Ngay duyet" (cols G/H) sat reserved and unwritten since the
+// tab was created; the add/edit flow below (Sua/Them) never touches them.
+// Repurposed 2026-08-26 for the bảng giá bán price-proposal feature (see
+// PricePlan.gs) as "trạng thái áp dụng gần nhất"/"ngày áp dụng gần nhất" —
+// only oemAppApplyPriceListToProducts_ writes them, when Admin/Creator
+// approves a price batch. "Gia KM"/"SL KM" (cols J/K) were already present
+// on the Sheet with headers but no data when this feature was built — same
+// deal: only oemAppApplyPriceListToProducts_ writes them.
 var OEMAPP_PRODUCTS_SHEET = 'Products';
 
 
@@ -114,15 +113,11 @@ function oemAppGetProductsSheet_() {
   return sheet;
 }
 
-// Returns { bySku: {sku: {cateId, name, group, alias, suggestedPrice}},
-// maxCateId, groupToCateId } - the latter two let add/edit resolve a CateID
-// for a Nhom SP by name (reuse the existing id, or hand out the next one for
-// a brand-new group) without the caller needing to know the lookup table.
-
-// Returns { bySku: {sku: {cateId, name, group, alias, suggestedPrice}},
-// maxCateId, groupToCateId } - the latter two let add/edit resolve a CateID
-// for a Nhom SP by name (reuse the existing id, or hand out the next one for
-// a brand-new group) without the caller needing to know the lookup table.
+// Returns { bySku: {sku: {cateId, name, group, alias, suggestedPrice,
+// promoPrice, promoQty, exclusiveTo, rowIndex}}, maxCateId, groupToCateId } -
+// the latter two let add/edit resolve a CateID for a Nhom SP by name (reuse
+// the existing id, or hand out the next one for a brand-new group) without
+// the caller needing to know the lookup table.
 function oemAppLoadMaterialCatalog_() {
   var sheet = oemAppGetProductsSheet_();
   var rows = sheet.getDataRange().getValues();
@@ -143,6 +138,8 @@ function oemAppLoadMaterialCatalog_() {
       alias: String(rows[i][4] || ''),
       suggestedPrice: oemAppParseNum_(rows[i][5]),
       exclusiveTo: String(rows[i][8] || ''),
+      promoPrice: oemAppParseNum_(rows[i][9]),
+      promoQty: oemAppParseNum_(rows[i][10]),
       // 1-based real sheet row. Carrying it here lets add/edit locate a SKU from
       // the catalog they already loaded, instead of re-reading the whole tab a
       // second time just to find the row number (what oemAppFindProductRow_ did).
@@ -224,4 +221,27 @@ function oemAppEditMaterial_(token, sku, updates) {
   }
   oemAppInvalidateBootstrap_();
   return { ok: true };
+}
+
+// Called by oemAppApprovePriceBatch_ (PricePlan.gs) when Admin/Creator clicks
+// Duyệt — writes the newly-approved retail/promo prices straight into
+// Products (cols F/J/K), and stamps cols G/H with an "applied" label + the
+// chosen effective date. Existing SKUs only (a price proposal can't target a
+// SKU that isn't already in the catalog); per-row targeted writes since the
+// approved rows are scattered across the sheet, not contiguous like a fresh
+// import block.
+function oemAppApplyPriceListToProducts_(items) {
+  var sheet = oemAppGetProductsSheet_();
+  var catalog = oemAppLoadMaterialCatalog_();
+  var appliedCount = 0;
+  items.forEach(function (item) {
+    var entry = catalog.bySku[String(item.sku)];
+    if (!entry) return; // SKU removed from Products since the proposal was made — skip, don't invent a row
+    sheet.getRange(entry.rowIndex, 6, 1, 1).setValue(item.retail || 0);
+    sheet.getRange(entry.rowIndex, 7, 1, 2).setValues([['Đã áp dụng', item.effectiveDate || '']]);
+    sheet.getRange(entry.rowIndex, 10, 1, 2).setValues([[item.promoPrice || 0, item.promoQty || 0]]);
+    appliedCount++;
+  });
+  oemAppInvalidateBootstrap_();
+  return appliedCount;
 }

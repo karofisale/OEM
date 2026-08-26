@@ -35,6 +35,7 @@
  *   Orders.gs            - AI Order Agent -> SAP staging tab "Orders"
  *   Sop.gs                - SOP monthly per-SKU quantity plan (draft + approve)
  *   Debt.gs               - customer debt (công nợ) view + Excel import
+ *   PricePlan.gs           - bảng giá bán: đề xuất/duyệt giá lẻ+KM (chung hoặc theo khách)
  *   Ai.gs                 - Gemini API order parsing (replaces the old client-side heuristic matcher)
  *   AiChat.gs             - Gemini function-calling lookup chat (separate feature from Ai.gs)
  */
@@ -117,6 +118,11 @@ var oemAppApiMap_ = {
   importDebtExcel: oemAppImportDebtExcel_,
   debtDiag: oemAppDebtDiag_,
   kitsDiag: oemAppKitsDiag_,
+  submitPriceProposal: oemAppSubmitPriceProposal_,
+  getPendingPriceProposals: oemAppGetPendingPriceProposals_,
+  approvePriceBatch: oemAppApprovePriceBatch_,
+  rejectPriceBatch: oemAppRejectPriceBatch_,
+  getClientPriceOverrides: oemAppGetClientPriceOverrides_,
   forceRefreshBootstrap: oemAppForceRefreshBootstrap_,
   aiParseOrder: oemAppAiParseOrder_,
   aiChat: oemAppAiChat_

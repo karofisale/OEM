@@ -225,6 +225,26 @@ export async function importDebtExcel(token, rows) {
   return callApi('importDebtExcel', [token, rows]);
 }
 
+export async function submitPriceProposal(token, rows) {
+  return callApi('submitPriceProposal', [token, rows]);
+}
+
+export async function getPendingPriceProposals(token) {
+  return callApi('getPendingPriceProposals', [token]);
+}
+
+export async function approvePriceBatch(token, batchId, effectiveDate, overrideRows) {
+  return callApi('approvePriceBatch', [token, batchId, effectiveDate, overrideRows]);
+}
+
+export async function rejectPriceBatch(token, batchId, note) {
+  return callApi('rejectPriceBatch', [token, batchId, note]);
+}
+
+export async function getClientPriceOverrides(token, clientCode) {
+  return callApi('getClientPriceOverrides', [token, clientCode]);
+}
+
 // Dormant since the 2026-08-25 rollback (see aiAgent.js) — AIOrderAgent.jsx
 // no longer calls this, order parsing is back to the local heuristic. Left
 // wired (gas/Code.gs still routes it) so switching back to Gemini-backed

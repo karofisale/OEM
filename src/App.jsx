@@ -9,7 +9,7 @@ import OrdersReview from './components/OrdersReview';
 import RevenueReports from './components/RevenueReports';
 import Dashboard from './components/Dashboard';
 import TransactionGrid from './components/TransactionGrid';
-import ProductManagement from './components/ProductManagement';
+import ProductPricing from './components/ProductPricing';
 import ClientManagement from './components/ClientManagement';
 import SalesPlan from './components/SalesPlan';
 import SopPlan from './components/SopPlan';
@@ -318,12 +318,14 @@ export default function App() {
           </KeepAliveTab>
 
           <KeepAliveTab isActive={activeTab === 'products'} hasVisited={visitedTabs.has('products')}>
-            <ProductManagement
+            <ProductPricing
+              token={session.token}
               materials={materials}
               clients={clients}
               activeUser={activeUser}
               onAddMaterial={handleAddMaterial}
               onEditMaterial={handleEditMaterial}
+              onDataChanged={fetchAllData}
             />
           </KeepAliveTab>
 

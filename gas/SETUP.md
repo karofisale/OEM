@@ -172,3 +172,48 @@ Tab tìm theo TÊN ("Debt", không theo gid). **Cấu trúc khác mọi tab khá
 - **PIC lấy từ tab "Clients", KHÔNG tin thẳng cột PIC trong file** (2026-08-26, `oemAppDebtPicByCode_`) — cột "KINH DOANH QL" trong file báo cáo tuần là copy tay, có thể sai/cũ cho 1 khách cụ thể (vd dòng TECOM ghi PIC là "CT Tecom" — chính tên khách hàng — thay vì tên Sale thật). Với mỗi Mã KH đã có trong Clients, PIC ghi vào tab Debt luôn lấy theo `sale` của Clients (đè cả giá trị cũ đang có trong Debt lẫn giá trị trong file); chỉ dùng PIC trong file khi Mã KH đó KHÔNG có trong Clients (khách hoàn toàn mới). `DebtImportPanel.jsx` resolve PIC y hệt cách này ở bảng xem trước (cần prop `clients` truyền từ `App.jsx`), để không lệch với PIC thật sự được ghi.
 - **`DebtImportPanel.jsx` đọc đúng file thật** (2026-08-26, sau khi import báo lỗi "không đọc được dòng nào"): file báo cáo tuần thật ("BÁO CÁO KẾ HOẠCH -THỰC THU CÔNG NỢ OEM...xlsx", tab "TỔNG HỢP") có 7 dòng tiêu đề/pivot (tổng theo Sale, tổng công ty, cột kế hoạch tuần) TRƯỚC dòng tiêu đề thật "Mã KH" — không phải bảng 5 cột đơn giản như thiết kế ban đầu. Parser giờ quét cột A tìm ô "Mã KH" (bất kể nằm dòng nào) rồi đọc theo VỊ TRÍ cột bên dưới, đúng layout tab "Debt" ở trên; ưu tiên đọc sheet tên "TỔNG HỢP" nếu có (file có tới 10 tab khác không phải dữ liệu); vẫn giữ cách đọc theo tên cột cũ làm phương án dự phòng cho file rút gọn.
 - **Tab này CŨNG được ghi bởi skill `cong-no-oem` riêng** (dự án khác, đối chiếu Mã KH/Tên KH) — `importDebtExcel` là luồng ghi tự động THỨ 2 vào cùng tab, theo quyết định rõ ràng của người dùng (2026-08-25, đảo ngược quyết định "chỉ lưu tạm, chưa nối" trước đó) — cần cẩn trọng khi cả 2 luồng cùng chạy gần nhau.
+
+## Bảng giá bán — đề xuất/duyệt giá lẻ+KM, chung hoặc theo khách (thêm 2026-08-26)
+
+MVP: bước 1 (Sale đề xuất), 2 (Admin xem/sửa/duyệt), 4 (duyệt = áp dụng giá ngay + ghi Ngày hiệu lực). Bước 3 (đối chiếu giá thành/Margin, xuất Excel, tự tạo ticket Odoo qua API — có tiền lệ kỹ thuật ở skill `phe-duyet-bht`) để Phase 2, chưa làm.
+
+**Tab "Products" — thêm 2 cột J/K, tái dùng lại G/H đã bỏ trống sẵn từ trước:**
+
+| Cột | Vị trí | Tên | Trước đây | Từ 2026-08-26 |
+|---|---|---|---|---|
+| G | 7 | Duyệt giá | để trống, chưa ai đọc/ghi | "Đã áp dụng" — trạng thái áp dụng giá gần nhất, ghi bởi `oemAppApplyPriceListToProducts_` |
+| H | 8 | Ngày duyệt | để trống, chưa ai đọc/ghi | Ngày hiệu lực của lần áp dụng gần nhất |
+| J | 10 | Giá KM | đã có header sẵn trên Sheet, chưa có dữ liệu | Giá khuyến mãi hiện hành |
+| K | 11 | SL KM | đã có header sẵn trên Sheet, chưa có dữ liệu | Ngưỡng số lượng để được giá KM |
+
+Cột J/K hoá ra đã có header sẵn trên Sheet trước khi tính năng này được xây (kiểm tra qua 1 diag tạm `oemAppProductsDiag_`, đã xoá sau khi xác nhận) — chỉ là chưa có dữ liệu và chưa có code nào đọc/ghi. `oemAppLoadMaterialCatalog_`/`oemAppDeriveMaterials_` giờ đọc thêm `promoPrice`/`promoQty` từ đây, hiển thị ở bảng "Danh mục" trong `ProductManagement.jsx`.
+
+**Tab "Gia_DeXuat" — PHẢI TẠO TAY trước khi dùng tính năng này** (tìm theo tên, không tự tạo). 1 dòng = 1 (đợt đề xuất, SKU). Cột (1-indexed):
+
+| Cột | Tên | Ghi chú |
+|---|---|---|
+| A | Mã đợt | tự sinh dạng `yyyyMMdd-HHmmss-xxxx`, mỗi lần Sale gửi tạo đợt MỚI (không upsert vào đợt cũ) |
+| B | Người đề xuất | Sale (saleId hoặc tên đăng nhập) |
+| C | Mã KH | **BỎ TRỐNG = áp dụng chung** cho mọi khách hàng; điền = giá riêng CHỈ khách đó |
+| D | Ngày đề xuất | |
+| E | Mã SKU | |
+| F | Tên SP | denormalize từ Products lúc gửi |
+| G | Giá lẻ hiện tại | snapshot lúc gửi (từ Gia_KhachHang nếu có Mã KH + đã có giá riêng, ngược lại từ Products) |
+| H | Giá KM hiện tại | snapshot, cùng logic |
+| I | Giá lẻ ĐX | Sale nhập |
+| J | Số lượng KM ĐX | Sale nhập, để trống/0 nếu SKU không có KM |
+| K | Giá KM ĐX | Sale nhập, để trống/0 nếu SKU không có KM |
+| L | % tăng/giảm | **CÔNG THỨC SỐNG**, vd `=IFERROR((I2-G2)/G2,0)` — kéo công thức xuống hết các dòng dự kiến sẽ dùng (vài nghìn dòng) vì app chỉ APPEND, không tự điền công thức cho dòng mới |
+| M | Trạng thái | Chờ duyệt / Đã duyệt / Từ chối |
+| N | Ngày hiệu lực | Admin điền lúc Duyệt |
+| O | Người duyệt | |
+| P | Ngày duyệt | |
+| Q | Ghi chú | tuỳ chọn, dùng khi Từ chối |
+
+App ghi thành 2 khối cột tách rời (A-K, rồi M-Q) — **không bao giờ đụng cột L** kể cả khi ghi cả dòng mới, để không xoá mất công thức (giống nguyên tắc đã áp dụng cho "Chênh" ở Plan_Thang và "Vượt hạn mức" ở Debt).
+
+**Tab "Gia_KhachHang" — PHẢI TẠO TAY, chỉ cần nếu có đề xuất giá riêng theo khách** (không tự tạo; nếu chưa tồn tại, `oemAppLoadClientPricingMap_` trả về rỗng thay vì lỗi — tính năng "áp dụng chung" vẫn chạy bình thường không cần tab này). 1 dòng = 1 (Mã KH, Mã SKU), upsert khi duyệt đợt giá riêng. Cột (1-indexed): A Mã KH | B Mã SKU | C Giá lẻ | D Số lượng KM | E Giá KM | F Ngày hiệu lực | G Người duyệt | H Ngày duyệt.
+
+**Luồng**: `submitPriceProposal` (role sale/admin/creator) → `getPendingPriceProposals` (role admin/creator, nhóm theo Mã đợt ở frontend) → `approvePriceBatch(token, batchId, effectiveDate, overrideRows)` ghi NGAY vào Products (đợt không Mã KH) hoặc Gia_KhachHang (đợt có Mã KH) rồi đánh dấu `Đã duyệt`, hoặc `rejectPriceBatch` đánh dấu `Từ chối`. Không có cơ chế hẹn giờ áp dụng — "Ngày hiệu lực" chỉ là nhãn ghi lại cho mục đích đối chiếu, giá đổi ngay lúc bấm Duyệt.
+
+Đã bỏ nút "Đề Xuất Giá" cũ (theo từng khách, từng SKU riêng lẻ) trong `ProductManagement.jsx` — hoàn toàn không hoạt động từ trước (`handleSavePriceProposal` chỉ có `e.preventDefault()`), thay bằng 2 tab mới "Đề Xuất Giá"/"Chờ Duyệt" ở `ProductPricing.jsx` (wrapper mới bọc ngoài `ProductManagement.jsx`, cùng khuôn 3-nút-subview với `SopPlan.jsx`).

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Package, Plus, Edit3, DollarSign, Search, Sparkles, Tag, Check, ArrowUpRight, Lock, Table, LayoutGrid, AlertTriangle } from 'lucide-react';
+import { Package, Plus, Edit3, Search, Sparkles, Tag, Check, ArrowUpRight, Lock, Table, LayoutGrid } from 'lucide-react';
 import Pagination, { usePagedSlice } from './Pagination';
 
 const fmtPrice = (v) => (v ? v.toLocaleString('vi-VN') : '-');
@@ -7,14 +7,11 @@ const PAGE_SIZE = 25;
 
 // `transactions` used to be passed in and destructured here but was never read —
 // dropped, so this component no longer re-renders when the transaction list changes.
-export default function ProductManagement({ materials, clients, activeUser, onAddMaterial, onEditMaterial }) {
+export default function ProductManagement({ materials, activeUser, onAddMaterial, onEditMaterial }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState('table');
-  const [selectedClientForPrice, setSelectedClientForPrice] = useState(clients[0]?.name || '');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [proposeModalMat, setProposeModalMat] = useState(null);
-  const [proposedPriceInput, setProposedPriceInput] = useState('');
   const [editingMat, setEditingMat] = useState(null);
   const [editAlias, setEditAlias] = useState('');
   const [editGroup, setEditGroup] = useState('');
@@ -81,16 +78,6 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
     setNewSuggestedPrice('');
   };
 
-  // There is no price-approval backend yet: the "Duyệt giá"/"Ngày duyệt" columns
-  // on the Products tab are reserved for it but nothing reads or writes them, and
-  // no API endpoint exists. This used to close the modal and show
-  // "✅ Đã gửi đề xuất giá ... tới Admin phê duyệt!" while sending nothing
-  // anywhere — the proposal was silently discarded. Until the flow is built, say
-  // so plainly instead (same honesty as DebtImporter's sync warning).
-  const handleSavePriceProposal = (e) => {
-    e.preventDefault();
-  };
-
   const openEditModal = (mat) => {
     setEditingMat(mat);
     setEditAlias(mat.alias || '');
@@ -153,19 +140,6 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
           />
         </div>
 
-        {/* Client Pricing Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Đề xuất giá theo KH:</span>
-          <select
-            className="input-field"
-            style={{ width: '240px' }}
-            value={selectedClientForPrice}
-            onChange={(e) => setSelectedClientForPrice(e.target.value)}
-          >
-            {clients.map(c => <option key={c.code || c.name} value={c.name}>{c.name}</option>)}
-          </select>
-        </div>
-
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-main)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
           <button onClick={() => setViewMode('table')} className={`btn btn-sm ${viewMode === 'table' ? 'btn-primary' : 'btn-secondary'}`}>
             <Table size={14} /> Dạng Bảng
@@ -185,7 +159,9 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
               <th>Tên Vật Tư</th>
               <th>Nhóm</th>
               <th style={{ textAlign: 'right' }}>Giá Mới Nhất (VAT)</th>
-              <th style={{ textAlign: 'right' }}>Giá Bán</th>
+              <th style={{ textAlign: 'right' }}>Giá Lẻ</th>
+              <th style={{ textAlign: 'right' }}>Giá KM</th>
+              <th style={{ textAlign: 'right' }}>SL KM</th>
               <th style={{ textAlign: 'right' }}>Tổng Bán</th>
               <th style={{ width: '190px' }}></th>
             </tr>
@@ -198,23 +174,17 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
                 <td><span className="badge badge-purple">{mat.group}</span></td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-emerald)' }}>{fmtPrice(mat.latestPriceVat)}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmtPrice(mat.suggestedPrice)}</td>
+                <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', color: mat.promoPrice ? 'var(--karofi-navy)' : 'var(--text-dim)' }}>{mat.promoPrice ? fmtPrice(mat.promoPrice) : '-'}</td>
+                <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', color: 'var(--text-dim)' }}>{mat.promoQty || '-'}</td>
                 <td style={{ textAlign: 'right', fontSize: '0.8rem' }}>{mat.totalQty?.toLocaleString('vi-VN') || 0} {mat.unit}</td>
                 {/* display:flex on a <td> takes the cell out of table layout, so it
                     stopped honouring the 190px <th> width and broke row alignment. */}
                 <td>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                  <button
-                    onClick={() => { setProposeModalMat(mat); setProposedPriceInput(mat.suggestedPrice || mat.latestPriceVat || ''); }}
-                    className="btn btn-secondary btn-sm"
-                  >
-                    <DollarSign size={14} color="var(--karofi-cyan)" /> Đề Xuất Giá
-                  </button>
                   {isAdmin && (
                     <button onClick={() => openEditModal(mat)} className="btn btn-secondary btn-sm">
                       <Edit3 size={14} /> Sửa
                     </button>
                   )}
-                  </div>
                 </td>
               </tr>
             ))}
@@ -266,19 +236,11 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
                 Tổng bán: <strong>{mat.totalQty?.toLocaleString('vi-VN') || 0} {mat.unit}</strong>
               </span>
 
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button
-                  onClick={() => { setProposeModalMat(mat); setProposedPriceInput(mat.suggestedPrice || mat.latestPriceVat || ''); }}
-                  className="btn btn-secondary btn-sm"
-                >
-                  <DollarSign size={14} color="var(--karofi-cyan)" /> Đề Xuất Giá
+              {isAdmin && (
+                <button onClick={() => openEditModal(mat)} className="btn btn-secondary btn-sm">
+                  <Edit3 size={14} /> Sửa
                 </button>
-                {isAdmin && (
-                  <button onClick={() => openEditModal(mat)} className="btn btn-secondary btn-sm">
-                    <Edit3 size={14} /> Sửa
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           </div>
         ))}
@@ -300,62 +262,6 @@ export default function ProductManagement({ materials, clients, activeUser, onAd
         onPageChange={setPage}
         itemLabel="sản phẩm"
       />
-
-      {/* Proposal Price Modal */}
-      {proposeModalMat && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(6px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div className="glass-card animate-fade-in" style={{ width: '440px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Đề Xuất Giá Bán Sản Phẩm</h3>
-            <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-              Mã SP: <strong>{proposeModalMat.sku}</strong> - {proposeModalMat.name}
-            </p>
-
-            <div style={{
-              display: 'flex', alignItems: 'flex-start', gap: '8px',
-              padding: '10px 14px', borderRadius: 'var(--radius-md)',
-              background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning-text)', fontSize: '0.825rem'
-            }}>
-              <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
-              <span>
-                Luồng gửi đề xuất giá cho Admin duyệt <strong>chưa được xây dựng</strong> — hiện chưa có
-                nơi lưu đề xuất trên Google Sheet, nên bấm gửi sẽ không đi tới đâu.
-                {isAdmin
-                  ? ' Bạn là Admin: dùng nút "Sửa" ở mỗi dòng để cập nhật thẳng cột Giá bán.'
-                  : ' Tạm thời vui lòng báo giá đề xuất trực tiếp cho Admin để cập nhật giúp.'}
-              </span>
-            </div>
-
-            <form onSubmit={handleSavePriceProposal} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Chọn Khách Hàng OEM Áp Dụng:</label>
-                <select className="input-field" value={selectedClientForPrice} onChange={(e) => setSelectedClientForPrice(e.target.value)}>
-                  {clients.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                </select>
-              </div>
-
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Đơn Giá Đề Xuất Mới (VND):</label>
-                <input
-                  type="number" required className="input-field"
-                  value={proposedPriceInput}
-                  onChange={(e) => setProposedPriceInput(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setProposeModalMat(null)} className="btn btn-secondary">Đóng</button>
-                <button type="submit" className="btn btn-primary" disabled title="Chưa có luồng phê duyệt giá — xem ghi chú phía trên">
-                  Gửi Đề Xuất Giá
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Admin Edit Modal (Alias / Nhóm SP / Giá bán đề xuất) */}
       {editingMat && (
