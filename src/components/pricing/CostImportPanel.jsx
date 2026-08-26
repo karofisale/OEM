@@ -6,31 +6,77 @@ import { useToast } from '../ToastProvider';
 
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
 
-const pick = (row, keys) => {
-  for (const k of keys) { if (row[k] !== undefined && row[k] !== '') return row[k]; }
-  return undefined;
-};
-
-const parseNum = (v) => {
-  if (v === undefined || v === null || v === '') return 0;
-  if (typeof v === 'number') return v;
-  const clean = String(v).replace(/[,.\s₫đ]/g, '');
-  return parseFloat(clean) || 0;
-};
-
-// "2026-08" (input type=month) -> "T08.2026" (đúng định dạng tab Cost).
-function monthInputToLabel(value) {
-  const [y, m] = String(value || '').split('-');
-  if (!y || !m) return '';
-  return `T${m}.${y}`;
+// "T7.26" hoặc "T07.26" -> { month, year, sortValue } (year quy về 20xx).
+// Không match các tab khác trong file (vd "ZSD405_2022", "CK", "Thẻ Z"...).
+function parseTabMonth(name) {
+  const m = /^T\s*(\d{1,2})\.(\d{2})$/.exec(String(name).trim());
+  if (!m) return null;
+  const month = parseInt(m[1], 10);
+  const year = 2000 + parseInt(m[2], 10);
+  return { month, year, sortValue: year * 12 + month };
 }
 
-// Creator-only — tải file Excel kế toán gửi (giá vốn chưa VAT theo tháng),
-// chọn đúng tháng áp dụng rồi đồng bộ vào tab "Cost". Upsert theo (SKU,
-// Tháng) ở backend — tải lại đúng tháng đó lần 2 sẽ ghi đè, không nhân đôi.
+// -> "T07.2026", đúng định dạng tab "Cost" (luôn 2 chữ số tháng + 4 chữ số năm,
+// dù tên tab nguồn có thể là "T7.26" thiếu số 0).
+function formatCostMonthLabel(parsed) {
+  return `T${String(parsed.month).padStart(2, '0')}.${parsed.year}`;
+}
+
+// File LNG KDNĐ thật (kiểm tra trực tiếp 2026-08-26) có 1 tab RIÊNG cho mỗi
+// tháng (tên dạng "T07.26"), lẫn với vài tab khác không phải dữ liệu tháng
+// ("ZSD405_2022", "CK", "Ghi chú", "Thẻ Z"...). Mỗi tab tháng có vài dòng tiêu
+// đề/tổng cộng phía trên, rồi mới đến dòng tiêu đề thật (tìm ô "Mã"), và cột
+// chứa giá vốn ĐỔI VỊ TRÍ giữa các tháng (tháng có "Giá ưu tiên", tháng khác
+// chỉ có "Giá vốn" ở cột khác hẳn) — nên đọc theo TÊN cột trong đúng dòng
+// tiêu đề của THÁNG ĐÓ, không cố định theo vị trí B/C/H.
+function parseLatestMonthSheet(wb, XLSX) {
+  const candidates = wb.SheetNames
+    .map((name) => ({ name, parsed: parseTabMonth(name) }))
+    .filter((c) => c.parsed);
+  if (!candidates.length) return { monthLabel: '', rows: [] };
+
+  candidates.sort((a, b) => b.parsed.sortValue - a.parsed.sortValue);
+  const latest = candidates[0];
+  const monthLabel = formatCostMonthLabel(latest.parsed);
+
+  const raw = XLSX.utils.sheet_to_json(wb.Sheets[latest.name], { header: 1, raw: true, defval: '' });
+
+  let headerRowIdx = -1, colSku = -1, colName = -1, colCost = -1;
+  for (let i = 0; i < raw.length; i++) {
+    const idx = raw[i].findIndex((c) => String(c).trim() === 'Mã');
+    if (idx !== -1) {
+      headerRowIdx = i;
+      colSku = idx;
+      colName = raw[i].findIndex((c) => String(c).trim() === 'Tên');
+      colCost = raw[i].findIndex((c) => String(c).trim() === 'Giá ưu tiên');
+      if (colCost === -1) colCost = raw[i].findIndex((c) => String(c).trim() === 'Giá vốn');
+      break;
+    }
+  }
+  if (headerRowIdx === -1 || colCost === -1) return { monthLabel, rows: [] };
+
+  const rows = [];
+  for (let i = headerRowIdx + 1; i < raw.length; i++) {
+    const r = raw[i];
+    const sku = r[colSku];
+    const name = r[colName];
+    // Dòng "TỔNG CỘNG"/"Ck"/"Chiết khấu" xen giữa header và dữ liệu thật có
+    // Mã không phải số nguyên SKU thật (vd tổng dạng thập phân "6.001628",
+    // hoặc chữ "Ck") — SKU thật trong file này luôn là số nguyên lớn.
+    if (typeof sku !== 'number' || sku < 1000) continue;
+    if (!name || String(name).trim().toUpperCase() === 'TỔNG CỘNG') continue;
+    rows.push({ sku, name: String(name).trim(), cost: Number(r[colCost]) || 0 });
+  }
+  return { monthLabel, rows };
+}
+
+// Creator-only — tải file Excel kế toán gửi (nhiều tab, 1 tab/tháng), TỰ TÌM
+// tab tháng mới nhất trong file rồi đồng bộ vào tab "Cost" cho đúng tháng đó.
+// Upsert theo (SKU, Tháng) ở backend — tải lại đúng tháng đó lần 2 sẽ ghi đè,
+// không nhân đôi.
 export default function CostImportPanel({ token, activeUser, onImported }) {
   const toast = useToast();
-  const [monthValue, setMonthValue] = useState('');
+  const [monthLabel, setMonthLabel] = useState('');
   const [rows, setRows] = useState([]);
   const [fileName, setFileName] = useState('');
   const [isParsing, setIsParsing] = useState(false);
@@ -38,32 +84,26 @@ export default function CostImportPanel({ token, activeUser, onImported }) {
   const [confirming, setConfirming] = useState(false);
 
   const canImport = activeUser.role === 'creator';
-  const monthLabel = monthInputToLabel(monthValue);
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setFileName(file.name);
     setIsParsing(true);
+    setRows([]);
+    setMonthLabel('');
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
         const XLSX = await import('xlsx');
         const wb = XLSX.read(evt.target.result, { type: 'binary' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws);
+        const result = parseLatestMonthSheet(wb, XLSX);
 
-        const parsed = data
-          .map((row) => ({
-            sku: String(pick(row, ['Mã', 'Mã SKU', 'Ma', 'Ma SKU', 'Mã LK']) || '').trim(),
-            name: String(pick(row, ['Tên', 'Tên SP', 'Ten']) || '').trim(),
-            cost: parseNum(pick(row, ['Giá vốn', 'Giá ưu tiên', 'Gia von', 'Cost']))
-          }))
-          .filter((r) => r.sku);
-
-        setRows(parsed);
-        if (!parsed.length) toast.error('Không đọc được dòng nào — kiểm tra file có đúng cột "Mã" không.');
+        setMonthLabel(result.monthLabel);
+        setRows(result.rows);
+        if (!result.monthLabel) toast.error('Không tìm thấy tab tháng nào trong file (tên tab phải dạng "T07.26").');
+        else if (!result.rows.length) toast.error(`Tìm thấy tab tháng ${result.monthLabel} nhưng không đọc được dòng nào — kiểm tra lại cột "Mã"/"Giá ưu tiên".`);
       } catch (err) {
         toast.error('Lỗi đọc file Excel: ' + err.message);
       } finally {
@@ -81,6 +121,7 @@ export default function CostImportPanel({ token, activeUser, onImported }) {
       setConfirming(false);
       setRows([]);
       setFileName('');
+      setMonthLabel('');
       if (onImported) onImported();
     } catch (err) {
       toast.error('Không nhập được giá vốn: ' + err.message);
@@ -105,22 +146,16 @@ export default function CostImportPanel({ token, activeUser, onImported }) {
           <Upload size={32} color="var(--accent-cyan)" />
         </div>
         <div>
-          <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Tải file Excel Giá Vốn</h3>
+          <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Tải file Excel Giá Vốn (LNG KDNĐ)</h3>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            File kế toán gửi, chứa cột <strong>Mã</strong>, <strong>Tên</strong>, <strong>Giá vốn</strong> (chưa VAT).
+            File nhiều tab, mỗi tab 1 tháng (vd "T07.26") — tự động lấy đúng tab THÁNG MỚI NHẤT trong file, không cần chọn tay.
           </p>
         </div>
 
-        <div className="form-group" style={{ margin: 0, width: '220px' }}>
-          <label className="form-label">Tháng áp dụng:</label>
-          <input type="month" className="input-field" value={monthValue} onChange={(e) => setMonthValue(e.target.value)} />
-        </div>
-
-        <input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} id="cost-excel-input" style={{ display: 'none' }} disabled={!monthValue} />
-        <label htmlFor="cost-excel-input" className={`btn btn-primary ${monthValue ? '' : 'btn-disabled'}`} style={{ cursor: monthValue ? 'pointer' : 'not-allowed', opacity: monthValue ? 1 : 0.5 }}>
+        <input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} id="cost-excel-input" style={{ display: 'none' }} />
+        <label htmlFor="cost-excel-input" className="btn btn-primary" style={{ cursor: 'pointer' }}>
           {isParsing ? 'Đang đọc file...' : 'Chọn File Excel Từ Máy Tính'}
         </label>
-        {!monthValue && <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Chọn tháng áp dụng trước khi tải file.</span>}
         {fileName && <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{fileName}</span>}
       </div>
 
