@@ -8,6 +8,15 @@
  *
  * Both tabs are created by hand in the Sheet, same precedent as "Orders"/
  * "Products" — found by name, not gid, never auto-created.
+ *
+ * Submit is FULL REPLACE, not append/upsert-only (2026-08-25): a Sale can
+ * only "Sửa" (resubmit with changes) or "Tạo mới từ đầu" (frontend clears its
+ * draft, resubmits fresh) for a period — never end up with two overlapping
+ * versions. Any of that Sale's existing rows for the period whose SKU isn't
+ * in the new payload gets deleted; rows with 0 in every month are dropped
+ * from the payload before writing (nothing to forecast). Resubmitting a
+ * period that's already "Đã duyệt" is rejected outright — see
+ * oemAppSubmitSopDraft_.
  */
 
 // SOP_Plan columns (1-indexed): Ky, Sale, Ma SKU, SL T+1, SL T+2, SL T+3,
@@ -205,10 +214,19 @@ function oemAppGetSopPlanningContext_(token) {
   };
 }
 
-// Bulk save — Sale fills in the whole filtered table and submits once. Each
-// row upserts against THIS Sale's own rows for THIS period only (an approved
-// row from a past period, or another Sale's row, is never touched here), so
-// resubmitting before approval overwrites cleanly instead of duplicating.
+// Bulk save — Sale fills in the whole table and submits once. FULL REPLACE
+// semantics (added 2026-08-25, per user requirement): whatever this call
+// receives becomes the ENTIRE set of this Sale's rows for this period — any
+// of their existing rows for this (period, sale) whose SKU is NOT in the new
+// payload gets deleted, not just left stale. This is what makes "Sửa" (edit a
+// few cells and resubmit) and "Tạo mới từ đầu" (frontend clears its local
+// draft, then submits only the freshly-typed rows) behave identically here:
+// either way, the sheet ends up holding exactly this payload, never a mix of
+// two submissions ("2 phiên bản"). The frontend is responsible for sending
+// its COMPLETE current draft (not just whatever a filter currently shows) —
+// see SopPlanPanel.jsx's use of the full draftMap, not filteredMaterials —
+// otherwise a narrowed filter at submit time would look identical to "the
+// Sale deleted those rows" and wipe them for real.
 function oemAppSubmitSopDraft_(token, anchor, rows) {
   var user = oemAppRequireSession_(token);
   if (!['sale', 'admin', 'creator'].includes(user.role)) {
@@ -221,18 +239,61 @@ function oemAppSubmitSopDraft_(token, anchor, rows) {
   var sheet = oemAppGetSopPlanSheet_();
   var existing = sheet.getDataRange().getValues();
 
-  var rowIndexBySku = {};
+  var existingRowIndexBySku = {};
+  var hasApproved = false;
   for (var i = 1; i < existing.length; i++) {
     var r = existing[i];
     if (oemAppSopNormalizePeriod_(r[0]) === String(anchor) && String(r[1]) === saleKey) {
-      rowIndexBySku[String(r[2])] = i + 1;
+      existingRowIndexBySku[String(r[2])] = i + 1;
+      if (String(r[7]) === 'Đã duyệt') hasApproved = true;
+    }
+  }
+  // Kỳ này của chính Sale đó đã được Admin duyệt (đã cộng vào tab "SOP") —
+  // không cho gửi/ghi đè lại nữa, để tránh "2 phiên bản" theo kiểu tệ nhất:
+  // âm thầm làm mất dấu 1 batch đã duyệt. Sale phải chờ kỳ kế hoạch tiếp theo.
+  // Checked BEFORE the zero-quantity filter below so this specific reason
+  // always wins over the generic "không có dòng hợp lệ" error.
+  if (hasApproved) {
+    throw new Error('Kỳ kế hoạch này đã được duyệt — không thể gửi hoặc sửa lại. Vui lòng chờ kỳ kế hoạch tiếp theo.');
+  }
+
+  // Chỉ giữ dòng có số lượng > 0 ở ít nhất 1 trong 4 tháng — một dòng toàn 0
+  // (SKU chưa từng nhập, hoặc vừa bị xoá hết số lượng) không có gì để lập kế
+  // hoạch, không nên chiếm 1 dòng trên SOP_Plan.
+  var validRows = rows.filter(function (item) {
+    if (!item || !item.sku) return false;
+    var sl = [item.sl1, item.sl2, item.sl3, item.sl4];
+    return sl.some(function (v) { return (Number(v) || 0) > 0; });
+  });
+  if (!validRows.length) {
+    throw new Error('Không có mã SKU nào có số lượng > 0 ở ít nhất 1 tháng để lưu.');
+  }
+
+  // Xoá các dòng CŨ của chính Sale này, kỳ này, không còn nằm trong lần gửi
+  // này (dù là do Sửa bớt SKU hay do Tạo mới từ đầu) — xoá từ dưới lên để
+  // không lệch chỉ số dòng khi xoá nhiều dòng liên tiếp.
+  var keepSkus = {};
+  validRows.forEach(function (item) { keepSkus[item.sku] = true; });
+  var rowsToDelete = Object.keys(existingRowIndexBySku)
+    .filter(function (sku) { return !keepSkus[sku]; })
+    .map(function (sku) { return existingRowIndexBySku[sku]; })
+    .sort(function (a, b) { return b - a; });
+  rowsToDelete.forEach(function (rowIndex) { sheet.deleteRow(rowIndex); });
+
+  // Đọc lại vị trí dòng SAU khi xoá — xoá dòng làm lệch index của mọi dòng
+  // phía dưới, không thể tiếp tục dùng existingRowIndexBySku cũ để upsert.
+  var afterDelete = rowsToDelete.length ? sheet.getDataRange().getValues() : existing;
+  var rowIndexBySku = {};
+  for (var j = 1; j < afterDelete.length; j++) {
+    var rr = afterDelete[j];
+    if (oemAppSopNormalizePeriod_(rr[0]) === String(anchor) && String(rr[1]) === saleKey) {
+      rowIndexBySku[String(rr[2])] = j + 1;
     }
   }
 
-  var nextAppendRow = existing.length + 1;
+  var nextAppendRow = afterDelete.length + 1;
   var now = Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH:mm');
-  rows.forEach(function (item) {
-    if (!item || !item.sku) return;
+  validRows.forEach(function (item) {
     var values = [
       anchor, saleKey, item.sku,
       item.sl1 || 0, item.sl2 || 0, item.sl3 || 0, item.sl4 || 0,
@@ -252,7 +313,12 @@ function oemAppSubmitSopDraft_(token, anchor, rows) {
     sheet.getRange(rowIndex, 1, 1, 11).setValues([values]);
   });
 
-  return { ok: true, savedCount: rows.length };
+  return {
+    ok: true,
+    savedCount: validRows.length,
+    skippedZeroCount: rows.length - validRows.length,
+    removedCount: rowsToDelete.length
+  };
 }
 
 // What THIS Sale has ever submitted, across every period — status included —

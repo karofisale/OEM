@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Filter, CheckCircle2, Save, ShieldCheck, TrendingUp } from 'lucide-react';
+import { Search, Filter, CheckCircle2, Save, ShieldCheck, TrendingUp, RotateCcw } from 'lucide-react';
 import * as api from '../../services/api';
 import Pagination, { usePagedSlice } from '../Pagination';
 import LoadingScreen from '../LoadingScreen';
+import ConfirmDialog from '../ConfirmDialog';
 import { useToast } from '../ToastProvider';
 
 const PAGE_SIZE = 25;
@@ -18,6 +19,8 @@ export default function SopPlanPanel({ token, materials, onSubmitted }) {
   const [periodConfirmed, setPeriodConfirmed] = useState(false);
   const [draftMap, setDraftMap] = useState({}); // sku -> [sl1,sl2,sl3,sl4]
   const [isSaving, setIsSaving] = useState(false);
+  const [confirmingSubmit, setConfirmingSubmit] = useState(false);
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [groupFilter, setGroupFilter] = useState('ALL');
@@ -96,25 +99,42 @@ export default function SopPlanPanel({ token, materials, onSubmitted }) {
     });
   };
 
-  // Saves every row CURRENTLY in the filtered table (not just the visible
-  // page) — "điền SL và ghi cả bảng đã lọc 1 lần". A SKU left untouched saves
-  // as 0, which is how a Sale intentionally drops a SKU they no longer plan.
+  // What actually gets sent on submit: EVERY sku in draftMap (carried-forward
+  // + already-drafted + anything typed this session), NOT just filteredMaterials
+  // — the backend now does a full replace (deletes this Sale's rows for the
+  // period that aren't in the payload), so submitting only the currently-
+  // filtered subset would read as "the Sale deleted everything else" and wipe
+  // rows a filter merely hid from view. Rows with 0 in every month are dropped
+  // here too (nothing to forecast) — same rule the backend enforces again.
+  const submissionRows = useMemo(() => {
+    return Object.entries(draftMap)
+      .map(([sku, v]) => ({ sku, sl1: v[0] || 0, sl2: v[1] || 0, sl3: v[2] || 0, sl4: v[3] || 0 }))
+      .filter(r => r.sl1 > 0 || r.sl2 > 0 || r.sl3 > 0 || r.sl4 > 0);
+  }, [draftMap]);
+
   const handleSubmit = async () => {
-    if (!filteredMaterials.length) return;
+    if (!submissionRows.length) return;
     setIsSaving(true);
     try {
-      const rows = filteredMaterials.map(m => {
-        const v = draftMap[m.sku] || [0, 0, 0, 0];
-        return { sku: m.sku, sl1: v[0], sl2: v[1], sl3: v[2], sl4: v[3] };
-      });
-      const result = await api.submitSopDraft(token, context.anchor, rows);
+      const result = await api.submitSopDraft(token, context.anchor, submissionRows);
       toast.success(`Đã lưu kế hoạch cho ${result.savedCount} mã SKU, chờ Admin duyệt.`);
+      setConfirmingSubmit(false);
       if (onSubmitted) onSubmitted();
     } catch (err) {
       toast.error('Không lưu được kế hoạch: ' + err.message);
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // "Tạo mới từ đầu" — chỉ xoá state cục bộ đang nhập (chưa đụng gì trên
+  // Sheet). Việc thay thế thật trên SOP_Plan chỉ xảy ra khi bấm "Gửi Duyệt"
+  // sau đó với nội dung mới — cùng cơ chế full-replace ở backend, nên không
+  // cần một API riêng cho "tạo mới".
+  const handleResetFromScratch = () => {
+    setDraftMap({});
+    setConfirmingReset(false);
+    toast.success('Đã xoá số lượng đang nhập — nhập lại từ đầu rồi bấm "Gửi Duyệt" để lưu.');
   };
 
   if (isLoading) return <LoadingScreen label="Đang tải kỳ kế hoạch..." />;
@@ -244,11 +264,35 @@ export default function SopPlanPanel({ token, materials, onSubmitted }) {
         <Pagination page={safePage} pageSize={PAGE_SIZE} totalItems={filteredMaterials.length} onPageChange={setPage} itemLabel="sản phẩm" />
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={handleSubmit} disabled={isSaving || !filteredMaterials.length} className="btn btn-emerald">
-          <Save size={16} /> Lưu Kế Hoạch ({filteredMaterials.length.toLocaleString('vi-VN')} SKU), Gửi Duyệt
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+        <button onClick={() => setConfirmingReset(true)} disabled={isSaving} className="btn btn-secondary">
+          <RotateCcw size={16} /> Tạo Mới Từ Đầu
+        </button>
+        <button onClick={() => setConfirmingSubmit(true)} disabled={isSaving || !submissionRows.length} className="btn btn-emerald">
+          <Save size={16} /> Lưu Kế Hoạch ({submissionRows.length.toLocaleString('vi-VN')} SKU), Gửi Duyệt
         </button>
       </div>
+
+      {confirmingReset && (
+        <ConfirmDialog
+          title="Tạo mới từ đầu?"
+          message="Sẽ xoá toàn bộ số lượng đang nhập trên màn hình này (kể cả số đã carry-forward từ kỳ trước) để bạn nhập lại từ đầu. Chưa lưu gì lên hệ thống — chỉ thực sự thay thế kế hoạch cũ khi bạn bấm 'Gửi Duyệt' sau đó."
+          confirmLabel="Xoá và làm lại"
+          destructive
+          onConfirm={handleResetFromScratch}
+          onCancel={() => setConfirmingReset(false)}
+        />
+      )}
+
+      {confirmingSubmit && (
+        <ConfirmDialog
+          title="Đã kiểm tra kỹ chưa?"
+          message={`Sẽ gửi kế hoạch SOP kỳ ${context.monthLabels[0]} → ${context.monthLabels[context.monthLabels.length - 1]} cho ${submissionRows.length.toLocaleString('vi-VN')} mã SKU có số lượng > 0. Nếu kỳ này đã từng gửi trước đó, bản cũ sẽ bị THAY THẾ HOÀN TOÀN bằng bản này — mã SKU nào không còn số lượng trong lần gửi này sẽ bị xoá khỏi kế hoạch. Hãy chắc chắn đã kiểm tra kỹ số lượng trước khi xác nhận.`}
+          confirmLabel={isSaving ? 'Đang gửi...' : 'Đã kiểm tra kỹ, Gửi'}
+          onConfirm={handleSubmit}
+          onCancel={() => setConfirmingSubmit(false)}
+        />
+      )}
     </div>
   );
 }
