@@ -77,6 +77,23 @@ function oemAppGetDebtView_(token) {
   return { rows: rows };
 }
 
+// Mã KH -> Sale, straight from tab "Clients" (the authoritative source of
+// PIC assignment for the whole app — see oemAppScopeOf_/oemAppMatchesSale_).
+// The weekly debt report's own "KINH DOANH QL" column is copy-pasted by hand
+// and can carry stale/wrong labels for a specific customer (eg. one row
+// showing "CT Tecom" — the customer's own name — instead of an actual Sale);
+// Clients is trusted over whatever the uploaded file says whenever the code
+// is known there, so a one-off bad label in the file can't silently
+// reassign a customer's PIC in tab "Debt".
+function oemAppDebtPicByCode_() {
+  var map = {};
+  oemAppLoadClients_().forEach(function (c) {
+    var key = String(c.codeSearch || '').trim().toUpperCase();
+    if (key && c.sale) map[key] = c.sale;
+  });
+  return map;
+}
+
 // Bulk upsert by Mã KH (trimmed, case-insensitive match — the codeSearch text
 // code convention shared with Clients/Plan2026/Plan_Thang everywhere else in
 // this app). Touches columns A (Mã KH), C (Tên KH), D (PIC), E (Hạn mức), G
@@ -85,14 +102,18 @@ function oemAppGetDebtView_(token) {
 // Column-batched (a handful of setValues calls total, never one per row) so
 // a few hundred rows imports in one round trip instead of hundreds.
 //
-// item.pic may be blank (a simplified upload with no PIC column) — an
-// existing row's PIC is left untouched unless explicitly provided; a
-// brand-new customer gets a blank PIC in that case (assigned to a Sale by
-// hand later), never a false attribution.
+// PIC comes from Clients when the code is known there (oemAppDebtPicByCode_);
+// otherwise falls back to whatever the file itself says (may be blank on a
+// simplified upload with no PIC column). An existing row's PIC is left
+// untouched only when NEITHER source has an answer; a brand-new customer
+// with no answer from either gets a blank PIC (assigned to a Sale by hand
+// later), never a false attribution.
 function oemAppImportDebtExcel_(token, rows) {
   var user = oemAppRequireSession_(token);
   oemAppRequireDebtImportRole_(user);
   if (!rows || !rows.length) throw new Error('Không có dòng nào để nhập.');
+
+  var picByCode = oemAppDebtPicByCode_();
 
   // Dedup by Mã KH — last occurrence in the uploaded file wins — so a repeated
   // code can't collide between the "update existing" and "append new" arrays.
@@ -122,6 +143,7 @@ function oemAppImportDebtExcel_(token, rows) {
   order.forEach(function (key) {
     var item = byCode[key];
     var name = item.name || '';
+    var pic = picByCode[key] || item.pic || '';
     var creditLimit = Number(item.creditLimit) || 0;
     var balance = Number(item.balance) || 0;
     var i = indexByCode[key];
@@ -129,7 +151,7 @@ function oemAppImportDebtExcel_(token, rows) {
     if (i !== undefined) {
       colA[i] = item.code;
       colC[i] = name;
-      if (item.pic) colD[i] = item.pic;
+      if (pic) colD[i] = pic;
       colE[i] = creditLimit;
       colG[i] = balance;
       updatedCount++;
@@ -140,7 +162,7 @@ function oemAppImportDebtExcel_(token, rows) {
       // this can't silently overwrite a manually-corrected one.
       newColB.push(item.oldCode || '');
       newColC.push(name);
-      newColD.push(item.pic || '');
+      newColD.push(pic);
       newColE.push(creditLimit);
       newColG.push(balance);
       addedCount++;

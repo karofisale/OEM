@@ -5,7 +5,7 @@ import DebtImportPanel from './debt/DebtImportPanel';
 
 // "Nhập công nợ Excel" menu — consolidated (2026-08-25) into a real read table
 // over tab "Debt" plus the Excel import, instead of import-preview-only.
-export default function DebtManagement({ token, activeUser }) {
+export default function DebtManagement({ token, activeUser, clients }) {
   const [subView, setSubView] = useState('view'); // 'view' | 'import'
   const [refreshTick, setRefreshTick] = useState(0);
   const canImport = ['admin', 'creator'].includes(activeUser.role);
@@ -38,6 +38,7 @@ export default function DebtManagement({ token, activeUser }) {
         <DebtImportPanel
           token={token}
           activeUser={activeUser}
+          clients={clients}
           onImported={() => { setRefreshTick((t) => t + 1); setSubView('view'); }}
         />
       )}

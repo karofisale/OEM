@@ -357,7 +357,7 @@ export default function App() {
           </KeepAliveTab>
 
           <KeepAliveTab isActive={activeTab === 'debt-importer'} hasVisited={visitedTabs.has('debt-importer')}>
-            <DebtManagement token={session.token} activeUser={activeUser} />
+            <DebtManagement token={session.token} activeUser={activeUser} clients={clients} />
           </KeepAliveTab>
 
         </main>

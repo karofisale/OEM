@@ -68,11 +68,28 @@ function parseDebtSheetByHeaderName_(ws, XLSX) {
     .filter((r) => r.code);
 }
 
+// Clients is the authoritative PIC source (oemAppDebtPicByCode_ on the
+// backend does the exact same lookup before writing) — resolved here too so
+// the preview shows what will ACTUALLY land in tab "Debt", not whatever the
+// uploaded file happens to say. The weekly report's own PIC column is
+// copy-pasted by hand and can be stale/wrong for a specific customer (eg.
+// one row showing "CT Tecom" — the customer's own name — instead of a real
+// Sale); a mismatch here would otherwise look like a bug once the import
+// silently ends up with a different PIC than the preview showed.
+function resolvePicFromClients_(rows, clients) {
+  const byCode = {};
+  (clients || []).forEach((c) => {
+    const key = String(c.codeSearch || '').trim().toUpperCase();
+    if (key && c.sale) byCode[key] = c.sale;
+  });
+  return rows.map((r) => ({ ...r, pic: byCode[r.code.trim().toUpperCase()] || r.pic }));
+}
+
 // Upload Excel -> upsert into tab "Debt" by Mã KH. "Công nợ vượt HM" is shown
 // in the preview for reference only — the sheet computes it itself (a single
 // ARRAYFORMULA over Hạn mức/Số dư), so this app never writes that column;
 // see gas/Debt.gs.
-export default function DebtImportPanel({ token, activeUser, onImported }) {
+export default function DebtImportPanel({ token, activeUser, clients, onImported }) {
   const toast = useToast();
   const [rows, setRows] = useState([]);
   const [fileName, setFileName] = useState('');
@@ -100,6 +117,7 @@ export default function DebtImportPanel({ token, activeUser, onImported }) {
 
         let parsed = parseDebtSheetByPosition_(ws, XLSX);
         if (!parsed.length) parsed = parseDebtSheetByHeaderName_(ws, XLSX);
+        parsed = resolvePicFromClients_(parsed, clients);
 
         setRows(parsed);
         if (!parsed.length) toast.error('Không đọc được dòng nào — kiểm tra file có đúng cột "Mã KH" không.');
