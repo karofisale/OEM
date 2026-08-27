@@ -37,12 +37,16 @@ export default function PriceApprovePanel({ token, activeUser, onApproved }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [costBySku, setCostBySku] = useState({});
 
+  // Perf (2026-08-26): getPendingPriceProposals giờ gộp luôn costBySku cho
+  // Creator trong CÙNG 1 lượt gọi — trước đây màn này mở lên phải chờ 2 API
+  // tuần tự (danh sách chờ duyệt, rồi mới giá vốn).
   const fetchPending = async () => {
     setIsLoading(true);
     setLoadError('');
     try {
       const result = await api.getPendingPriceProposals(token);
       setRows(result.rows || []);
+      if (isCreator) setCostBySku(result.costBySku || {});
     } catch (err) {
       setLoadError(err.message || String(err));
     } finally {
@@ -50,12 +54,7 @@ export default function PriceApprovePanel({ token, activeUser, onApproved }) {
     }
   };
 
-  useEffect(() => { fetchPending(); }, [token]);
-
-  useEffect(() => {
-    if (!isCreator) return;
-    api.getCostBySku(token).then((res) => setCostBySku(res.bySku || {})).catch(() => setCostBySku({}));
-  }, [token, isCreator]);
+  useEffect(() => { fetchPending(); }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const batches = useMemo(() => {
     const order = [];

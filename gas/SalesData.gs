@@ -1,6 +1,20 @@
 /** Transactions (tab "Data"), sales plans, 2025 baselines, combined getBootstrap payload. */
 
+// Perf (2026-08-26): reading + mapping tab "Data" is the single most expensive
+// read in this backend, and oemAppAiChat_'s tools (oemAppAiToolClientRevenue_,
+// oemAppAiToolSkuInfo_) can each call this independently within ONE doPost —
+// Gemini function-calling may invoke both in a single chat turn. Memoized per
+// SCRIPT EXECUTION only (a plain top-level var, reset fresh on every new
+// Apps Script invocation — never shared across requests, no staleness risk).
+var OEMAPP_TRANSACTIONS_MEMO_ = null;
+
 function oemAppLoadTransactions_() {
+  if (OEMAPP_TRANSACTIONS_MEMO_) return OEMAPP_TRANSACTIONS_MEMO_;
+  OEMAPP_TRANSACTIONS_MEMO_ = oemAppLoadTransactionsUncached_();
+  return OEMAPP_TRANSACTIONS_MEMO_;
+}
+
+function oemAppLoadTransactionsUncached_() {
   var rows = oemAppGetRows_(OEMAPP_GIDS.TRANSACTIONS);
   return rows.slice(1).map(function (row) {
     var dateStr = oemAppNormalizeDateStr_(row[0]) || oemAppNormalizeDateStr_(row[1]);
@@ -163,6 +177,9 @@ function oemAppLoad2025Baselines_() {
 var OEMAPP_BOOTSTRAP_CACHE_KEY_ = 'oemapp_bootstrap_v2';
 var OEMAPP_BOOTSTRAP_TTL_ = 600; // 10 minutes
 var OEMAPP_BOOTSTRAP_VER_KEY_ = 'oemapp_bootstrap_ver';
+var OEMAPP_CATALOG_CACHE_KEY_ = 'oemapp_catalog_v1';
+var OEMAPP_CATALOG_TTL_ = 600; // 10 minutes
+var OEMAPP_CATALOG_VER_KEY_ = 'oemapp_catalog_ver';
 
 
 // Which slice of the data this user is allowed to see. A Sale only ever gets
@@ -206,10 +223,65 @@ function oemAppBootstrapVersion_() {
 }
 
 
+// Perf (2026-08-26): allTransactions + materials (via oemAppLoadCatalogBlock_,
+// below) are the single most expensive part of getBootstrap — reading the
+// whole transactions history and deriving every material from it — but they
+// don't change when someone edits a client or a sales plan. Splitting this
+// into its OWN version key (bumped only by oemAppInvalidateCatalog_, called
+// from Products/price-apply writers) means a client/plan edit still busts the
+// outer per-scope cache (via oemAppBootstrapVersion_ below) but the rebuild
+// that follows reuses this still-fresh catalog block instead of re-scanning
+// every transaction again.
+function oemAppCatalogVersion_() {
+  var cache = CacheService.getScriptCache();
+  var v = cache.get(OEMAPP_CATALOG_VER_KEY_);
+  if (!v) {
+    v = Utilities.getUuid().slice(0, 8);
+    cache.put(OEMAPP_CATALOG_VER_KEY_, v, 21600);
+  }
+  return v;
+}
+
+
+function oemAppInvalidateCatalog_() {
+  try {
+    CacheService.getScriptCache().put(OEMAPP_CATALOG_VER_KEY_, Utilities.getUuid().slice(0, 8), 21600);
+  } catch (err) {}
+}
+
+
+// { allTransactions, materials } — same for every user regardless of scope
+// (both are computed from the FULL transaction history), so this is cached
+// without a scope suffix, unlike the outer bootstrap payload.
+function oemAppLoadCatalogBlock_() {
+  var cacheKey = OEMAPP_CATALOG_CACHE_KEY_ + '_' + oemAppCatalogVersion_();
+  var cached = oemAppCacheGetBig_(cacheKey);
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch (err) {
+      // Corrupt/truncated cache entry — fall through and rebuild from the Sheet.
+    }
+  }
+
+  var allTransactions = oemAppLoadTransactions_();
+  var aliasHints = oemAppLoadOrderAliasHints_();
+  var catalog = oemAppLoadMaterialCatalog_();
+  var materials = oemAppDeriveMaterials_(allTransactions, aliasHints, catalog.bySku);
+  var block = { allTransactions: allTransactions, materials: materials };
+
+  try {
+    oemAppCachePutBig_(cacheKey, JSON.stringify(block), OEMAPP_CATALOG_TTL_);
+  } catch (err) {}
+
+  return block;
+}
+
+
 function oemAppGetBootstrap_(token) {
   var user = oemAppRequireSession_(token);
   var scope = oemAppScopeOf_(user);
-  var cacheKey = OEMAPP_BOOTSTRAP_CACHE_KEY_ + '_' + oemAppBootstrapVersion_() + '_' + scope.key;
+  var cacheKey = OEMAPP_BOOTSTRAP_CACHE_KEY_ + '_' + oemAppBootstrapVersion_() + '_' + oemAppCatalogVersion_() + '_' + scope.key;
 
   var cached = oemAppCacheGetBig_(cacheKey);
   if (cached) {
@@ -232,14 +304,12 @@ function oemAppGetBootstrap_(token) {
 
 
 function oemAppBuildBootstrap_(scope) {
-  var allTransactions = oemAppLoadTransactions_();
-  var aliasHints = oemAppLoadOrderAliasHints_();
-  var catalog = oemAppLoadMaterialCatalog_();
-
+  var catalogBlock = oemAppLoadCatalogBlock_();
+  var allTransactions = catalogBlock.allTransactions;
   // Materials are derived from the FULL history on purpose: the product
   // catalogue and its historical pricing are not per-Sale data, and scoping it
   // would leave a Sale unable to order any SKU they had not personally sold.
-  var materials = oemAppDeriveMaterials_(allTransactions, aliasHints, catalog.bySku);
+  var materials = catalogBlock.materials;
 
   var transactions = scope.all ? allTransactions : allTransactions.filter(function (t) {
     return oemAppMatchesSale_(t.sale, scope);
@@ -322,24 +392,26 @@ function oemAppSubmitSalesPlan_(token, thang, rows) {
   for (var i = 2; i < existing.length; i++) {
     var rowMonth = String(existing[i][14] || '').trim() || legacyMonth;
     if (rowMonth === thang && existing[i][1]) {
-      rowIndexByCode[String(existing[i][1]).trim()] = i + 1; // 1-indexed sheet row
+      rowIndexByCode[String(existing[i][1]).trim()] = i; // 0-indexed into `existing`
     }
   }
 
+  var newRows = [];
   rows.forEach(function (plan) {
     if (!plan || !plan.searchCode) return;
     var planUpdate = (plan.w1 || 0) + (plan.w2 || 0) + (plan.w3 || 0) + (plan.w4 || 0) + (plan.w5 || 0);
-    var rowIndex = rowIndexByCode[String(plan.searchCode).trim()];
+    var idx = rowIndexByCode[String(plan.searchCode).trim()];
 
-    if (rowIndex) {
-      sheet.getRange(rowIndex, 2, 1, 3).setValues([[plan.searchCode || '', plan.clientName || '', plan.sale || '']]); // B-D
-      sheet.getRange(rowIndex, 5, 1, 2).setValues([[plan.planKpi || 0, planUpdate]]); // E-F (Plan KPI, Plan_Update)
+    if (idx !== undefined) {
+      var r = existing[idx];
+      r[1] = plan.searchCode || ''; r[2] = plan.clientName || ''; r[3] = plan.sale || ''; // B-D
+      r[4] = plan.planKpi || 0; r[5] = planUpdate; // E-F (Plan KPI, Plan_Update)
       // G (Done) and H (Chênh) intentionally skipped.
-      sheet.getRange(rowIndex, 9, 1, 5).setValues([[plan.w1 || 0, plan.w2 || 0, plan.w3 || 0, plan.w4 || 0, plan.w5 || 0]]); // I-M
-      sheet.getRange(rowIndex, 14, 1, 1).setValues([[plan.note || '']]); // N
-      sheet.getRange(rowIndex, 16, 1, 1).setValues([['Chờ duyệt']]); // P (Trạng thái) — any resubmit re-queues for approval
+      r[8] = plan.w1 || 0; r[9] = plan.w2 || 0; r[10] = plan.w3 || 0; r[11] = plan.w4 || 0; r[12] = plan.w5 || 0; // I-M
+      r[13] = plan.note || ''; // N
+      r[15] = 'Chờ duyệt'; // P (Trạng thái) — any resubmit re-queues for approval
     } else {
-      sheet.appendRow([
+      newRows.push([
         '', plan.searchCode || '', plan.clientName || '', plan.sale || '',
         plan.planKpi || 0, planUpdate, 0, '',
         plan.w1 || 0, plan.w2 || 0, plan.w3 || 0, plan.w4 || 0, plan.w5 || 0,
@@ -347,6 +419,29 @@ function oemAppSubmitSalesPlan_(token, thang, rows) {
       ]);
     }
   });
+
+  var dataRowCount = existing.length - 2;
+  if (dataRowCount > 0) {
+    var blockBD = [], blockEF = [], blockIM = [], blockN = [], blockP = [];
+    for (var r2 = 2; r2 < existing.length; r2++) {
+      var row = existing[r2];
+      blockBD.push([row[1], row[2], row[3]]);
+      blockEF.push([row[4], row[5]]);
+      blockIM.push([row[8], row[9], row[10], row[11], row[12]]);
+      blockN.push([row[13]]);
+      blockP.push([row[15]]);
+    }
+    sheet.getRange(3, 2, dataRowCount, 3).setValues(blockBD);
+    sheet.getRange(3, 5, dataRowCount, 2).setValues(blockEF);
+    sheet.getRange(3, 9, dataRowCount, 5).setValues(blockIM);
+    sheet.getRange(3, 14, dataRowCount, 1).setValues(blockN);
+    sheet.getRange(3, 16, dataRowCount, 1).setValues(blockP);
+  }
+
+  if (newRows.length) {
+    var startRow = existing.length + 1;
+    sheet.getRange(startRow, 1, newRows.length, 16).setValues(newRows);
+  }
 
   oemAppInvalidateBootstrap_();
   return { ok: true, savedCount: rows.length, thang: thang };

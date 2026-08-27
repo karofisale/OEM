@@ -140,28 +140,33 @@ function oemAppImportCostExcel_(token, monthLabel, rows) {
   if (!rows || !rows.length) throw new Error('Không có dòng nào để nhập.');
 
   var sheet = oemAppGetCostSheet_();
-  var existing = oemAppLoadCostRows_();
-  var indexByKey = {};
-  existing.forEach(function (r) { indexByKey[r.sku + '|' + r.monthLabel] = r.rowIndex; });
+  var lastRow = sheet.getLastRow();
+  var dataRowCount = lastRow > 1 ? lastRow - 1 : 0;
+  var block = dataRowCount ? sheet.getRange(2, 1, dataRowCount, 4).getValues() : [];
 
-  var nextAppendRow = existing.length ? existing[existing.length - 1].rowIndex + 1 : 2;
+  var indexByKey = {};
+  block.forEach(function (r, idx) { indexByKey[r[0] + '|' + r[3]] = idx; });
+
   var updatedCount = 0, addedCount = 0;
 
   rows.forEach(function (item) {
     if (!item || !item.sku) return;
     var key = String(item.sku) + '|' + monthLabel;
-    var values = [[item.sku, item.name || '', item.cost || 0, monthLabel]];
-    var rowIndex = indexByKey[key];
-    if (rowIndex) {
-      sheet.getRange(rowIndex, 1, 1, 4).setValues(values);
+    var values = [item.sku, item.name || '', item.cost || 0, monthLabel];
+    var idx = indexByKey[key];
+    if (idx !== undefined) {
+      block[idx] = values;
       updatedCount++;
     } else {
-      sheet.getRange(nextAppendRow, 1, 1, 4).setValues(values);
-      indexByKey[key] = nextAppendRow;
-      nextAppendRow++;
+      indexByKey[key] = block.length;
+      block.push(values);
       addedCount++;
     }
   });
+
+  if (block.length) {
+    sheet.getRange(2, 1, block.length, 4).setValues(block);
+  }
 
   return { ok: true, monthLabel: monthLabel, updatedCount: updatedCount, addedCount: addedCount };
 }

@@ -68,10 +68,56 @@ function oemAppLoadDebtRows_() {
   return out;
 }
 
+// Perf (2026-08-26): "Bảng Công Nợ" là 1 sub-view bị unmount/mount lại mỗi
+// lần chuyển qua lại các tab con trong "Công Nợ" — trước đây mỗi lần mở lại
+// là 1 lượt getDataRange() đầy đủ trên tab Debt. TTL ngắn (không dùng chung
+// version 10 phút như getBootstrap) vì đây là dữ liệu tài chính hay được đối
+// chiếu — vẫn tự làm mới nhanh, chỉ đỡ phải đọc lại Sheet khi bấm qua lại
+// trong vài chục giây. Cache KHÔNG phân biệt scope (đọc 1 lần, lọc theo Sale
+// sau khi lấy từ cache) vì object rows nhỏ, không đáng phải cache riêng từng
+// scope như getBootstrap.
+var OEMAPP_DEBT_CACHE_KEY_ = 'oemapp_debt_v1';
+var OEMAPP_DEBT_TTL_SECONDS_ = 90;
+var OEMAPP_DEBT_VER_KEY_ = 'oemapp_debt_ver';
+
+function oemAppDebtVersion_() {
+  var cache = CacheService.getScriptCache();
+  var v = cache.get(OEMAPP_DEBT_VER_KEY_);
+  if (!v) {
+    v = Utilities.getUuid().slice(0, 8);
+    cache.put(OEMAPP_DEBT_VER_KEY_, v, 21600);
+  }
+  return v;
+}
+
+function oemAppInvalidateDebtCache_() {
+  try {
+    CacheService.getScriptCache().put(OEMAPP_DEBT_VER_KEY_, Utilities.getUuid().slice(0, 8), 21600);
+  } catch (err) {}
+}
+
+function oemAppLoadDebtRowsCached_() {
+  var cache = CacheService.getScriptCache();
+  var cacheKey = OEMAPP_DEBT_CACHE_KEY_ + '_' + oemAppDebtVersion_();
+  var cached = cache.get(cacheKey);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (err) {}
+  }
+
+  var rows = oemAppLoadDebtRows_();
+  try {
+    var json = JSON.stringify(rows);
+    // ~400 dòng, nhỏ hơn nhiều so với giới hạn 100KB/key của CacheService —
+    // không cần chunk như oemAppCachePutBig_ dùng cho payload getBootstrap.
+    if (json.length < 90000) cache.put(cacheKey, json, OEMAPP_DEBT_TTL_SECONDS_);
+  } catch (err) {}
+  return rows;
+}
+
 function oemAppGetDebtView_(token) {
   var user = oemAppRequireSession_(token);
   var scope = oemAppScopeOf_(user);
-  var rows = oemAppLoadDebtRows_().filter(function (r) {
+  var rows = oemAppLoadDebtRowsCached_().filter(function (r) {
     return scope.all || oemAppMatchesSale_(r.pic, scope);
   });
   return { rows: rows };
@@ -189,6 +235,7 @@ function oemAppImportDebtExcel_(token, rows) {
     sheet.getRange(appendAt, 7, newColG.length, 1).setValues(toColumn(newColG));
   }
 
+  oemAppInvalidateDebtCache_();
   return { ok: true, updatedCount: updatedCount, addedCount: addedCount };
 }
 

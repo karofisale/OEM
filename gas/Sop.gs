@@ -269,55 +269,58 @@ function oemAppSubmitSopDraft_(token, anchor, rows) {
     throw new Error('Không có mã SKU nào có số lượng > 0 ở ít nhất 1 tháng để lưu.');
   }
 
-  // Xoá các dòng CŨ của chính Sale này, kỳ này, không còn nằm trong lần gửi
-  // này (dù là do Sửa bớt SKU hay do Tạo mới từ đầu) — xoá từ dưới lên để
-  // không lệch chỉ số dòng khi xoá nhiều dòng liên tiếp.
   var keepSkus = {};
   validRows.forEach(function (item) { keepSkus[item.sku] = true; });
-  var rowsToDelete = Object.keys(existingRowIndexBySku)
-    .filter(function (sku) { return !keepSkus[sku]; })
-    .map(function (sku) { return existingRowIndexBySku[sku]; })
-    .sort(function (a, b) { return b - a; });
-  rowsToDelete.forEach(function (rowIndex) { sheet.deleteRow(rowIndex); });
+  var removedSkus = Object.keys(existingRowIndexBySku).filter(function (sku) { return !keepSkus[sku]; });
 
-  // Đọc lại vị trí dòng SAU khi xoá — xoá dòng làm lệch index của mọi dòng
-  // phía dưới, không thể tiếp tục dùng existingRowIndexBySku cũ để upsert.
-  var afterDelete = rowsToDelete.length ? sheet.getDataRange().getValues() : existing;
-  var rowIndexBySku = {};
-  for (var j = 1; j < afterDelete.length; j++) {
-    var rr = afterDelete[j];
-    if (oemAppSopNormalizePeriod_(rr[0]) === String(anchor) && String(rr[1]) === saleKey) {
-      rowIndexBySku[String(rr[2])] = j + 1;
-    }
-  }
+  // Perf (2026-08-26): xoá dòng CŨ không còn trong lần gửi này bằng cách LÀM
+  // TRỐNG cột SKU (cột C) của đúng dòng đó, KHÔNG dùng sheet.deleteRow — deleteRow
+  // là thao tác cấu trúc (dồn lại toàn bộ chỉ số dòng phía dưới), với batch
+  // ~450 SKU từng phải xoá từng dòng MỘT rồi đọc lại cả Sheet (nguy cơ chạm
+  // timeout 6 phút của Apps Script). Dòng trống cột C bị mọi hàm đọc khác coi
+  // là dòng rỗng và bỏ qua (`if (!r[2]) continue`) — coi như đã xoá dù vẫn còn
+  // nằm vật lý, cùng kiểu đánh đổi đã chấp nhận cho các dòng trùng/hỏng cũ
+  // (xem SETUP.md) — không cần đọc lại Sheet, không lệch chỉ số dòng nào.
+  removedSkus.forEach(function (sku) {
+    sheet.getRange(existingRowIndexBySku[sku], 3, 1, 1).setValue('');
+  });
 
-  var nextAppendRow = afterDelete.length + 1;
   var now = Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH:mm');
+
+  // Ghi đè TẠI CHỖ các dòng đã có sẵn — không setNumberFormat lại (ô này đã
+  // được định dạng Text đúng từ lần tạo dòng đầu tiên), chỉ 1 lệnh/dòng thay
+  // vì 2. Dòng THẬT SỰ MỚI gom lại ghi 1 LẦN DUY NHẤT thành 1 khối liền bên
+  // dưới — chỉ khối này mới cần setNumberFormat vì là ô chưa từng được ghi.
+  var newRows = [];
   validRows.forEach(function (item) {
     var values = [
       anchor, saleKey, item.sku,
       item.sl1 || 0, item.sl2 || 0, item.sl3 || 0, item.sl4 || 0,
       'Chờ duyệt', now, '', ''
     ];
-    var rowIndex = rowIndexBySku[item.sku];
-    if (!rowIndex) {
-      rowIndex = nextAppendRow;
-      nextAppendRow++;
-      rowIndexBySku[item.sku] = rowIndex; // guards against a duplicate sku within the same payload
+    var rowIndex = existingRowIndexBySku[item.sku];
+    if (rowIndex) {
+      sheet.getRange(rowIndex, 1, 1, 11).setValues([values]);
+    } else {
+      newRows.push(values);
     }
+  });
+
+  if (newRows.length) {
     // Force column A to plain text BEFORE writing — otherwise Sheets can
     // silently reinterpret a "yyyy-MM" string as a real Date cell (see
     // oemAppSopNormalizePeriod_), which then breaks this exact match on the
     // next submit and piles up duplicate rows instead of overwriting.
-    sheet.getRange(rowIndex, 1, 1, 1).setNumberFormat('@');
-    sheet.getRange(rowIndex, 1, 1, 11).setValues([values]);
-  });
+    var startRow = existing.length + 1;
+    sheet.getRange(startRow, 1, newRows.length, 1).setNumberFormat('@');
+    sheet.getRange(startRow, 1, newRows.length, 11).setValues(newRows);
+  }
 
   return {
     ok: true,
     savedCount: validRows.length,
     skippedZeroCount: rows.length - validRows.length,
-    removedCount: rowsToDelete.length
+    removedCount: removedSkus.length
   };
 }
 
@@ -393,7 +396,17 @@ function oemAppAggregateSopPeriod_(anchor) {
     return { sale: r.sale, sku: r.sku, name: entry.name || r.sku, price: entry.suggestedPrice || 0, sl: r.sl };
   });
 
-  return { rows: result, detail: detail, monthLabels: months.map(oemAppSopLabel_), pendingCount: pendingRows.length };
+  return {
+    rows: result,
+    detail: detail,
+    monthLabels: months.map(oemAppSopLabel_),
+    pendingCount: pendingRows.length,
+    // Perf (2026-08-26): oemAppApproveSop_ dùng lại danh sách rowIndex này để
+    // đánh dấu Đã duyệt, khỏi phải đọc lại toàn bộ SOP_Plan (~9.000 dòng) lần
+    // thứ 2 trong cùng 1 lượt Duyệt (đã đọc 1 lần ở oemAppLoadSopPlanRows_
+    // bên trên rồi).
+    pendingRowIndexes: pendingRows.map(function (r) { return r.rowIndex; })
+  };
 }
 
 // Admin/Creator preview before committing — same numbers oemAppApproveSop_
@@ -455,20 +468,30 @@ function oemAppApproveSop_(token, anchor, overrideRows) {
   });
   if (body.length) sopSheet.getRange(2, 1, body.length, 7).setValues(body);
 
+  // Perf (2026-08-26): dùng lại agg.pendingRowIndexes (đã có từ lần đọc
+  // SOP_Plan bên trong oemAppAggregateSopPeriod_ ở trên) thay vì đọc lại
+  // getDataRange() lần 2 rồi quét từng dòng — SOP_Plan có thể lên tới hàng
+  // nghìn dòng. Các dòng cần đánh dấu Đã duyệt nằm rải rác (nhiều Sale/nhiều
+  // đợt gửi khác nhau qua thời gian), không liền nhau, nên đọc nguyên khối
+  // cột Trạng thái (H) và Người duyệt/Ngày duyệt (J-K) 1 LẦN, sửa đúng những
+  // dòng cần đổi trong bộ nhớ, rồi ghi lại nguyên khối — CỐ ĐỊNH 2 lệnh ghi dù
+  // đợt duyệt có bao nhiêu dòng, thay vì 2 lệnh × N dòng.
   var planSheet = oemAppGetSopPlanSheet_();
-  var planRows = planSheet.getDataRange().getValues();
-  var now = Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH:mm');
-  for (var i = 1; i < planRows.length; i++) {
-    if (oemAppSopNormalizePeriod_(planRows[i][0]) === String(anchor) && String(planRows[i][7]) === 'Chờ duyệt') {
-      // Columns 8-11 are Trạng thái | Ngày gửi | Người duyệt | Ngày duyệt —
-      // a contiguous 3-wide write starting at 8 used to land on 8,9,10
-      // (Trạng thái, Ngày gửi, Người duyệt), stomping the real "Ngày gửi"
-      // with the approver's name and leaving "Ngày duyệt" blank. Trạng thái
-      // (8) is separate from Người duyệt/Ngày duyệt (10-11) so "Ngày gửi" (9)
-      // is never touched.
-      planSheet.getRange(i + 1, 8, 1, 1).setValue('Đã duyệt');
-      planSheet.getRange(i + 1, 10, 1, 2).setValues([[user.name, now]]);
-    }
+  var planLastRow = planSheet.getLastRow();
+  if (planLastRow > 1) {
+    var planDataRowCount = planLastRow - 1; // dữ liệu từ dòng 2
+    var now = Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH:mm');
+    var colH = planSheet.getRange(2, 8, planDataRowCount, 1).getValues();
+    var colJK = planSheet.getRange(2, 10, planDataRowCount, 2).getValues();
+    agg.pendingRowIndexes.forEach(function (rowIndex) {
+      var idx = rowIndex - 2;
+      if (idx < 0 || idx >= planDataRowCount) return;
+      colH[idx][0] = 'Đã duyệt';
+      colJK[idx][0] = user.name;
+      colJK[idx][1] = now;
+    });
+    planSheet.getRange(2, 8, planDataRowCount, 1).setValues(colH);
+    planSheet.getRange(2, 10, planDataRowCount, 2).setValues(colJK);
   }
 
   return { ok: true, skuCount: publishSkus.length, monthLabels: agg.monthLabels };
@@ -587,5 +610,6 @@ function oemAppSopDiag_() {
 // troubleshooting (it only invalidates a cache key, never touches real data).
 function oemAppForceRefreshBootstrap_() {
   oemAppInvalidateBootstrap_();
+  oemAppInvalidateCatalog_();
   return { ok: true };
 }

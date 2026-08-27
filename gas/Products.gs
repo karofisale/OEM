@@ -179,7 +179,13 @@ function oemAppAddMaterial_(token, material) {
     cateId, material.sku, material.name || '', material.group || '',
     material.alias || '', material.suggestedPrice || 0, '', '', material.exclusiveTo || ''
   ]);
-  oemAppInvalidateBootstrap_();
+  // Perf (2026-08-26): sản phẩm nằm trong khối "catalog" cache riêng (xem
+  // SalesData.gs) vì materials được tính lại từ TOÀN BỘ lịch sử giao dịch —
+  // đắt hơn nhiều so với clients/plans. Chỉ bump đúng version này thay vì
+  // oemAppInvalidateBootstrap_ (vốn cũng đúng vì cache key ngoài đã gộp cả 2
+  // version, nhưng gọi nhầm hàm kia sẽ vô tình bắt clients/plans build lại dù
+  // không đổi).
+  oemAppInvalidateCatalog_();
   return { ok: true };
 }
 
@@ -219,7 +225,13 @@ function oemAppEditMaterial_(token, sku, updates) {
     // Cols 7-8 (Duyet gia/Ngay duyet) round-trip unchanged — this flow never touches them.
     sheet.getRange(rowIndex, 1, 1, 9).setValues([[cateId, sku, name, group, alias, suggestedPrice, existing[6], existing[7], exclusiveTo]]);
   }
-  oemAppInvalidateBootstrap_();
+  // Perf (2026-08-26): sản phẩm nằm trong khối "catalog" cache riêng (xem
+  // SalesData.gs) vì materials được tính lại từ TOÀN BỘ lịch sử giao dịch —
+  // đắt hơn nhiều so với clients/plans. Chỉ bump đúng version này thay vì
+  // oemAppInvalidateBootstrap_ (vốn cũng đúng vì cache key ngoài đã gộp cả 2
+  // version, nhưng gọi nhầm hàm kia sẽ vô tình bắt clients/plans build lại dù
+  // không đổi).
+  oemAppInvalidateCatalog_();
   return { ok: true };
 }
 
@@ -230,18 +242,45 @@ function oemAppEditMaterial_(token, sku, updates) {
 // SKU that isn't already in the catalog); per-row targeted writes since the
 // approved rows are scattered across the sheet, not contiguous like a fresh
 // import block.
+// Perf (2026-08-26): đọc nguyên khối cột F-H (Giá bán/Duyệt giá/Ngày duyệt)
+// và J-K (Giá KM/SL KM) 1 LẦN, sửa đúng các dòng cần đổi trong bộ nhớ, rồi
+// ghi lại nguyên khối — LUÔN 4 lệnh Sheet cố định dù đợt duyệt có bao nhiêu
+// SKU, thay vì 2-3 lệnh riêng × N dòng (rowIndex của các SKU nằm rải rác khắp
+// Products nên không thể gộp thành 1 vùng liền như cách làm ở SOP_Plan).
 function oemAppApplyPriceListToProducts_(items) {
   var sheet = oemAppGetProductsSheet_();
   var catalog = oemAppLoadMaterialCatalog_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+
+  var dataRowCount = lastRow - 1; // dữ liệu từ dòng 2
+  var blockFH = sheet.getRange(2, 6, dataRowCount, 3).getValues();
+  var blockJK = sheet.getRange(2, 10, dataRowCount, 2).getValues();
+
   var appliedCount = 0;
   items.forEach(function (item) {
     var entry = catalog.bySku[String(item.sku)];
     if (!entry) return; // SKU removed from Products since the proposal was made — skip, don't invent a row
-    sheet.getRange(entry.rowIndex, 6, 1, 1).setValue(item.retail || 0);
-    sheet.getRange(entry.rowIndex, 7, 1, 2).setValues([['Đã áp dụng', item.effectiveDate || '']]);
-    sheet.getRange(entry.rowIndex, 10, 1, 2).setValues([[item.promoPrice || 0, item.promoQty || 0]]);
+    var idx = entry.rowIndex - 2;
+    if (idx < 0 || idx >= dataRowCount) return;
+    blockFH[idx][0] = item.retail || 0;
+    blockFH[idx][1] = 'Đã áp dụng';
+    blockFH[idx][2] = item.effectiveDate || '';
+    blockJK[idx][0] = item.promoPrice || 0;
+    blockJK[idx][1] = item.promoQty || 0;
     appliedCount++;
   });
-  oemAppInvalidateBootstrap_();
+
+  if (appliedCount) {
+    sheet.getRange(2, 6, dataRowCount, 3).setValues(blockFH);
+    sheet.getRange(2, 10, dataRowCount, 2).setValues(blockJK);
+    // Perf (2026-08-26): sản phẩm nằm trong khối "catalog" cache riêng (xem
+  // SalesData.gs) vì materials được tính lại từ TOÀN BỘ lịch sử giao dịch —
+  // đắt hơn nhiều so với clients/plans. Chỉ bump đúng version này thay vì
+  // oemAppInvalidateBootstrap_ (vốn cũng đúng vì cache key ngoài đã gộp cả 2
+  // version, nhưng gọi nhầm hàm kia sẽ vô tình bắt clients/plans build lại dù
+  // không đổi).
+  oemAppInvalidateCatalog_();
+  }
   return appliedCount;
 }

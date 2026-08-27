@@ -49,6 +49,31 @@ function oemAppPriceProposalSaleKey_(user) {
   return user.saleId || user.name;
 }
 
+// Perf (2026-08-26): màn "Chờ Duyệt" bảng giá bị unmount/mount lại mỗi lần
+// chuyển qua lại các tab con trong "Sản phẩm & Bảng giá" — TTL ngắn tương tự
+// getDebtView, chỉ để đỡ đọc lại Gia_DeXuat mỗi lần bấm qua lại trong vài
+// chục giây, KHÔNG dùng cho oemAppApprovePriceBatch_/oemAppRejectPriceBatch_
+// (2 hàm đó luôn cần rowIndex mới nhất để ghi đúng dòng, không được đọc từ cache).
+var OEMAPP_PRICEPLAN_CACHE_KEY_ = 'oemapp_priceplan_pending_v1';
+var OEMAPP_PRICEPLAN_TTL_SECONDS_ = 90;
+var OEMAPP_PRICEPLAN_VER_KEY_ = 'oemapp_priceplan_ver';
+
+function oemAppPricePlanVersion_() {
+  var cache = CacheService.getScriptCache();
+  var v = cache.get(OEMAPP_PRICEPLAN_VER_KEY_);
+  if (!v) {
+    v = Utilities.getUuid().slice(0, 8);
+    cache.put(OEMAPP_PRICEPLAN_VER_KEY_, v, 21600);
+  }
+  return v;
+}
+
+function oemAppInvalidatePricePlanCache_() {
+  try {
+    CacheService.getScriptCache().put(OEMAPP_PRICEPLAN_VER_KEY_, Utilities.getUuid().slice(0, 8), 21600);
+  } catch (err) {}
+}
+
 function oemAppLoadPriceProposalRows_() {
   var sheet = oemAppGetPriceProposalSheet_();
   var rows = sheet.getDataRange().getValues();
@@ -119,9 +144,13 @@ function oemAppLoadClientPricingMap_() {
 // phải ghi từng dòng. Tab phải được tạo tay từ trước (không tự tạo) vì đây
 // là lần ghi ĐẦU TIÊN của app vào tab này — an toàn hơn để lỗi rõ ràng "chưa
 // có tab" thay vì tự ý tạo 1 tab công nợ/giá mới mà người dùng chưa chuẩn bị.
-function oemAppApplyClientPriceList_(clientCode, items, effectiveDate, approverName, approvedAtStr) {
+//
+// existingMap: TRUYỀN VÀO từ ngoài (không tự đọc lại ở đây) — perf (2026-08-26):
+// oemAppApprovePriceBatch_ có thể gọi hàm này nhiều lần trong 1 lượt Duyệt
+// (1 lần/khách hàng có giá riêng trong đợt) — đọc lại cả tab Gia_KhachHang mỗi
+// lần là lãng phí, gọi 1 lần duy nhất ở ngoài rồi dùng chung.
+function oemAppApplyClientPriceList_(clientCode, items, effectiveDate, approverName, approvedAtStr, existingMap) {
   var sheet = oemAppGetClientPricingSheet_(); // throws rõ ràng nếu chưa tạo tab
-  var existingMap = oemAppLoadClientPricingMap_();
 
   var lastRow = sheet.getLastRow();
   var existingCount = Math.max(0, lastRow - 1);
@@ -217,6 +246,7 @@ function oemAppSubmitPriceProposal_(token, rows) {
   sheet.getRange(startRow, 1, blockAK.length, 11).setValues(blockAK);
   sheet.getRange(startRow, 13, blockMQ.length, 5).setValues(blockMQ);
 
+  oemAppInvalidatePricePlanCache_();
   return { ok: true, batchId: batchId, savedCount: blockAK.length };
 }
 
@@ -225,8 +255,30 @@ function oemAppSubmitPriceProposal_(token, rows) {
 function oemAppGetPendingPriceProposals_(token) {
   var user = oemAppRequireSession_(token);
   oemAppRequirePriceApproveRole_(user);
-  var rows = oemAppLoadPriceProposalRows_().filter(function (r) { return r.status === 'Chờ duyệt'; });
-  return { rows: rows };
+
+  var cache = CacheService.getScriptCache();
+  var cacheKey = OEMAPP_PRICEPLAN_CACHE_KEY_ + '_' + oemAppPricePlanVersion_();
+  var cached = cache.get(cacheKey);
+  var rows = null;
+  if (cached) {
+    try { rows = JSON.parse(cached); } catch (err) {}
+  }
+  if (!rows) {
+    rows = oemAppLoadPriceProposalRows_().filter(function (r) { return r.status === 'Chờ duyệt'; });
+    try {
+      var json = JSON.stringify(rows);
+      if (json.length < 90000) cache.put(cacheKey, json, OEMAPP_PRICEPLAN_TTL_SECONDS_);
+    } catch (err) {}
+  }
+
+  var result = { rows: rows };
+  // Perf (2026-08-26): gộp luôn giá vốn vào đây cho Creator — PriceApprovePanel
+  // trước đây gọi thêm 1 API getCostBySku riêng ngay khi mở màn, giờ chỉ 1
+  // lượt gọi duy nhất.
+  if (user.role === 'creator') {
+    result.costBySku = oemAppGetCostBySku_(token).bySku;
+  }
+  return result;
 }
 
 // Duyệt 1 đợt — ghi giá mới NGAY (không có cơ chế hẹn giờ áp dụng sau),
@@ -276,16 +328,34 @@ function oemAppApprovePriceBatch_(token, batchId, effectiveDate, overrideRows) {
     generalItems.forEach(function (item) { item.effectiveDate = effectiveDate || ''; });
     appliedCount += oemAppApplyPriceListToProducts_(generalItems);
   }
-  Object.keys(byClient).forEach(function (code) {
-    appliedCount += oemAppApplyClientPriceList_(code, byClient[code], effectiveDate, user.name, now);
-  });
+  var clientCodes = Object.keys(byClient);
+  if (clientCodes.length) {
+    // Đọc 1 LẦN DUY NHẤT dù đợt này có nhiều khách hàng — trước đây mỗi
+    // khách trong đợt lại đọc lại cả tab Gia_KhachHang riêng.
+    var clientPricingMap = oemAppLoadClientPricingMap_();
+    clientCodes.forEach(function (code) {
+      appliedCount += oemAppApplyClientPriceList_(code, byClient[code], effectiveDate, user.name, now, clientPricingMap);
+    });
+  }
 
-  batchRows.forEach(function (r) {
-    // Cột L (% tăng/giảm) bị bỏ qua có chủ đích — xem ghi chú đầu file.
-    sheet.getRange(r.rowIndex, 13, 1, 1).setValue('Đã duyệt');
-    sheet.getRange(r.rowIndex, 14, 1, 3).setValues([[effectiveDate || '', user.name, now]]);
-  });
+  // Cột L (% tăng/giảm) bị bỏ qua có chủ đích — xem ghi chú đầu file. batchRows
+  // luôn liền nhau về vị trí dòng thật (1 đợt được ghi 1 lần bằng 1 khối liền ở
+  // oemAppSubmitPriceProposal_) — ghi trạng thái/ngày duyệt cho cả đợt bằng 1
+  // khối thay vì 2 lệnh × N dòng, có kiểm tra liền nhau để an toàn nếu không.
+  var isContiguous = batchRows.every(function (r, idx) { return r.rowIndex === batchRows[0].rowIndex + idx; });
+  if (isContiguous) {
+    var startRow = batchRows[0].rowIndex;
+    var n = batchRows.length;
+    sheet.getRange(startRow, 13, n, 1).setValues(batchRows.map(function () { return ['Đã duyệt']; }));
+    sheet.getRange(startRow, 14, n, 3).setValues(batchRows.map(function () { return [effectiveDate || '', user.name, now]; }));
+  } else {
+    batchRows.forEach(function (r) {
+      sheet.getRange(r.rowIndex, 13, 1, 1).setValue('Đã duyệt');
+      sheet.getRange(r.rowIndex, 14, 1, 3).setValues([[effectiveDate || '', user.name, now]]);
+    });
+  }
 
+  oemAppInvalidatePricePlanCache_();
   return { ok: true, appliedCount: appliedCount, effectiveDate: effectiveDate || '' };
 }
 
@@ -306,5 +376,6 @@ function oemAppRejectPriceBatch_(token, batchId, note) {
     if (note) sheet.getRange(r.rowIndex, 17, 1, 1).setValue(note);
   });
 
+  oemAppInvalidatePricePlanCache_();
   return { ok: true, rejectedCount: batchRows.length };
 }
