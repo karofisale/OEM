@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { BarChart3, User, Calendar, CalendarDays, Table, LayoutGrid } from 'lucide-react';
+import KeepAliveTab from './KeepAliveTab';
 import DtSaleReport from './reports/DtSaleReport';
 import DtThangReport from './reports/DtThangReport';
 import DtNgayReport from './reports/DtNgayReport';
@@ -80,11 +81,16 @@ export default function RevenueReports({ transactions, clients, activeUser, base
         </div>
       </div>
 
-      {reportTab === 'dt-sale' && (
+      {/* Perf (2026-08-27): giữ nguyên 3 tab báo cáo (KeepAliveTab) thay vì
+          unmount. Không panel nào gọi backend ở đây, nhưng mỗi tab tổng hợp lại
+          TOÀN BỘ lịch sử giao dịch bằng useMemo — bấm qua lại giữa 3 tab trước
+          đây là tính lại từ đầu mỗi lần, kèm mất bộ lọc năm/tháng/tuần/sale và
+          trang đang xem. */}
+      <KeepAliveTab isActive={reportTab === 'dt-sale'}>
         <DtSaleReport transactions={scopedTransactions} viewMode={viewMode} />
-      )}
+      </KeepAliveTab>
 
-      {reportTab === 'dt-thang' && (
+      <KeepAliveTab isActive={reportTab === 'dt-thang'}>
         <DtThangReport
           transactions={scopedTransactions}
           salesList={salesList}
@@ -92,16 +98,16 @@ export default function RevenueReports({ transactions, clients, activeUser, base
           viewMode={viewMode}
           baselines2025={baselines2025}
         />
-      )}
+      </KeepAliveTab>
 
-      {reportTab === 'kh-date' && (
+      <KeepAliveTab isActive={reportTab === 'kh-date'}>
         <DtNgayReport
           transactions={scopedTransactions}
           salesList={salesList}
           canFilterAllSales={canFilterAllSales}
           viewMode={viewMode}
         />
-      )}
+      </KeepAliveTab>
     </div>
   );
 }

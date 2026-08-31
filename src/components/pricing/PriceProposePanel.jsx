@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Filter, Save, Users } from 'lucide-react';
 import * as api from '../../services/api';
 import Pagination, { usePagedSlice } from '../Pagination';
@@ -31,11 +31,30 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
   const [isSaving, setIsSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
+  // Perf (2026-08-27): nhớ lại giá riêng của từng khách đã tra trong phiên này.
+  // Trước đây mỗi lần đổi ô chọn khách là một lượt gọi backend mới, nên xem qua
+  // lại 3 khách = 6 lượt gọi — trên đường mạng ~50% lượt bị lỗi phải retry
+  // (xem đầu src/services/api.js) thì đó là vài giây chờ mỗi lần bấm. Cache
+  // sống theo vòng đời panel, mất khi rời hẳn trang, nên không có nguy cơ giữ
+  // số cũ qua phiên làm việc khác.
+  const overridesCacheRef = useRef({}); // clientCode -> overrides object
+
   useEffect(() => {
     if (!clientCode) { setClientOverrides({}); return; }
+
+    const cached = overridesCacheRef.current[clientCode];
+    if (cached) { setClientOverrides(cached); return; }
+
+    let cancelled = false;
     api.getClientPriceOverrides(token, clientCode)
-      .then((res) => setClientOverrides(res.overrides || {}))
-      .catch(() => setClientOverrides({}));
+      .then((res) => {
+        const overrides = res.overrides || {};
+        overridesCacheRef.current[clientCode] = overrides;
+        if (!cancelled) setClientOverrides(overrides);
+      })
+      .catch(() => { if (!cancelled) setClientOverrides({}); });
+
+    return () => { cancelled = true; };
   }, [token, clientCode]);
 
   const groupsList = useMemo(() => {

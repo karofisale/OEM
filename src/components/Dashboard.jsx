@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { monthSortValue } from '../utils/period';
 import {
   TrendingUp, 
@@ -10,40 +10,62 @@ import {
 } from 'lucide-react';
 
 export default function Dashboard({ transactions = [], clients = [], materials = [], plans = [] }) {
-  // Compute safe KPI metrics
-  const totalRevenue = transactions.reduce((sum, t) => sum + (t.netRevenue || t.revenue || 0), 0);
-  const totalQty = transactions.reduce((sum, t) => sum + (t.qty || 0), 0);
+  // Perf (2026-08-27): tất cả các phép tổng hợp dưới đây đều quét TRỌN mảng
+  // transactions (lịch sử đầy đủ, mọi năm). Trước đây chúng nằm thẳng trong
+  // thân hàm nên chạy lại mỗi lần render — và vì KeepAliveTab giữ Dashboard
+  // mounted cả khi người dùng đang ở tab khác, "mỗi lần render" nghĩa là mỗi
+  // lần đổi tab và cả mỗi lần gập/mở sidebar. Gộp thành 1 lượt quét duy nhất
+  // trong useMemo, chỉ tính lại khi transactions/clients thật sự đổi.
+  const {
+    totalRevenue,
+    totalQty,
+    totalTransactionsCount,
+    monthlyList,
+    topClients
+  } = useMemo(() => {
+    let revenue = 0;
+    let qty = 0;
+
+    // Monthly breakdown. Rows with no month used to be filed under a hardcoded
+    // 'T08-2026', quietly inflating that one month with revenue that belongs
+    // elsewhere; they now get their own visible bucket instead.
+    const monthlyRevenueMap = new Map();
+    const clientRevMap = new Map();
+
+    transactions.forEach(t => {
+      const net = t.netRevenue || 0;
+      revenue += t.netRevenue || t.revenue || 0;
+      qty += t.qty || 0;
+
+      const month = t.month || 'Chưa rõ tháng';
+      monthlyRevenueMap.set(month, (monthlyRevenueMap.get(month) || 0) + net);
+
+      const name = t.clientCode || t.clientName || 'N/A';
+      clientRevMap.set(name, (clientRevMap.get(name) || 0) + net);
+    });
+
+    return {
+      totalRevenue: revenue,
+      totalQty: qty,
+      totalTransactionsCount: transactions.length,
+      // Chronological, not alphabetical: localeCompare puts 'T12-2025' after
+      // 'T08-2026' because it compares '1' against '8' character by character.
+      monthlyList: Array.from(monthlyRevenueMap.entries())
+        .sort((a, b) => monthSortValue(a[0]) - monthSortValue(b[0])),
+      topClients: Array.from(clientRevMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+    };
+  }, [transactions]);
+
   // No `|| 4` / `|| 1891` fallbacks here: those made an empty dataset render as
   // "4 Đối tác" and "1.891 Bản ghi", i.e. plausible-looking numbers that were
   // simply invented. If nothing loaded, the honest answer is 0.
-  const activeClientsCount = clients.filter(c => String(c.status || '').trim() === 'Active').length;
-  const totalTransactionsCount = transactions.length;
+  const activeClientsCount = useMemo(
+    () => clients.filter(c => String(c.status || '').trim() === 'Active').length,
+    [clients]
+  );
   const hasData = transactions.length > 0 || clients.length > 0;
-
-  // Monthly breakdown. Rows with no month used to be filed under a hardcoded
-  // 'T08-2026', quietly inflating that one month with revenue that belongs
-  // elsewhere; they now get their own visible bucket instead.
-  const monthlyRevenueMap = new Map();
-  transactions.forEach(t => {
-    const month = t.month || 'Chưa rõ tháng';
-    monthlyRevenueMap.set(month, (monthlyRevenueMap.get(month) || 0) + (t.netRevenue || 0));
-  });
-
-  // Chronological, not alphabetical: localeCompare puts 'T12-2025' after
-  // 'T08-2026' because it compares '1' against '8' character by character.
-  const monthlyList = Array.from(monthlyRevenueMap.entries())
-    .sort((a, b) => monthSortValue(a[0]) - monthSortValue(b[0]));
-
-  // Top 5 Clients
-  const clientRevMap = new Map();
-  transactions.forEach(t => {
-    const name = t.clientCode || t.clientName || 'N/A';
-    clientRevMap.set(name, (clientRevMap.get(name) || 0) + (t.netRevenue || 0));
-  });
-
-  const topClients = Array.from(clientRevMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
 
   // Say so plainly rather than rendering a dashboard full of zeros that reads
   // like a real (catastrophic) business result.

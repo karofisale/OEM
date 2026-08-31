@@ -370,11 +370,28 @@ function oemAppRejectPriceBatch_(token, batchId, note) {
   if (!batchRows.length) throw new Error('Không tìm thấy đợt đang chờ duyệt với mã này.');
 
   var now = Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH:mm');
-  batchRows.forEach(function (r) {
-    sheet.getRange(r.rowIndex, 13, 1, 1).setValue('Từ chối');
-    sheet.getRange(r.rowIndex, 15, 1, 2).setValues([[user.name, now]]);
-    if (note) sheet.getRange(r.rowIndex, 17, 1, 1).setValue(note);
-  });
+
+  // Perf (2026-08-27): cùng cách gom khối đã dùng ở oemAppApprovePriceBatch_ —
+  // vòng lặp cũ tốn tới 3 lệnh ghi MỖI DÒNG. batchRows luôn liền nhau về vị trí
+  // dòng thật (1 đợt được ghi 1 lần bằng 1 khối liền ở
+  // oemAppSubmitPriceProposal_), nên ghi cả đợt bằng 2-3 lệnh cố định; vẫn kiểm
+  // tra liền nhau để an toàn nếu một ngày nào đó điều đó không còn đúng.
+  var isContiguous = batchRows.every(function (r, idx) { return r.rowIndex === batchRows[0].rowIndex + idx; });
+  if (isContiguous) {
+    var startRow = batchRows[0].rowIndex;
+    var n = batchRows.length;
+    sheet.getRange(startRow, 13, n, 1).setValues(batchRows.map(function () { return ['Từ chối']; }));
+    sheet.getRange(startRow, 15, n, 2).setValues(batchRows.map(function () { return [user.name, now]; }));
+    if (note) {
+      sheet.getRange(startRow, 17, n, 1).setValues(batchRows.map(function () { return [note]; }));
+    }
+  } else {
+    batchRows.forEach(function (r) {
+      sheet.getRange(r.rowIndex, 13, 1, 1).setValue('Từ chối');
+      sheet.getRange(r.rowIndex, 15, 1, 2).setValues([[user.name, now]]);
+      if (note) sheet.getRange(r.rowIndex, 17, 1, 1).setValue(note);
+    });
+  }
 
   oemAppInvalidatePricePlanCache_();
   return { ok: true, rejectedCount: batchRows.length };

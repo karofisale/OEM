@@ -24,7 +24,7 @@ function todayStr() {
 // Gia_KhachHang tuỳ đợt là giá chung hay giá riêng) hoặc Từ chối cả đợt.
 // Cột Giá vốn (VAT)/LNG % chỉ hiện cho Creator — theo đúng yêu cầu, Admin
 // duyệt được giá nhưng không xem giá vốn.
-export default function PriceApprovePanel({ token, activeUser, onApproved }) {
+export default function PriceApprovePanel({ token, activeUser, refreshTick, onApproved }) {
   const toast = useToast();
   const isCreator = activeUser.role === 'creator';
   const [rows, setRows] = useState([]);
@@ -54,7 +54,10 @@ export default function PriceApprovePanel({ token, activeUser, onApproved }) {
     }
   };
 
-  useEffect(() => { fetchPending(); }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+  // refreshTick: panel này không còn remount khi chuyển sub-tab (KeepAliveTab),
+  // nên nó không tự biết là Sale vừa gửi thêm đợt đề xuất hoặc Creator vừa nhập
+  // giá vốn mới ở sub-tab bên cạnh — ProductPricing tăng tick để báo.
+  useEffect(() => { fetchPending(); }, [token, refreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const batches = useMemo(() => {
     const order = [];

@@ -15,7 +15,7 @@ const fmtMoney = (v) => (v || 0).toLocaleString('vi-VN') + ' đ';
 // approving (overrideRows on api.approveSop) and a Sale filter shows each
 // Sale's own contribution alongside the aggregate — both purely on top of the
 // same one read, no second endpoint.
-export default function SopApprovePanel({ token, onApproved }) {
+export default function SopApprovePanel({ token, refreshTick, onApproved }) {
   const toast = useToast();
   const [data, setData] = useState(null); // { rows, detail, monthLabels, pendingCount, anchor }
   const [isLoading, setIsLoading] = useState(true);
@@ -43,7 +43,9 @@ export default function SopApprovePanel({ token, onApproved }) {
     }
   };
 
-  useEffect(() => { fetchPending(); }, [token]);
+  // refreshTick: panel không còn remount khi chuyển sub-tab (KeepAliveTab), nên
+  // cần được báo khi Sale vừa gửi kế hoạch mới ở tab Lập Kế Hoạch.
+  useEffect(() => { fetchPending(); }, [token, refreshTick]);
 
   const setCell = (sku, idx, value) => {
     setEditedSl((prev) => {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Package, DollarSign, ClipboardCheck, Calculator, Upload } from 'lucide-react';
+import KeepAliveTab from './KeepAliveTab';
 import ProductManagement from './ProductManagement';
 import PriceProposePanel from './pricing/PriceProposePanel';
 import PriceApprovePanel from './pricing/PriceApprovePanel';
@@ -13,6 +14,15 @@ import CostImportPanel from './pricing/CostImportPanel';
 // Vốn (chỉ Creator, nhập Excel giá vốn hàng tháng).
 export default function ProductPricing({ token, materials, clients, activeUser, onAddMaterial, onEditMaterial, onDataChanged }) {
   const [subView, setSubView] = useState('catalog'); // catalog | propose | approve | calculator | cost
+
+  // Perf (2026-08-27): sub-tab giờ giữ nguyên (KeepAliveTab) thay vì unmount
+  // khi chuyển — mỗi lần unmount là mất luôn dữ liệu đã tải, và mở lại phải
+  // gọi backend một lượt nữa trên đường mạng ~50% lượt gọi bị lỗi phải retry
+  // (xem đầu src/services/api.js). Đổi lại, panel đọc dữ liệu không còn tự
+  // refetch nhờ remount, nên phải báo cho nó biết khi sub-tab KHÁC vừa ghi:
+  // gửi đề xuất mới, hoặc nhập giá vốn mới, đều làm danh sách chờ duyệt cũ đi.
+  const [refreshTick, setRefreshTick] = useState(0);
+  const bumpRefresh = () => setRefreshTick((t) => t + 1);
 
   const canPropose = ['sale', 'admin', 'creator'].includes(activeUser.role);
   const canApprove = ['admin', 'creator'].includes(activeUser.role);
@@ -47,38 +57,54 @@ export default function ProductPricing({ token, materials, clients, activeUser, 
         )}
       </div>
 
-      {subView === 'catalog' && (
+      <KeepAliveTab isActive={subView === 'catalog'}>
         <ProductManagement
           materials={materials}
           activeUser={activeUser}
           onAddMaterial={onAddMaterial}
           onEditMaterial={onEditMaterial}
         />
+      </KeepAliveTab>
+
+      {canPropose && (
+        <KeepAliveTab isActive={subView === 'propose'}>
+          <PriceProposePanel
+            token={token}
+            materials={materials}
+            clients={clients}
+            activeUser={activeUser}
+            onSubmitted={bumpRefresh}
+          />
+        </KeepAliveTab>
       )}
 
-      {subView === 'propose' && canPropose && (
-        <PriceProposePanel
-          token={token}
-          materials={materials}
-          clients={clients}
-          activeUser={activeUser}
-        />
+      {canApprove && (
+        <KeepAliveTab isActive={subView === 'approve'}>
+          <PriceApprovePanel
+            token={token}
+            activeUser={activeUser}
+            refreshTick={refreshTick}
+            onApproved={() => { if (onDataChanged) onDataChanged(); setSubView('catalog'); }}
+          />
+        </KeepAliveTab>
       )}
 
-      {subView === 'approve' && canApprove && (
-        <PriceApprovePanel
-          token={token}
-          activeUser={activeUser}
-          onApproved={() => { if (onDataChanged) onDataChanged(); setSubView('catalog'); }}
-        />
+      {canCalculate && (
+        <KeepAliveTab isActive={subView === 'calculator'}>
+          <PriceCalculatorPanel token={token} materials={materials} />
+        </KeepAliveTab>
       )}
 
-      {subView === 'calculator' && canCalculate && (
-        <PriceCalculatorPanel token={token} materials={materials} />
-      )}
-
+      {/* Giá Vốn giữ nguyên kiểu unmount: panel này không gọi backend lúc mở,
+          nhưng có giữ file Excel đã chọn trong state — unmount khi rời đi là
+          cách reset ô chọn file sạch sẽ nhất, tránh việc quay lại thấy file
+          của lần nhập trước còn nằm đó rồi gửi lại lần hai. */}
       {subView === 'cost' && canImportCost && (
-        <CostImportPanel token={token} activeUser={activeUser} onImported={() => setSubView('catalog')} />
+        <CostImportPanel
+          token={token}
+          activeUser={activeUser}
+          onImported={() => { bumpRefresh(); setSubView('catalog'); }}
+        />
       )}
     </div>
   );

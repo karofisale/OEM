@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CalendarRange, ClipboardList, ClipboardCheck } from 'lucide-react';
+import KeepAliveTab from './KeepAliveTab';
 import SalesPlanViewPanel from './salesplan/SalesPlanViewPanel';
 import SalesPlanProposePanel from './salesplan/SalesPlanProposePanel';
 import SalesPlanApprovePanel from './salesplan/SalesPlanApprovePanel';
@@ -39,26 +40,37 @@ export default function SalesPlan({ token, plans, clients, plan2026, planDefault
         </div>
       </div>
 
-      {subView === 'view' && <SalesPlanViewPanel plans={plans} activeUser={activeUser} />}
+      {/* Perf (2026-08-27): giữ nguyên sub-tab (KeepAliveTab) thay vì unmount.
+          Cả 3 panel ở đây đọc `plans` từ prop (không tự gọi backend), nên cái
+          tiết kiệm được là toàn bộ useMemo đã tính (Đề Xuất gộp kế hoạch theo
+          khách/tuần trên cả danh sách) cùng bộ lọc tháng/sale và trang đang xem
+          — trước đây mất hết mỗi lần bấm sang tab khác rồi quay lại. */}
+      <KeepAliveTab isActive={subView === 'view'}>
+        <SalesPlanViewPanel plans={plans} activeUser={activeUser} />
+      </KeepAliveTab>
 
-      {subView === 'propose' && canPropose && (
-        <SalesPlanProposePanel
-          token={token}
-          clients={clients}
-          plans={plans}
-          plan2026={plan2026}
-          planDefaultMonth={planDefaultMonth}
-          activeUser={activeUser}
-          onSubmitted={onDataChanged}
-        />
+      {canPropose && (
+        <KeepAliveTab isActive={subView === 'propose'}>
+          <SalesPlanProposePanel
+            token={token}
+            clients={clients}
+            plans={plans}
+            plan2026={plan2026}
+            planDefaultMonth={planDefaultMonth}
+            activeUser={activeUser}
+            onSubmitted={onDataChanged}
+          />
+        </KeepAliveTab>
       )}
 
-      {subView === 'approve' && canApprove && (
-        <SalesPlanApprovePanel
-          token={token}
-          plans={plans}
-          onApproved={() => { onDataChanged(); setSubView('view'); }}
-        />
+      {canApprove && (
+        <KeepAliveTab isActive={subView === 'approve'}>
+          <SalesPlanApprovePanel
+            token={token}
+            plans={plans}
+            onApproved={() => { onDataChanged(); setSubView('view'); }}
+          />
+        </KeepAliveTab>
       )}
     </div>
   );

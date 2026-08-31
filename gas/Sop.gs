@@ -281,9 +281,20 @@ function oemAppSubmitSopDraft_(token, anchor, rows) {
   // là dòng rỗng và bỏ qua (`if (!r[2]) continue`) — coi như đã xoá dù vẫn còn
   // nằm vật lý, cùng kiểu đánh đổi đã chấp nhận cho các dòng trùng/hỏng cũ
   // (xem SETUP.md) — không cần đọc lại Sheet, không lệch chỉ số dòng nào.
-  removedSkus.forEach(function (sku) {
-    sheet.getRange(existingRowIndexBySku[sku], 3, 1, 1).setValue('');
-  });
+  // Perf (2026-08-27): các dòng bị bỏ nằm rải rác (Sale bỏ mã nào là tuỳ), nên
+  // thay vì 1 lệnh ghi MỖI mã bị bỏ, đọc `existing` (đã có sẵn từ lần đọc duy
+  // nhất ở trên), làm trống cột C trong bộ nhớ rồi ghi lại nguyên khối cột — 1
+  // lệnh ghi duy nhất dù bỏ bao nhiêu mã.
+  if (removedSkus.length) {
+    var dataRowCount = existing.length - 1; // dữ liệu từ dòng 2
+    removedSkus.forEach(function (sku) {
+      var idx = existingRowIndexBySku[sku] - 1; // rowIndex 1-based -> chỉ số trong `existing`
+      if (idx > 0 && idx < existing.length) existing[idx][2] = '';
+    });
+    var colC = [];
+    for (var ci = 1; ci < existing.length; ci++) colC.push([existing[ci][2]]);
+    sheet.getRange(2, 3, dataRowCount, 1).setValues(colC);
+  }
 
   var now = Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH:mm');
 

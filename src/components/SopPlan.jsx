@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CalendarClock, ClipboardList, ClipboardCheck } from 'lucide-react';
+import KeepAliveTab from './KeepAliveTab';
 import SopViewPanel from './sop/SopViewPanel';
 import SopPlanPanel from './sop/SopPlanPanel';
 import SopApprovePanel from './sop/SopApprovePanel';
@@ -47,25 +48,43 @@ export default function SopPlan({ token, activeUser, materials }) {
         </div>
       </div>
 
-      {subView === 'view' && (
-        <>
-          {canPlan && (
-            <SopMyPlanPanel
-              token={token}
-              refreshTick={refreshTick}
-              onSubmitted={bumpRefresh}
-            />
-          )}
-          <SopViewPanel token={token} refreshTick={refreshTick} />
-        </>
+      {/* Perf (2026-08-27): cả 3 sub-tab giữ nguyên (KeepAliveTab) thay vì
+          unmount khi chuyển. Mỗi panel ở đây đều gọi backend lúc mở, nên trước
+          đây bấm qua lại giữa Lập Kế Hoạch và Chờ Duyệt là gọi lại từ đầu mỗi
+          lần — trên đường mạng ~50% lượt gọi bị lỗi phải retry (xem đầu
+          src/services/api.js). refreshTick (đã có sẵn) là thứ giữ cho số liệu
+          đúng: mọi lần gửi/duyệt đều bump, giờ truyền cho CẢ 3 panel chứ không
+          chỉ 2 panel ở tab Xem SOP như trước. */}
+      <KeepAliveTab isActive={subView === 'view'}>
+        {canPlan && (
+          <SopMyPlanPanel
+            token={token}
+            refreshTick={refreshTick}
+            onSubmitted={bumpRefresh}
+          />
+        )}
+        <SopViewPanel token={token} refreshTick={refreshTick} />
+      </KeepAliveTab>
+
+      {canPlan && (
+        <KeepAliveTab isActive={subView === 'plan'}>
+          <SopPlanPanel
+            token={token}
+            materials={materials}
+            refreshTick={refreshTick}
+            onSubmitted={bumpRefresh}
+          />
+        </KeepAliveTab>
       )}
 
-      {subView === 'plan' && canPlan && (
-        <SopPlanPanel token={token} materials={materials} onSubmitted={bumpRefresh} />
-      )}
-
-      {subView === 'approve' && canApprove && (
-        <SopApprovePanel token={token} onApproved={() => { bumpRefresh(); setSubView('view'); }} />
+      {canApprove && (
+        <KeepAliveTab isActive={subView === 'approve'}>
+          <SopApprovePanel
+            token={token}
+            refreshTick={refreshTick}
+            onApproved={() => { bumpRefresh(); setSubView('view'); }}
+          />
+        </KeepAliveTab>
       )}
     </div>
   );

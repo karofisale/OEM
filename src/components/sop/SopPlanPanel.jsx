@@ -11,7 +11,7 @@ const PAGE_SIZE = 25;
 // Sale's bulk-entry screen: pick a period (confirmed up front so a late entry
 // early next month can't silently drift onto the wrong 4 months), filter the
 // product table down to what's worth touching, type quantities, save once.
-export default function SopPlanPanel({ token, materials, onSubmitted }) {
+export default function SopPlanPanel({ token, materials, refreshTick, onSubmitted }) {
   const toast = useToast();
   const [context, setContext] = useState(null); // { anchor, monthLabels, myDraft, priorApprovedBySku }
   const [isLoading, setIsLoading] = useState(true);
@@ -48,7 +48,10 @@ export default function SopPlanPanel({ token, materials, onSubmitted }) {
     }
   };
 
-  useEffect(() => { fetchContext(); }, [token]);
+  // refreshTick: panel không còn remount khi chuyển sub-tab (KeepAliveTab), nên
+  // sau mỗi lần gửi/duyệt phải tải lại context (kỳ hiện hành, bản nháp, số kỳ
+  // trước mang sang) thay vì dựa vào remount như trước.
+  useEffect(() => { fetchContext(); }, [token, refreshTick]);
 
   const groupsList = useMemo(() => {
     const set = new Set(materials.map(m => m.group).filter(Boolean));
