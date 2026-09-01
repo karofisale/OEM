@@ -9,6 +9,8 @@
 // gas/SETUP.md for deploy steps.
 export const API_URL = 'https://script.google.com/macros/s/AKfycbwKe1b7gUOnp9gPF_q6jlzTFIrD3DOtkFM8oMQf41D1iXGrEwmYElWZeupCNG-Szy7DfQ/exec';
 
+import { sharedSessionForOEM, clearSharedSession } from './karofiSession';
+
 const SESSION_KEY = 'oem_session_v1';
 const SESSION_TTL_MS = 6 * 60 * 60 * 1000; // 6h, matches the backend's cache TTL
 
@@ -99,6 +101,13 @@ async function retryOrThrow(fn, args, attempt, err) {
 }
 
 export function loadSession() {
+  // Phiên dùng chung của cổng VHKD được ưu tiên: luồng chính là "đăng nhập ở
+  // cổng rồi mở app", nên phiên vừa tạo ở cổng phải thắng phiên OEM cũ còn
+  // sót trong localStorage. Không có phiên chung thì dùng phiên riêng như cũ,
+  // nên người đang mở app lúc deploy không bị đăng xuất.
+  const shared = sharedSessionForOEM();
+  if (shared) return shared;
+
   try {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
@@ -115,6 +124,7 @@ export function loadSession() {
 
 export function clearSession() {
   localStorage.removeItem(SESSION_KEY);
+  clearSharedSession();   // đăng xuất một lần = ra khỏi cả ba app
 }
 
 export async function getUserList() {

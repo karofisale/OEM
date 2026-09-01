@@ -48,6 +48,12 @@ function oemAppLogin_(name, pin) {
 
 
 function oemAppRequireSession_(token) {
+  // Chấp nhận kép (Karofi ID, 2026-08): token dùng chung của cổng VHKD được
+  // kiểm chữ ký tại chỗ, không gọi mạng. Không phải token Karofi ID thì rơi
+  // xuống phiên cũ trong CacheService, nên không ai bị đăng xuất lúc deploy.
+  var shared = karofiSessionForOEM_(token);
+  if (shared) return shared;
+
   var raw = token ? CacheService.getScriptCache().get(token) : null;
   if (!raw) throw new Error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
   return JSON.parse(raw);
@@ -56,6 +62,11 @@ function oemAppRequireSession_(token) {
 
 function oemAppChangePassword_(token, oldPin, newPin) {
   var user = oemAppRequireSession_(token);
+  // Phiên từ Karofi ID: PIN không còn ở tab Users của Sheet OEM nữa, ghi vào
+  // đây là đổi một giá trị không ai dùng để xác thực.
+  if (user && user._kid) {
+    throw new Error('Đổi PIN tại cổng VHKD — một PIN dùng chung cho cả ba app.');
+  }
   if (!newPin || String(newPin).length < 4) {
     throw new Error('Mã PIN mới phải có ít nhất 4 ký tự.');
   }
