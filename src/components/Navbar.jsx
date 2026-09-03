@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut, Menu, KeyRound, Sun, Moon, Monitor } from 'lucide-react';
+import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut, Menu, KeyRound, Sun, Moon, Monitor, ArrowLeft } from 'lucide-react';
 import { loadTheme, applyTheme } from '../services/theme';
 
 export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSyncing, onRefreshData, onOpenMobileMenu, onOpenChangePassword }) {
@@ -53,6 +53,30 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
         >
           <Menu size={18} color="var(--karofi-cyan)" />
         </button>
+
+        {/* Đường về cổng. Cần thiết vì khi chạy như ứng dụng đã cài, cửa sổ
+            không có nút back của trình duyệt. */}
+        <a
+          href="/VHKD/"
+          title="Về Karofi Portal"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+            padding: '6px 10px',
+            borderRadius: '8px',
+            border: '1px solid var(--border-color)',
+            color: 'var(--text-secondary)',
+            textDecoration: 'none',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+            flexShrink: 0
+          }}
+        >
+          <ArrowLeft size={14} />
+          <span className="hide-mobile-xs">Portal</span>
+        </a>
 
         <div style={{
           width: '42px',
