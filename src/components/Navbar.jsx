@@ -1,8 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut, Menu, KeyRound, Sun, Moon, Monitor, ArrowLeft } from 'lucide-react';
 import { loadTheme, applyTheme } from '../services/theme';
+import { appKhacDungDuoc } from '../services/karofiSession';
 
 export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSyncing, onRefreshData, onOpenMobileMenu, onOpenChangePassword }) {
+  // Đọc một lần khi dựng: khối quyền nằm trong token, không đổi giữa các lần vẽ.
+  const [appKhac] = useState(() => appKhacDungDuoc('OEM'));
+
   const getRoleLabel = (role) => {
     switch (role) {
       case 'creator': return { text: '👑 Creator', badge: 'badge-amber' };
@@ -77,6 +81,33 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
           <ArrowLeft size={14} />
           <span className="hide-mobile-xs">Portal</span>
         </a>
+
+        {/* Chuyển sang app khác mà người này được vào, không phải đi vòng qua
+            cổng. Chỉ hiện khi đang dùng phiên chung — đăng nhập riêng bằng
+            ?direct=1 thì không có khối quyền nên mảng rỗng và không hiện gì. */}
+        {appKhac.map(a => (
+          <a
+            key={a.key}
+            href={a.href}
+            title={'Sang ' + a.ten}
+            className="hide-mobile-xs"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '6px 10px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color)',
+              color: 'var(--text-secondary)',
+              textDecoration: 'none',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+              flexShrink: 0
+            }}
+          >
+            {a.nhan}
+          </a>
+        ))}
 
         <div style={{
           width: '42px',
