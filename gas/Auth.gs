@@ -33,8 +33,19 @@ function oemAppGetUserList_() {
 
 function oemAppLogin_(name, pin) {
   var row = oemAppFindUserRow_(name);
-  if (!row || String(row[1]) !== String(pin)) {
+  if (!row || !pinVerify_(pin, row[1])) {
     throw new Error('Sai tên đăng nhập hoặc mã PIN.');
+  }
+  // Băm lại ngay khi ai đó đăng nhập bằng PIN còn dạng thô. Không chờ đợt
+  // chuyển đổi hàng loạt, và cũng không thay thế nó: người nào không bao giờ
+  // đăng nhập thẳng vào OEM nữa (giờ luồng chính là cổng VHKD) thì bản ghi
+  // thô của họ chỉ biến mất khi chạy setup_hashAllPins().
+  if (pinNeedsUpgrade_(row[1])) {
+    try {
+      oemAppWritePinRecord_(String(row[0]), pinRecord_(pin));
+    } catch (e) {
+      // Ghi hỏng thì vẫn cho đăng nhập — PIN vừa nhập là đúng. Lần sau thử lại.
+    }
   }
   var user = {
     name: String(row[0]),
@@ -80,11 +91,72 @@ function oemAppChangePassword_(token, oldPin, newPin) {
     }
   }
   if (rowIndex === -1) throw new Error('Không tìm thấy tài khoản.');
-  if (String(rows[rowIndex][1]) !== String(oldPin)) {
+  if (!pinVerify_(oldPin, rows[rowIndex][1])) {
     throw new Error('Mã PIN hiện tại không đúng.');
   }
-  sheet.getRange(rowIndex + 1, 2).setValue(String(newPin));
+  sheet.getRange(rowIndex + 1, 2).setValue(pinRecord_(newPin));
   return { ok: true };
+}
+
+/** Ghi bản ghi PIN cho một người, tìm theo tên ở cột A. */
+function oemAppWritePinRecord_(name, record) {
+  var sheet = oemAppGetSheetByGid_(OEMAPP_GIDS.USERS);
+  var rows = sheet.getDataRange().getValues();
+  var muc = String(name).trim().toLowerCase();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]).trim().toLowerCase() === muc) {
+      sheet.getRange(i + 1, 2).setValue(record);
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Băm toàn bộ PIN còn dạng thô trong tab Users. Chạy tay MỘT LẦN trong Apps
+ * Script editor. Mặc định chạy thử; truyền true mới ghi thật:
+ *
+ *   setup_hashAllPins()        xem sẽ đổi những dòng nào
+ *   setup_hashAllPins(true)    ghi thật
+ *
+ * Không in PIN ra log — mục đích của việc này là để PIN thôi nằm ở chỗ đọc được.
+ * Chạy lại lần nữa vô hại: bản ghi đã băm thì bỏ qua.
+ */
+function setup_hashAllPins(apply) {
+  var sheet = oemAppGetSheetByGid_(OEMAPP_GIDS.USERS);
+  var rows = sheet.getDataRange().getValues();
+  var doi = [], daBam = 0, trong = 0;
+
+  for (var i = 1; i < rows.length; i++) {
+    var ten = String(rows[i][0] || '').trim();
+    if (!ten) continue;
+    var rec = String(rows[i][1] == null ? '' : rows[i][1]).trim();
+    if (!rec) { trong++; continue; }
+    if (pinIsHashed_(rec)) { daBam++; continue; }
+    doi.push({ dong: i + 1, ten: ten, pin: rec });
+  }
+
+  var out = ['=== BĂM PIN TAB USERS ===',
+             'Đã băm sẵn: ' + daBam + ' · ô PIN trống: ' + trong +
+             ' · còn dạng thô: ' + doi.length];
+
+  if (!doi.length) {
+    out.push('Không còn gì để làm.');
+  } else if (!apply) {
+    out.push('CHẠY THỬ — chưa ghi gì. Sẽ băm PIN của: ' +
+             doi.map(function (d) { return d.ten; }).join(', '));
+    out.push('Ghi thật: setup_hashAllPins(true)');
+  } else {
+    doi.forEach(function (d) {
+      sheet.getRange(d.dong, 2).setValue(pinRecord_(d.pin));
+    });
+    SpreadsheetApp.flush();
+    out.push('ĐÃ BĂM ' + doi.length + ' dòng. PIN của mọi người KHÔNG đổi —');
+    out.push('họ vẫn đăng nhập bằng đúng PIN cũ, chỉ khác là Sheet không còn lưu nó.');
+  }
+
+  Logger.log(out.join(String.fromCharCode(10)));
+  return out.join(String.fromCharCode(10));
 }
 
 // ---------- Data readers (all require a valid session) ----------
