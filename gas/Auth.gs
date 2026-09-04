@@ -159,4 +159,21 @@ function setup_hashAllPins(apply) {
   return out.join(String.fromCharCode(10));
 }
 
+/**
+ * Bấm Run cho hàm này để BĂM THẬT.
+ *
+ * Cần một hàm riêng vì nút Run của trình soạn thảo Apps Script không truyền
+ * tham số nào: chọn setup_hashAllPins rồi bấm Run thì apply là undefined, và
+ * nó chỉ chạy thử. Đúng lý do đã phải thêm run_setPins bên Karofi ID.
+ *
+ * Trình tự nên theo:
+ *   1. Chạy setup_hashAllPins  -> xem danh sách sẽ đổi, chưa ghi gì
+ *   2. Chạy run_bamPin         -> ghi thật
+ *
+ * PIN của mọi người KHÔNG đổi. Chạy lại lần nữa vô hại.
+ */
+function run_bamPin() {
+  return setup_hashAllPins(true);
+}
+
 // ---------- Data readers (all require a valid session) ----------
