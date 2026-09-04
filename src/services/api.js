@@ -192,6 +192,13 @@ export async function getBootstrap(token) {
   return callApi('getBootstrap', [token]);
 }
 
+// plan2026 + baselines2025. Tách khỏi getBootstrap vì mỗi khối chỉ MỘT màn hình
+// dùng tới, mà trước đây mọi người mở app đều phải tải cả hai. Gọi khi mở đúng
+// màn cần chúng — xem App.jsx.
+export async function getReportContext(token) {
+  return callApi('getReportContext', [token]);
+}
+
 export async function addClient(token, client) {
   return callApi('addClient', [token, client]);
 }

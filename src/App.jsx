@@ -66,6 +66,9 @@ export default function App() {
   const [planDefaultMonth, setPlanDefaultMonth] = useState('');
   const [kits, setKits] = useState([]);
   const [baselines2025, setBaselines2025] = useState(new Map());
+  // Đã nạp plan2026 + baselines2025 chưa. Hai khối này đến từ endpoint riêng
+  // (getReportContext), chỉ nạp khi người dùng mở đúng màn cần tới.
+  const [daNapBaoCao, setDaNapBaoCao] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [bootstrapError, setBootstrapError] = useState('');
   // Tracks whether the FIRST bootstrap fetch has finished (success or fail) —
@@ -85,15 +88,40 @@ export default function App() {
     setVisitedTabs(prev => (prev.has(activeTab) ? prev : new Set(prev).add(activeTab)));
   }, [activeTab]);
 
+  // Nạp plan2026 + baselines2025 khi mở màn cần tới, không nạp lúc mở app.
+  //
+  // Hai màn này đều đã tải lười (React.lazy + KeepAliveTab), nên lượt gọi này
+  // chạy song song với việc tải chunk của màn — người dùng không chờ thêm.
+  // Nạp một lần cho cả phiên: đây là KPI năm và số nền 2025, không đổi trong
+  // ngày, và cả hai màn dùng chung một lượt gọi.
+  useEffect(() => {
+    const canDenBaoCao = activeTab === 'revenue-reports' || activeTab === 'sales-plan';
+    if (!canDenBaoCao || daNapBaoCao || !session?.token) return;
+    let huy = false;
+    api.getReportContext(session.token)
+      .then(d => {
+        if (huy) return;
+        setPlan2026(d.plan2026 || {});
+        setBaselines2025(new Map(Object.entries(d.baselines2025 || {})));
+        setDaNapBaoCao(true);
+      })
+      .catch(() => {
+        // Không đặt cờ daNapBaoCao: lần sau mở màn này sẽ thử lại. Hai màn vẫn
+        // hiện được, chỉ thiếu cột so sánh — không chặn việc.
+      });
+    return () => { huy = true; };
+  }, [activeTab, daNapBaoCao, session?.token]);
+
   const applyBootstrap = (data) => {
     setClients(data.clients || []);
     setTransactions(data.transactions || []);
     setMaterials(data.materials || []);
     setPlans(data.plans || []);
-    setPlan2026(data.plan2026 || {});
     setPlanDefaultMonth(data.planDefaultMonth || '');
     setKits(data.kits || []);
-    setBaselines2025(new Map(Object.entries(data.baselines2025 || {})));
+    // plan2026 và baselines2025 KHÔNG nằm trong bootstrap nữa. Cố ý cũng không
+    // xoá chúng ở đây: mỗi lần bấm "Đồng bộ Sheet" là một lượt applyBootstrap,
+    // mà xoá thì màn đang mở sẽ mất số đang xem rồi phải tải lại.
   };
 
   // Load business data once we have a valid session; re-run when the token changes.

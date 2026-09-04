@@ -17,6 +17,16 @@ const STORE = 'bootstrap';
 
 // Bumped when the payload SHAPE changes, so an old cached entry from a previous
 // deploy can never be handed to code that expects new fields.
+//
+// KHÔNG tăng ở đợt 2026-09-04, dù payload có đổi hình dạng: plan2026 và
+// baselines2025 được GỠ khỏi getBootstrap sang endpoint riêng. Bản cache cũ
+// chứa thêm hai khoá đó, mà applyBootstrap giờ không đọc tới — tức tương thích
+// một chiều, không có đường nào đưa dữ liệu thiếu vào code chờ dữ liệu đủ.
+// Tăng số này sẽ làm MỌI người mất cache và phải chờ một lượt bootstrap đầy đủ
+// ở lần mở kế tiếp, đổi lấy không gì cả.
+//
+// Quy tắc để lần sau khỏi phải suy lại: tăng khi payload THÊM hoặc ĐỔI NGHĨA
+// một khoá mà code mới cần; không cần tăng khi chỉ BỎ một khoá.
 const SCHEMA_VERSION = 1;
 
 function openDb() {

@@ -165,6 +165,7 @@ var oemAppApiMap_ = {
   getUserList: oemAppGetUserList_,
   login: oemAppLogin_,
   getBootstrap: oemAppGetBootstrap_,
+  getReportContext: oemAppGetReportContext_,
   addClient: oemAppAddClient_,
   editClient: oemAppEditClient_,
   addMaterial: oemAppAddMaterial_,

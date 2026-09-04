@@ -319,6 +319,38 @@ function oemAppBuildBootstrap_(scope) {
     return oemAppMatchesSale_(p.sale, scope);
   });
 
+  return {
+    clients: oemAppLoadClients_(),
+    transactions: transactions,
+    materials: materials,
+    plans: plans,
+    planDefaultMonth: oemAppPlanDefaultMonth_(),
+    // "Bộ sản phẩm" recipes (optional tab "Kits") — see Ai.gs. Same for every
+    // user regardless of scope, like materials: kit definitions aren't per-Sale.
+    kits: oemAppLoadKits_()
+  };
+  // plan2026 và baselines2025 KHÔNG còn ở đây — xem oemAppGetReportContext_.
+}
+
+
+/**
+ * Hai khối dữ liệu mà mỗi khối chỉ MỘT màn hình dùng tới.
+ *
+ * Trước đây cả hai nằm trong getBootstrap, tức mọi người mở app đều tải chúng
+ * dù phần lớn không bao giờ mở hai màn đó:
+ *   plan2026      -> chỉ SalesPlanProposePanel đọc (màn "Kế hoạch kinh doanh")
+ *   baselines2025 -> chỉ DtThangReport đọc (màn "Báo cáo doanh thu")
+ * Cả hai màn đều đã tải lười (React.lazy + KeepAliveTab), nên gọi endpoint này
+ * đúng lúc mount là không ai phải chờ thêm gì.
+ *
+ * Ép phạm vi giống hệt bản cũ trong getBootstrap: Sale chỉ thấy số của khách
+ * mình phụ trách. Đây là chỗ dễ sai nhất khi tách endpoint — tách ra mà quên
+ * ép phạm vi là mở rộng quyền đọc cho mọi Sale.
+ */
+function oemAppGetReportContext_(token) {
+  var user = oemAppRequireSession_(token);
+  var scope = oemAppScopeOf_(user);
+
   var plan2026Full = oemAppLoadPlan2026_();
   var plan2026 = {};
   Object.keys(plan2026Full).forEach(function (code) {
@@ -328,18 +360,8 @@ function oemAppBuildBootstrap_(scope) {
   });
 
   return {
-    clients: oemAppLoadClients_(),
-    transactions: transactions,
-    materials: materials,
-    plans: plans,
-    planDefaultMonth: oemAppPlanDefaultMonth_(),
-    // Mã KH -> [Tháng 1..Tháng 12] KPI, from tab "Plan2026". Scoped like plans:
-    // a Sale only sees their own clients' figures.
     plan2026: plan2026,
-    baselines2025: oemAppLoad2025Baselines_(),
-    // "Bộ sản phẩm" recipes (optional tab "Kits") — see Ai.gs. Same for every
-    // user regardless of scope, like materials: kit definitions aren't per-Sale.
-    kits: oemAppLoadKits_()
+    baselines2025: oemAppLoad2025Baselines_()
   };
 }
 
