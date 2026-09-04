@@ -37,6 +37,43 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1500;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Hàm KHÔNG được tự thử lại khi lỗi tầng vận chuyển.
+ *
+ * Vòng thử lại không phân biệt được "request chưa tới server" với "request ĐÃ
+ * CHẠY XONG nhưng phản hồi mất giữa đường". Mà theo đúng ghi chú phía trên,
+ * trường hợp thứ hai không hiếm — nó là lý do phải thử tới 4 lượt. Nên với
+ * hàm ghi, thử lại mù nghĩa là chạy lại một việc đã thành công.
+ *
+ * Chia làm hai nhóm, cùng bị chặn nhưng vì hai lý do khác nhau:
+ *
+ * A. GHI TRÙNG / GHI NHẦM — đây mới là thiệt hại thật:
+ *    saveOrder          ghi thẳng vào cuối bảng theo getLastRow() → đơn nhân đôi
+ *    addClient          appendRow vô điều kiện → khách nhân đôi
+ *    insertOrderLine    chèn dòng ở vị trí → dòng nhân đôi
+ *    deleteOrderLine    sheet.deleteRow(rowIndex) → lượt hai XOÁ NHẦM dòng đã
+ *                       dồn lên thế chỗ. Nguy hiểm nhất trong nhóm.
+ *    submitPriceProposal batchId sinh MỚI ở server mỗi lượt gọi → lượt hai tạo
+ *                       thêm một đợt chờ duyệt y hệt, không nhận ra là trùng
+ *
+ * B. DỮ LIỆU AN TOÀN nhưng lượt hai báo lỗi sai sự thật, người dùng tưởng
+ *    hỏng rồi làm lại: addMaterial ("mã SKU đã có"), deleteOrder ("không tìm
+ *    thấy đơn"), approveSop / approvePriceBatch / rejectPriceBatch ("không có
+ *    gì đang chờ duyệt"), changePassword ("sai PIN cũ" — PIN đã đổi rồi).
+ *
+ * CỐ Ý KHÔNG nằm trong danh sách: các hàm upsert theo khoá — submitSalesPlan,
+ * submitSopDraft, approveSalesPlan, editClient, editMaterial, updateOrderLine,
+ * importDebtExcel, importCostExcel. Gửi lại cùng payload cho ra đúng cùng kết
+ * quả (lượt hai đọc lại Sheet và thấy dòng đã có, nên sửa chứ không thêm). Đây
+ * lại đúng là các lượt gửi to và hay dùng nhất — chặn thử lại ở đây là bắt
+ * người dùng nhập lại cả bảng mỗi lần mạng chập.
+ */
+const NON_IDEMPOTENT_FNS = new Set([
+  'saveOrder', 'addClient', 'insertOrderLine', 'deleteOrderLine', 'submitPriceProposal',
+  'addMaterial', 'deleteOrder', 'approveSop', 'approvePriceBatch', 'rejectPriceBatch',
+  'changePassword'
+]);
+
 async function callApi(fn, args = []) {
   if (!API_URL) {
     throw new Error('Backend chưa được cấu hình (API_URL trống trong src/services/api.js). Xem gas/SETUP.md.');
@@ -93,6 +130,15 @@ async function callApiAttempt(fn, args, attempt) {
 }
 
 async function retryOrThrow(fn, args, attempt, err) {
+  // Hàm ghi không lặp lại được: hỏng thì báo ngay và nói rõ phải kiểm tra
+  // trước khi bấm lại — vì rất có thể lượt vừa rồi đã ghi xong.
+  if (NON_IDEMPOTENT_FNS.has(fn)) {
+    throw new Error(
+      err.message +
+      ' — thao tác này KHÔNG được tự thử lại. Hãy mở lại màn hình để kiểm tra ' +
+      'xem việc vừa rồi đã được ghi chưa, rồi mới bấm lại.'
+    );
+  }
   if (attempt < MAX_RETRIES) {
     await sleep(RETRY_DELAY_MS * (attempt + 1));
     return callApiAttempt(fn, args, attempt + 1);
