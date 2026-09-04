@@ -3,18 +3,38 @@ import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import LoginModal from './components/LoginModal';
 import ChangePasswordModal from './components/ChangePasswordModal';
-import AIOrderAgent from './components/AIOrderAgent';
-import AiChatWidget from './components/AiChatWidget';
-import OrdersReview from './components/OrdersReview';
-import RevenueReports from './components/RevenueReports';
-import Dashboard from './components/Dashboard';
-import TransactionGrid from './components/TransactionGrid';
-import ProductPricing from './components/ProductPricing';
-import ClientManagement from './components/ClientManagement';
-import SalesPlan from './components/SalesPlan';
-import SopPlan from './components/SopPlan';
-import DebtManagement from './components/DebtManagement';
 import LoadingScreen from './components/LoadingScreen';
+
+/* Tải lười theo TAB (2026-09-04).
+ *
+ * Trước đây cả 10 tab nằm trong một gói duy nhất 393KB: người vào chỉ để xem
+ * doanh thu vẫn tải cả phần quản lý giá, SOP, công nợ và AI agent. FC cùng cỡ
+ * ứng dụng nhưng đã tách từ lâu (Dashboard/Exports/các modal nhập liệu là
+ * chunk riêng) — đây là chép lại đúng khuôn đó.
+ *
+ * Khớp rất gọn với KeepAliveTab: nó trả null trước lần mở đầu tiên, nên chunk
+ * của một tab CHƯA hề được yêu cầu tải cho tới khi người dùng bấm vào tab đó.
+ * Ranh giới Suspense nằm trong chính KeepAliveTab, mỗi tab một cái, nên lượt
+ * tải chunk không làm nháy tab đang xem.
+ *
+ * AiChatWidget KHÔNG tải lười: nó là widget nổi luôn có mặt trên mọi tab, tách
+ * ra chỉ thêm một lượt request mà không bỏ được byte nào.
+ *
+ * AIOrderAgent là tab mặc định nên gần như luôn được tải — nhưng tách vẫn có
+ * lợi: nó kéo theo services/aiAgent.js, và giờ lượt tải đó chạy SONG SONG với
+ * request getBootstrap thay vì nằm chặn trước nó. */
+const AIOrderAgent = React.lazy(() => import('./components/AIOrderAgent'));
+const OrdersReview = React.lazy(() => import('./components/OrdersReview'));
+const RevenueReports = React.lazy(() => import('./components/RevenueReports'));
+const Dashboard = React.lazy(() => import('./components/Dashboard'));
+const TransactionGrid = React.lazy(() => import('./components/TransactionGrid'));
+const ProductPricing = React.lazy(() => import('./components/ProductPricing'));
+const ClientManagement = React.lazy(() => import('./components/ClientManagement'));
+const SalesPlan = React.lazy(() => import('./components/SalesPlan'));
+const SopPlan = React.lazy(() => import('./components/SopPlan'));
+const DebtManagement = React.lazy(() => import('./components/DebtManagement'));
+
+import AiChatWidget from './components/AiChatWidget';
 import KeepAliveTab from './components/KeepAliveTab';
 import { RefreshCw } from 'lucide-react';
 

@@ -12,30 +12,42 @@ function oemAppFindUserRow_(name) {
   return null;
 }
 
-// Public (no token needed) — used to populate the login picker. Never
-// includes the PIN column.
-
-// Public (no token needed) — used to populate the login picker. Never
-// includes the PIN column.
+/**
+ * Danh sách tên cho ô chọn ở màn hình đăng nhập DỰ PHÒNG (?direct=1).
+ *
+ * Bắt buộc mở, không kiểm token: chưa đăng nhập thì lấy đâu ra token. Mà
+ * backend này deploy ở chế độ "Anyone", nên bất cứ ai trên internet cũng gọi
+ * được — coi kết quả của hàm này là công khai.
+ *
+ * Vì vậy chỉ trả về TÊN. Bản cũ trả kèm role và saleId, tức công bố luôn ai là
+ * admin, ai là creator — đúng thứ người muốn dò PIN cần để chọn mục tiêu. Cái
+ * giá phải trả là màn hình dự phòng mất cái huy hiệu vai trò, không đáng kể.
+ *
+ * Không bao giờ chạm cột PIN.
+ */
 function oemAppGetUserList_() {
   var rows = oemAppGetRows_(OEMAPP_GIDS.USERS);
   return rows.slice(1)
     .filter(function (r) { return r[0]; })
-    .map(function (r) {
-      return {
-        name: String(r[0]),
-        role: String(r[2] || 'sale').toLowerCase(),
-        saleId: String(r[4] || r[3] || '')
-      };
-    });
+    .map(function (r) { return { name: String(r[0]) }; });
 }
 
 
 function oemAppLogin_(name, pin) {
+  // Chặn dò PIN: đếm lần sai và tạm khoá — xem LoginThrottle.gs. Kiểm TRƯỚC
+  // khi đọc tab Users, để lượt gọi của người đang bị khoá không tốn một lượt
+  // đọc Sheet nào.
+  loginThrottleAssert_(name);
+
   var row = oemAppFindUserRow_(name);
   if (!row || !pinVerify_(pin, row[1])) {
-    throw new Error('Sai tên đăng nhập hoặc mã PIN.');
+    // Đếm cả trường hợp tên không tồn tại: nếu chỉ đếm khi tên có thật thì
+    // "gõ mãi không bị khoá" trở thành cách dò xem tên nào không tồn tại.
+    var conLai = loginThrottleFail_(name);
+    throw new Error('Sai tên đăng nhập hoặc mã PIN.' +
+      (conLai > 0 ? ' Còn ' + conLai + ' lần thử.' : ''));
   }
+  loginThrottleReset_(name);
   // Băm lại ngay khi ai đó đăng nhập bằng PIN còn dạng thô. Không chờ đợt
   // chuyển đổi hàng loạt, và cũng không thay thế nó: người nào không bao giờ
   // đăng nhập thẳng vào OEM nữa (giờ luồng chính là cổng VHKD) thì bản ghi

@@ -1,4 +1,5 @@
-import React, { useRef } from 'react';
+import React, { useRef, Suspense } from 'react';
+import LoadingScreen from './LoadingScreen';
 
 // Renders a tab's content the first time that tab is opened, then keeps it
 // mounted and simply hides it when the user navigates elsewhere.
@@ -40,7 +41,19 @@ export default function KeepAliveTab({ isActive, hasVisited, children }) {
   if (!visited) return null;
   return (
     <div style={{ display: isActive ? 'block' : 'none' }} aria-hidden={!isActive}>
-      {children}
+      {/* Ranh giới Suspense đặt ở ĐÂY, không phải bọc chung cả vùng nội dung.
+          App.jsx tải các tab bằng React.lazy (2026-09-04), nên lần đầu mở một
+          tab là một lượt tải chunk. Nếu bọc chung một Suspense cho cả <main>
+          thì trong lúc chờ chunk đó, React ẩn TOÀN BỘ con của ranh giới — tức
+          tab đang xem cũng nháy sang màn chờ. Đặt trong đây thì chỉ đúng ô của
+          tab đang mở hiện màn chờ.
+
+          Đặt ở KeepAliveTab thay vì ở từng chỗ gọi vì mọi tab và sub-tab đều
+          đi qua đây — không phải sửa 16 chỗ, và tab nào chưa dùng lazy thì
+          không bao giờ treo nên ranh giới này vô hại với chúng. */}
+      <Suspense fallback={<LoadingScreen compact label="Đang mở..." />}>
+        {children}
+      </Suspense>
     </div>
   );
 }

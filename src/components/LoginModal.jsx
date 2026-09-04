@@ -31,15 +31,6 @@ export default function LoginModal({ onLoginSuccess, onClose, closable }) {
     loadUsers();
   }, [loadUsers]);
 
-  const getRoleBadge = (role) => {
-    switch (role) {
-      case 'creator': return { label: '👑 Creator', color: 'badge-amber' };
-      case 'admin': return { label: '🛡️ Admin', color: 'badge-purple' };
-      case 'leader': return { label: '📊 Leader', color: 'badge-blue' };
-      case 'sale': default: return { label: '💼 Sale', color: 'badge-emerald' };
-    }
-  };
-
   const handleConfirmLogin = async (e) => {
     e.preventDefault();
     const u = users[selectedUserIndex];
@@ -104,8 +95,11 @@ export default function LoginModal({ onLoginSuccess, onClose, closable }) {
         ) : (
         /* User Selection List */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto' }}>
+          {/* Chỉ có tên: api.getUserList() là endpoint công khai (chưa đăng nhập
+              thì không có token để kiểm), nên nó không còn trả về vai trò hay
+              mã sale nữa — công bố ai là admin ra internet là chỉ luôn mục
+              tiêu cho người muốn dò PIN. Xem oemAppGetUserList_ trong Auth.gs. */}
           {users.map((u, idx) => {
-            const badge = getRoleBadge(u.role);
             const isSelected = selectedUserIndex === idx;
 
             return (
@@ -127,26 +121,18 @@ export default function LoginModal({ onLoginSuccess, onClose, closable }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{
                     width: '32px', height: '32px', borderRadius: '50%',
-                    background: u.role === 'creator' ? 'var(--accent-amber)' : u.role === 'admin' ? 'var(--accent-purple)' : u.role === 'leader' ? 'var(--karofi-cyan)' : 'var(--accent-emerald)',
+                    background: 'var(--karofi-cyan)',
                     color: 'var(--on-accent)', fontWeight: 800, fontSize: '0.8rem',
                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>
                     {u.name[0].toUpperCase()}
                   </div>
-                  <div>
-                    <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                      {u.name}
-                    </div>
-                    <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
-                      {u.saleId ? `Sale: ${u.saleId}` : 'Ban Quản Lý'}
-                    </span>
+                  <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                    {u.name}
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className={`badge ${badge.color}`} style={{ fontSize: '0.7rem' }}>
-                    {badge.label}
-                  </span>
                   {isSelected && <Check size={16} color="var(--karofi-cyan)" />}
                 </div>
               </div>
