@@ -252,9 +252,13 @@ function oemAppSubmitPriceProposal_(token, rows) {
 
 // Admin/Creator xem toàn bộ các dòng đang "Chờ duyệt" (mọi đợt, mọi Sale,
 // cả giá chung lẫn giá riêng theo khách) — frontend tự nhóm theo Mã đợt.
-function oemAppGetPendingPriceProposals_(token) {
+function oemAppGetPendingPriceProposals_(token, forceRefresh) {
   var user = oemAppRequireSession_(token);
   oemAppRequirePriceApproveRole_(user);
+
+  // Cùng lý do như oemAppGetDebtView_: cache 90s chỉ tự dọn khi app ghi
+  // (gửi/duyệt/từ chối đợt), nên nút "Tải lại" phải ép mới đọc lại Sheet.
+  if (forceRefresh === true) oemAppInvalidatePricePlanCache_();
 
   var cache = CacheService.getScriptCache();
   var cacheKey = OEMAPP_PRICEPLAN_CACHE_KEY_ + '_' + oemAppPricePlanVersion_();

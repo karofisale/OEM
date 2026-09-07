@@ -40,11 +40,14 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
   // Perf (2026-08-26): getPendingPriceProposals giờ gộp luôn costBySku cho
   // Creator trong CÙNG 1 lượt gọi — trước đây màn này mở lên phải chờ 2 API
   // tuần tự (danh sách chờ duyệt, rồi mới giá vốn).
-  const fetchPending = async () => {
+  // forceRefresh: nút "Tải lại" ép backend đọc lại tab Gia_DeXuat (cache 90s chỉ
+  // tự dọn khi app gửi/duyệt/từ chối đợt). `=== true` vì nút truyền thẳng hàm
+  // này vào onClick sẽ đưa Event vào tham số đầu.
+  const fetchPending = async (forceRefresh) => {
     setIsLoading(true);
     setLoadError('');
     try {
-      const result = await api.getPendingPriceProposals(token);
+      const result = await api.getPendingPriceProposals(token, forceRefresh === true);
       setRows(result.rows || []);
       if (isCreator) setCostBySku(result.costBySku || {});
     } catch (err) {
@@ -140,7 +143,7 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
     return (
       <div className="glass-card" style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
         <span>Lỗi tải bảng chờ duyệt: {loadError}</span>
-        <button onClick={fetchPending} className="btn btn-secondary btn-sm">Thử lại</button>
+        <button onClick={() => fetchPending(true)} className="btn btn-secondary btn-sm">Thử lại</button>
       </div>
     );
   }
@@ -149,7 +152,7 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
     return (
       <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
         <span style={{ color: 'var(--text-muted)' }}>Chưa có đợt đề xuất giá nào đang chờ duyệt.</span>
-        <button onClick={fetchPending} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
+        <button onClick={() => fetchPending(true)} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
       </div>
     );
   }
@@ -165,7 +168,7 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
               </option>
             ))}
           </select>
-          <button onClick={fetchPending} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
+          <button onClick={() => fetchPending(true)} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
         </div>
 
         {currentBatch && (

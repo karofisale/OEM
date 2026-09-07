@@ -181,6 +181,14 @@ var OEMAPP_CATALOG_CACHE_KEY_ = 'oemapp_catalog_v1';
 var OEMAPP_CATALOG_TTL_ = 600; // 10 minutes
 var OEMAPP_CATALOG_VER_KEY_ = 'oemapp_catalog_ver';
 
+// Sàn chống bấm dồn cho nút "Đồng bộ Sheet". Mỗi lượt ép làm mới là dựng lại
+// TOÀN BỘ payload (đọc trọn tab Data rồi dẫn xuất materials từ đó), nên 5 lần
+// bấm liên tiếp không được thành 5 lượt dựng. Lần bấm đầu dọn cache, các lần
+// trong 15s sau đó dùng chính kết quả vừa dựng — vẫn là dữ liệu mới, chỉ là
+// không dựng lại lần nữa.
+var OEMAPP_FORCE_FLOOR_KEY_ = 'oemapp_force_floor';
+var OEMAPP_FORCE_FLOOR_SECONDS_ = 15;
+
 
 // Which slice of the data this user is allowed to see. A Sale only ever gets
 // their own rows; Creator/Admin/Leader get everything.
@@ -278,9 +286,37 @@ function oemAppLoadCatalogBlock_() {
 }
 
 
-function oemAppGetBootstrap_(token) {
+function oemAppGetBootstrap_(token, forceRefresh) {
   var user = oemAppRequireSession_(token);
   var scope = oemAppScopeOf_(user);
+
+  // Nút "Đồng bộ Sheet" phải THẬT SỰ đọc lại Sheet (2026-09-07).
+  //
+  // Hai lớp cache dưới đây (payload theo phạm vi, và khối catalog dùng chung)
+  // đều có TTL 10 phút và CHỈ được dọn khi chính app ghi dữ liệu. Sửa tay trực
+  // tiếp trên Sheet, hoặc skill up-dt-oem đổ số vào tab Data, không có đường
+  // nào báo cho backend biết — nên người dùng bấm Đồng bộ bao nhiêu lần cũng
+  // vẫn nhận đúng payload cũ cho tới khi TTL hết. Chú thích cũ ở trên coi 10
+  // phút là "an toàn" vì cho rằng tab Data chỉ đổi theo ngày/tuần; thực tế
+  // người dùng sửa Sheet rồi muốn thấy ngay.
+  //
+  // Bump version = mọi entry cũ (của MỌI người, mọi phạm vi) thành không thể
+  // với tới, nên lượt dựng ngay dưới đây buộc phải đọc từ Sheet. Một người bấm
+  // Đồng bộ là cả nhóm thấy số mới, không ai phải chờ hết TTL.
+  //
+  // Đây từng là endpoint riêng `forceRefreshBootstrap`, đã gỡ khỏi bảng định
+  // tuyến 2026-09-04 vì nó KHÔNG kiểm token — người lạ ép backend dựng lại
+  // payload liên tục được. Gộp vào đây thì thao tác nằm sau
+  // oemAppRequireSession_ ở trên, cộng thêm sàn chống bấm dồn.
+  if (forceRefresh === true) {
+    var floorCache = CacheService.getScriptCache();
+    if (!floorCache.get(OEMAPP_FORCE_FLOOR_KEY_)) {
+      floorCache.put(OEMAPP_FORCE_FLOOR_KEY_, '1', OEMAPP_FORCE_FLOOR_SECONDS_);
+      oemAppInvalidateBootstrap_();
+      oemAppInvalidateCatalog_();
+    }
+  }
+
   var cacheKey = OEMAPP_BOOTSTRAP_CACHE_KEY_ + '_' + oemAppBootstrapVersion_() + '_' + oemAppCatalogVersion_() + '_' + scope.key;
 
   var cached = oemAppCacheGetBig_(cacheKey);

@@ -114,9 +114,16 @@ function oemAppLoadDebtRowsCached_() {
   return rows;
 }
 
-function oemAppGetDebtView_(token) {
+function oemAppGetDebtView_(token, forceRefresh) {
   var user = oemAppRequireSession_(token);
   var scope = oemAppScopeOf_(user);
+
+  // Nút "Tải lại" trên bảng công nợ phải đọc lại tab Debt. Cache 90s chỉ tự dọn
+  // khi nhập Excel qua app — sửa tay trực tiếp trên Sheet thì không, nên nếu
+  // không ép thì bấm Tải lại vẫn ra số cũ. Đọc lại ~400 dòng nên không cần sàn
+  // chống bấm dồn như getBootstrap.
+  if (forceRefresh === true) oemAppInvalidateDebtCache_();
+
   var rows = oemAppLoadDebtRowsCached_().filter(function (r) {
     return scope.all || oemAppMatchesSale_(r.pic, scope);
   });

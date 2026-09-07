@@ -126,12 +126,19 @@ export default function App() {
   };
 
   // Load business data once we have a valid session; re-run when the token changes.
-  const fetchAllData = async () => {
+  //
+  // forceRefresh: chỉ nút "Đồng bộ Sheet" truyền true. Backend cache payload 10
+  // phút và chỉ tự dọn khi CHÍNH APP ghi dữ liệu — sửa tay trên Sheet thì không
+  // có đường nào báo cho nó biết, nên nút này phải nói rõ là ép đọc lại, nếu
+  // không thì bấm bao nhiêu lần cũng vẫn ra số cũ (xem oemAppGetBootstrap_).
+  // So sánh `=== true` có chủ đích: handler nào truyền thẳng hàm này vào onClick
+  // sẽ đưa Event vào tham số đầu, và Event là truthy.
+  const fetchAllData = async (forceRefresh) => {
     if (!session?.token) return;
     setIsSyncing(true);
     setBootstrapError('');
     try {
-      const data = await api.getBootstrap(session.token);
+      const data = await api.getBootstrap(session.token, forceRefresh === true);
       applyBootstrap(data);
       setIsShowingCached(false);
       writeBootstrapCache(activeUser.name, data); // fire-and-forget
@@ -292,7 +299,7 @@ export default function App() {
           onOpenLoginModal={() => setShowLoginModal(true)}
           onLogout={handleLogout}
           isSyncing={isSyncing}
-          onRefreshData={fetchAllData}
+          onRefreshData={() => fetchAllData(true)}
           onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
           onOpenChangePassword={() => setShowChangePasswordModal(true)}
         />
@@ -326,7 +333,7 @@ export default function App() {
         {bootstrapError && (
           <div style={{ margin: '16px 32px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(220, 38, 38, 0.12)', color: 'var(--danger)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
             <span>Lỗi tải dữ liệu từ backend: {bootstrapError}</span>
-            <button onClick={fetchAllData} className="btn btn-secondary btn-sm" disabled={isSyncing}>
+            <button onClick={() => fetchAllData(true)} className="btn btn-secondary btn-sm" disabled={isSyncing}>
               Thử lại
             </button>
           </div>

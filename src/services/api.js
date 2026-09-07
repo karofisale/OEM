@@ -188,8 +188,12 @@ export async function login(name, pin) {
   return session;
 }
 
-export async function getBootstrap(token) {
-  return callApi('getBootstrap', [token]);
+// forceRefresh=true chỉ dùng cho nút "Đồng bộ Sheet". Backend sẽ dọn cache rồi
+// đọc lại từ Sheet — xem oemAppGetBootstrap_. Lần mở app bình thường KHÔNG ép,
+// để còn dùng được cache (mở app tính bằng milli giây thay vì chờ một lượt gọi
+// đo được từ 1.4s tới hàng phút).
+export async function getBootstrap(token, forceRefresh) {
+  return callApi('getBootstrap', [token, forceRefresh === true]);
 }
 
 // plan2026 + baselines2025. Tách khỏi getBootstrap vì mỗi khối chỉ MỘT màn hình
@@ -280,8 +284,8 @@ export async function getMySopPlan(token) {
   return callApi('getMySopPlan', [token]);
 }
 
-export async function getDebtView(token) {
-  return callApi('getDebtView', [token]);
+export async function getDebtView(token, forceRefresh) {
+  return callApi('getDebtView', [token, forceRefresh === true]);
 }
 
 export async function importDebtExcel(token, rows) {
@@ -292,8 +296,8 @@ export async function submitPriceProposal(token, rows) {
   return callApi('submitPriceProposal', [token, rows]);
 }
 
-export async function getPendingPriceProposals(token) {
-  return callApi('getPendingPriceProposals', [token]);
+export async function getPendingPriceProposals(token, forceRefresh) {
+  return callApi('getPendingPriceProposals', [token, forceRefresh === true]);
 }
 
 export async function approvePriceBatch(token, batchId, effectiveDate, overrideRows) {

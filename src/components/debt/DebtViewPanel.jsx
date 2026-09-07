@@ -17,11 +17,15 @@ export default function DebtViewPanel({ token, refreshTick }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
 
-  const fetchView = async () => {
+  // forceRefresh: nút "Tải lại" ép backend đọc lại tab Debt (cache 90s chỉ tự
+  // dọn khi nhập Excel qua app, không biết gì về việc sửa tay trên Sheet).
+  // So sánh `=== true` vì nút truyền hàm này thẳng vào onClick sẽ đưa Event vào
+  // tham số đầu, và Event là truthy.
+  const fetchView = async (forceRefresh) => {
     setIsLoading(true);
     setLoadError('');
     try {
-      const data = await api.getDebtView(token);
+      const data = await api.getDebtView(token, forceRefresh === true);
       setRows(data.rows || []);
     } catch (err) {
       setLoadError(err.message || String(err));
@@ -55,7 +59,7 @@ export default function DebtViewPanel({ token, refreshTick }) {
     return (
       <div className="glass-card" style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
         <span>Lỗi tải bảng công nợ: {loadError}</span>
-        <button onClick={fetchView} className="btn btn-secondary btn-sm">Thử lại</button>
+        <button onClick={() => fetchView(true)} className="btn btn-secondary btn-sm">Thử lại</button>
       </div>
     );
   }
@@ -75,7 +79,7 @@ export default function DebtViewPanel({ token, refreshTick }) {
         <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '4px' }}>
           <Filter size={12} /> {filteredRows.length.toLocaleString('vi-VN')} khách hàng khớp
         </span>
-        <button onClick={fetchView} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
+        <button onClick={() => fetchView(true)} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
       </div>
 
       <div className="table-container animate-fade-in" style={{ maxHeight: '600px', overflowY: 'auto' }}>
