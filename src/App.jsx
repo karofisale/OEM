@@ -39,6 +39,7 @@ import KeepAliveTab from './components/KeepAliveTab';
 import { RefreshCw } from 'lucide-react';
 
 import * as api from './services/api';
+import { veCongSauDangXuat } from './services/karofiSession';
 import { readBootstrapCache, writeBootstrapCache, clearBootstrapCache } from './services/dataCache';
 import { useToast } from './components/ToastProvider';
 
@@ -183,6 +184,15 @@ export default function App() {
   const handleLogout = () => {
     api.clearSession();
     clearBootstrapCache(); // don't leave business data on a shared machine
+
+    // Về CỔNG, không về form đăng nhập riêng của OEM: trình quản lý mật khẩu
+    // của trình duyệt đã lưu thông tin cho form của cổng, nên form của OEM
+    // không có gì tự điền và người dùng phải gõ tay mỗi lần.
+    //
+    // Đặt ở ĐÂY chứ không trong api.clearSession(): hàm đó còn được gọi khi
+    // server báo token hết hạn, và chuyển trang giữa lúc người ta đang làm việc
+    // là chuyện khác với việc họ chủ động bấm đăng xuất.
+    if (veCongSauDangXuat()) return;   // đang rời trang, đừng setState nữa
     setSession(null);
     setClients([]);
     setTransactions([]);
