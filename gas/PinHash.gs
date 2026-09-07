@@ -30,6 +30,28 @@
 var PIN_PEPPER_PROP_ = 'PIN_PEPPER';
 var PIN_ALGO_ = 's1';
 
+/**
+ * Bản ghi do KAROFI ID phát: "kid$salt$hash", băm bằng pepper DÙNG CHUNG
+ * (Script Property KAROFI_ID_PEPPER, copy từ dự án Karofi ID) thay vì
+ * PIN_PEPPER riêng của app này.
+ *
+ * VÌ SAO: một lần đổi PIN ở cổng giờ ghi CÙNG MỘT CHUỖI vào cả bốn bảng Users,
+ * nên lối ?direct=1 dùng đúng PIN người ta vừa đặt thay vì một PIN cũ không ai
+ * xoay. Trước đây mỗi app một pepper nên không thể chép chuỗi băm qua nhau.
+ *
+ * Ranh giới "mỗi app một pepper" từng là cố ý, nhưng nó đã mất từ khi
+ * KAROFI_ID_SECRET phải giống nhau ở cả bốn dự án: ai lấy được Script
+ * Properties của một app là ký được token cho bất kỳ ai vào bất kỳ app nào.
+ * Pepper riêng không còn mua được sự cô lập mà nó nhắm tới.
+ *
+ * Bản ghi "s1$..." cũ vẫn xác thực bình thường — thêm đường, không bỏ đường nào.
+ */
+var KID_ALGO_ = 'kid';
+
+function kidPepper_() {
+  return PropertiesService.getScriptProperties().getProperty('KAROFI_ID_PEPPER');
+}
+
 function pinPepper_() {
   var props = PropertiesService.getScriptProperties();
   var p = props.getProperty(PIN_PEPPER_PROP_);
@@ -49,7 +71,11 @@ function pinSha256Hex_(raw) {
 
 /** Đã băm chưa? PIN thô toàn chữ số nên không bao giờ chứa tiền tố này. */
 function pinIsHashed_(record) {
-  return String(record || '').indexOf(PIN_ALGO_ + '$') === 0;
+  var r = String(record || '');
+  // Phải nhận CẢ tiền tố kid$. Thiếu nó thì bản ghi của Karofi ID bị coi là
+  // PIN thô: pinVerify_ so chuỗi băm với PIN người dùng gõ (luôn sai), và
+  // pinNeedsUpgrade_ đòi băm lại bằng pepper riêng — tức là phá luôn đồng bộ.
+  return r.indexOf(PIN_ALGO_ + '$') === 0 || r.indexOf(KID_ALGO_ + '$') === 0;
 }
 
 /** Bản ghi mới cho một PIN. */
@@ -78,7 +104,12 @@ function pinVerify_(pin, record) {
 
   var parts = r.split('$');
   if (parts.length !== 3) return false;
-  return pinSha256Hex_(pinPepper_() + '|' + parts[1] + '|' + p) === parts[2];
+  // Chọn pepper theo tiền tố. kidPepper_() chưa được copy thì trả false chứ
+  // không rơi về pepper riêng — rơi về đó là luôn sai kèm một thông báo gây
+  // hiểu nhầm là "PIN không đúng" thay vì "thiếu cấu hình".
+  var pepper = parts[0] === KID_ALGO_ ? kidPepper_() : pinPepper_();
+  if (!pepper) return false;
+  return pinSha256Hex_(pepper + '|' + parts[1] + '|' + p) === parts[2];
 }
 
 /** Bản ghi còn dạng thô -> nên băm lại sau khi người này đăng nhập đúng. */
