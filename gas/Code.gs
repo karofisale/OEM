@@ -166,6 +166,9 @@ var oemAppApiMap_ = {
   login: oemAppLogin_,
   getBootstrap: oemAppGetBootstrap_,
   getReportContext: oemAppGetReportContext_,
+  // Số tổng quan cho cổng VHKD — xem PortalStats.gs. Tự kiểm token, tự ép
+  // phạm vi theo sale, không nhận tham số nào ngoài token.
+  getPortalStats: oemAppGetPortalStats_,
   addClient: oemAppAddClient_,
   editClient: oemAppEditClient_,
   addMaterial: oemAppAddMaterial_,

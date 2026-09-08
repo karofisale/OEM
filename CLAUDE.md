@@ -81,6 +81,32 @@ phạm vi theo sale**; bỏ sót là mở rộng quyền đọc cho mọi ngư�
 `SCHEMA_VERSION` trong `services/dataCache.js`: tăng khi payload **thêm** hoặc
 **đổi nghĩa** một khoá, không cần tăng khi chỉ **bỏ** một khoá.
 
+## Cổng VHKD gọi vào đây
+
+`getPortalStats` (`gas/PortalStats.gs`) là số liệu mà **cổng VHKD** hiện trong
+khối "Số liệu tổng quan". Đừng đổi tên hay bỏ mà không sửa `index.html` của kho
+`Karofi-VHKD` — cổng gọi thẳng `/exec` của dự án này.
+
+Nó dùng đúng `oemAppScopeOf_` + `oemAppMatchesSale_` như getBootstrap, và cache
+kết quả 10 phút **theo từng scope** (khoá cache có `scope.key` trong tên) vì nó
+đọc trọn tab Data. Dùng chung một khoá là trả bản chụp của admin cho sale mở
+trang sau đó.
+
+```bash
+node test/portalstats.test.cjs   # 27 test — .cjs vì package.json là "type":"module"
+```
+
+**`t.month` không còn mặc định `'T08-2026'`** (`SalesData.gs`, sửa 2026-09).
+Giá trị mặc định đó dồn mọi dòng thiếu tháng vào một tháng thật và làm phồng
+doanh thu tháng đó. Dòng thiếu tháng giờ có `month = ''` và không vào tháng
+nào; `getPortalStats` báo ra số lượng để cổng nói được là đang thiếu bao nhiêu.
+
+Còn một cái bẫy cùng loại **chưa sửa** ở ngay dưới đó: `t.sale` mặc định
+`'KH Đình Hoan'` và `t.group` mặc định `'Linh kiện OEM'`. Với `sale` thì đó là
+chuyện phân quyền — mọi dòng thiếu cột sale bị gán cho một người thật, và
+người đó thấy chúng như đơn của mình. Sửa được nhưng phải rà cả đường
+getBootstrap.
+
 ## Liên quan tới app khác
 
 `gas/KarofiToken.gs`, `gas/KarofiSession.gs`, `src/services/karofiSession.js` là

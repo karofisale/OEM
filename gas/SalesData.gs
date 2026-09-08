@@ -21,7 +21,13 @@ function oemAppLoadTransactionsUncached_() {
     var clientName = row[6] || '';
     var rawCode = row[60] || row[5] || '';
     var codeSearch = oemAppGetClientTextCode_(clientName, rawCode, row[60]);
-    var month = row[40] || 'T08-2026';
+    // Tháng để rỗng khi cột trống, KHÔNG mặc định 'T08-2026'. Giá trị mặc định
+    // đó dồn mọi dòng thiếu tháng vào đúng một tháng thật, làm phồng doanh thu
+    // tháng đó bằng số của tháng khác. Dashboard.jsx đã chữa phần hiện của lỗi
+    // này (gom vào rổ 'Chưa rõ tháng') nhưng nguồn vẫn trả về T08-2026, nên mọi
+    // phép cộng theo tháng ở nơi khác vẫn sai — kể cả số tổng quan trên cổng.
+    // Mọi nơi tiêu thụ đều đã chịu được chuỗi rỗng (xem utils/period.js).
+    var month = row[40] ? String(row[40]).trim() : '';
     var week = oemAppComputeWeekFromDate_(dateStr, row[42]);
 
     return {
