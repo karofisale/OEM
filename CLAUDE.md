@@ -92,6 +92,25 @@ kết quả 10 phút **theo từng scope** (khoá cache có `scope.key` trong t�
 đọc trọn tab Data. Dùng chung một khoá là trả bản chụp của admin cho sale mở
 trang sau đó.
 
+**Mỗi con số một tab, do người dùng chốt 2026-09-08:**
+
+| Con số | Nguồn |
+|---|---|
+| Doanh thu tháng trước | tab `Data` (SAP) |
+| Doanh thu Done MTD | tab `Data` (SAP) |
+| Plan update của sale | tab `Plan_Thang`, cột F |
+| Mục tiêu Plan KPI | tab `Plan2026`, cột tháng hiện tại |
+| Tổng công nợ | tab `Debt` |
+
+Cột `Done` (G) và `Plan KPI` (E) của `Plan_Thang` **không** còn được đọc. `Done`
+là ô điền tay, còn `Data` là bản đổ từ SAP — hai chỗ lệch nhau là chuyện thường.
+`Plan KPI` cột E chỉ là bản chép của Plan2026 lúc sale lập kế hoạch, nên tháng
+nào sale chưa lập dòng thì mục tiêu biến mất khỏi tổng.
+
+`Plan2026` có **tên tab cứng**: sang 2027 nó không còn là kế hoạch năm hiện tại,
+nên `oemAppPstatsCotPlan2026_()` trả `-1` và endpoint gắn cờ `kpiHetHan` để cổng
+hiện "—" kèm cảnh báo thay vì số 0.
+
 ```bash
 node test/portalstats.test.cjs   # 27 test — .cjs vì package.json là "type":"module"
 ```

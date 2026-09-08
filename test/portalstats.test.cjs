@@ -17,10 +17,13 @@
  * được trong một bài test có bản giả rồi nổ ReferenceError trên Apps Script —
  * đã xảy ra thật ở dự án Karofi ID.
  *
- * Ba việc được chốt ở đây:
+ * Bốn việc được chốt ở đây:
  *   1. Doanh thu tháng trước KHÔNG cộng dòng thiếu tháng trên tab Data.
  *   2. Sale chỉ cộng số của chính mình; saleId trống thì không cộng gì.
- *   3. Ba cột Plan KPI / Plan_Update / Done đọc đúng cột của tab Plan_Thang.
+ *   3. MỖI CON SỐ ĐÚNG NGUỒN của nó — Done từ tab Data, Plan update từ
+ *      Plan_Thang, Plan KPI từ Plan2026. Ba tab này cố ý mang số KHÁC nhau
+ *      trong dữ liệu mẫu, nên đọc lẫn nguồn là test đỏ ngay.
+ *   4. Cột Done (G) và Plan KPI (E) của Plan_Thang KHÔNG còn được đọc nữa.
  */
 
 process.env.TZ = 'Asia/Ho_Chi_Minh';
@@ -82,6 +85,34 @@ function dongPlan(o) {
   return r;
 }
 
+/**
+ * Dòng tab Plan2026 — 6 dòng đầu là tổng/tiêu đề, dữ liệu từ dòng 7 (index 6).
+ * Cột: Mã KH | Tên | PIC | Năm 2026 | Tháng 1..12 (index 4..15).
+ */
+function dongPlan2026(o) {
+  const r = new Array(16).fill('');
+  r[0] = o.code;
+  r[1] = o.client;
+  r[2] = o.pic;
+  r[3] = o.nam || 0;
+  for (let m = 0; m < 12; m++) r[4 + m] = (o.months && o.months[m]) || 0;
+  return r;
+}
+
+/**
+ * Dòng tab Plan2026 — 6 dòng đầu là tổng/tiêu đề, dữ liệu từ dòng 7 (index 6).
+ * Cột: Mã KH | Tên | PIC | Năm 2026 | Tháng 1..12 (index 4..15).
+ */
+function dongPlan2026(o) {
+  const r = new Array(16).fill('');
+  r[0] = o.code;
+  r[1] = o.client;
+  r[2] = o.pic;
+  r[3] = o.nam || 0;
+  for (let m = 0; m < 12; m++) r[4 + m] = (o.months && o.months[m]) || 0;
+  return r;
+}
+
 /** Dòng tab Debt — tiêu đề ở HÀNG 3, dữ liệu từ hàng 4 (xem Debt.gs). */
 function dongDebt(o) {
   return [o.code, '', o.client, o.pic, o.creditLimit || 0, 0, o.balance || 0];
@@ -115,7 +146,14 @@ function nap(cfg) {
     };
   }
 
-  const byName = { Debt: toSheet(debtValues, 999) };
+  const plan2026Values = [
+    ['Tổng DT 2025'], ['Sale A'], ['Sale B'], [''], [''],
+    ['Mã KH', 'Tên Khách hàng', 'PIC', 'Năm 2026',
+      'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+      'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12']
+  ].concat(cfg.plan2026 || []);
+
+  const byName = { Debt: toSheet(debtValues, 999), Plan2026: toSheet(plan2026Values, 998) };
   const all = Object.keys(tabsByGid).map((g) => toSheet(tabsByGid[g], Number(g)));
 
   const sandbox = {
@@ -157,6 +195,16 @@ function nap(cfg) {
   return sandbox;
 }
 
+// Mục tiêu KPI chỉ đặt ở ĐÚNG cột tháng hiện tại; mọi tháng khác để 999 —
+// đọc lệch cột là ra một con số không thể lẫn.
+function luoiKpi(giaTri) {
+  const a = new Array(12).fill(999);
+  a[NAY.getMonth()] = giaTri;
+  return a;
+}
+const KPI_A = luoiKpi(100);
+const KPI_B = luoiKpi(200);
+
 const CFG = {
   data: [
     dongData({ client: 'Khách A', sale: 'Sale1', netRevenue: 1000, month: THANG_TRUOC }),
@@ -166,10 +214,17 @@ const CFG = {
     // đúng một tháng thật. Ca này chốt việc nó không còn cộng vào đâu cả.
     dongData({ client: 'Khách C', sale: 'Sale1', netRevenue: 9999, month: '' })
   ],
+  // planKpi và done ở đây đặt giá trị BẪY: nguồn thật của hai con số đó là
+  // Plan2026 và tab Data, nên nếu mã còn đọc hai cột này của Plan_Thang thì
+  // test đỏ ngay chứ không im lặng lấy sai nguồn.
   plan: [
-    dongPlan({ code: 'KHA', client: 'Khách A', sale: 'Sale1', planKpi: 100, planUpdate: 90, done: 40 }),
-    dongPlan({ code: 'KHB', client: 'Khách B', sale: 'Sale2', planKpi: 200, planUpdate: 180, done: 70, status: 'Chờ duyệt' }),
+    dongPlan({ code: 'KHA', client: 'Khách A', sale: 'Sale1', planKpi: 111111, planUpdate: 90, done: 222222 }),
+    dongPlan({ code: 'KHB', client: 'Khách B', sale: 'Sale2', planKpi: 111111, planUpdate: 180, done: 222222, status: 'Chờ duyệt' }),
     dongPlan({ code: 'KHZ', client: 'Khách Z', sale: 'Sale1', planKpi: 555, planUpdate: 555, done: 555, month: thangOem(-3) })
+  ],
+  plan2026: [
+    dongPlan2026({ code: 'KHA', client: 'Khách A', pic: 'Sale1', months: KPI_A }),
+    dongPlan2026({ code: 'KHB', client: 'Khách B', pic: 'Sale2', months: KPI_B })
   ],
   debt: [
     dongDebt({ code: 'KHA', client: 'Khách A', pic: 'Sale1', balance: 7000 }),
@@ -185,16 +240,29 @@ check('tháng trước', duAn.oemAppPstatsThang_(-1) === THANG_TRUOC, duAn.oemAp
 check('lùi qua mốc năm vẫn đúng', duAn.oemAppPstatsThang_(-12) === THANG_NAY.replace(
   /(\d{4})$/, (m) => String(Number(m) - 1)), duAn.oemAppPstatsThang_(-12));
 
-console.log('\n2. Toàn quyền (admin) — cộng hết');
+console.log('\n2. Toàn quyền (admin) — mỗi con số đúng nguồn của nó');
 {
   const r = duAn.oemAppBuildPortalStats_({ all: true, key: 'all' });
+
+  // --- tab Data (SAP) ---
   check('doanh thu tháng trước = 1000 + 2000', r.dtThangTruoc === 3000, r.dtThangTruoc);
   check('KHÔNG cộng dòng thiếu tháng (9999)', r.dtThangTruoc === 3000, r.dtThangTruoc);
   check('báo ra số dòng thiếu tháng', r.soDongThieuThang === 1, r.soDongThieuThang);
-  check('Plan KPI = 100 + 200', r.planKpi === 300, r.planKpi);
-  check('Plan_Update = 90 + 180', r.planUpdate === 270, r.planUpdate);
-  check('Done = 40 + 70', r.done === 110, r.done);
-  check('KHÔNG cộng kế hoạch tháng khác (555)', r.planKpi === 300 && r.done === 110);
+  // Ra 444444 nghĩa là mã còn đọc cột Done (G) của Plan_Thang.
+  check('Done MTD = 500 từ tab Data, KHÔNG phải cột Done của Plan_Thang',
+    r.done === 500, r.done);
+
+  // --- tab Plan_Thang ---
+  check('Plan update = 90 + 180', r.planUpdate === 270, r.planUpdate);
+
+  // --- tab Plan2026 ---
+  // Ra 222222 nghĩa là mã còn đọc cột Plan KPI (E) của Plan_Thang;
+  // ra 1998 nghĩa là đọc lệch cột tháng.
+  check('Plan KPI = 100 + 200 từ Plan2026, đúng cột tháng này',
+    r.planKpi === 300, r.planKpi);
+  check('cột KPI của năm 2026 còn hiệu lực', r.kpiHetHan === false, r.kpiHetHan);
+
+  check('KHÔNG cộng kế hoạch tháng khác (555)', r.planUpdate === 270, r.planUpdate);
   check('số khách có kế hoạch tháng này = 2', r.soKhachCoKeHoach === 2, r.soKhachCoKeHoach);
   check('đếm dòng chờ duyệt', r.soDongChoDuyet === 1, r.soDongChoDuyet);
   check('công nợ = 7000 + 3000', r.congNo === 10000, r.congNo);
@@ -206,8 +274,11 @@ console.log('\n3. PHÂN QUYỀN — sale chỉ thấy số của mình');
   const scope = duAn.oemAppScopeOf_({ role: 'sale', saleId: 'Sale1' });
   const r = duAn.oemAppBuildPortalStats_(scope);
   check('doanh thu tháng trước chỉ của Sale1', r.dtThangTruoc === 1000, r.dtThangTruoc);
-  check('Plan KPI chỉ của Sale1', r.planKpi === 100, r.planKpi);
-  check('Done chỉ của Sale1', r.done === 40, r.done);
+  check('Done chỉ của Sale1', r.done === 500, r.done);
+  check('Plan update chỉ của Sale1', r.planUpdate === 90, r.planUpdate);
+  // Plan2026 lọc theo cột PIC — đúng cách oemAppGetReportContext_ đang dùng
+  // cho cùng bảng đó, không phải một phép lọc riêng viết ở PortalStats.
+  check('Plan KPI chỉ của Sale1, lọc theo PIC của Plan2026', r.planKpi === 100, r.planKpi);
   check('công nợ chỉ của khách mình', r.congNo === 7000, r.congNo);
   check('phạm vi ghi rõ tên sale', r.phamVi === 'sale1', r.phamVi);
 }
@@ -218,7 +289,9 @@ console.log('\n3. PHÂN QUYỀN — sale chỉ thấy số của mình');
   const r = duAn.oemAppBuildPortalStats_(scope);
   check('sale thiếu saleId -> không cộng doanh thu nào', r.dtThangTruoc === 0, r.dtThangTruoc);
   check('sale thiếu saleId -> không cộng công nợ nào', r.congNo === 0, r.congNo);
-  check('sale thiếu saleId -> không cộng kế hoạch nào', r.planKpi === 0, r.planKpi);
+  check('sale thiếu saleId -> không cộng Plan KPI nào', r.planKpi === 0, r.planKpi);
+  check('sale thiếu saleId -> không cộng Plan update nào', r.planUpdate === 0, r.planUpdate);
+  check('sale thiếu saleId -> Done bằng 0', r.done === 0, r.done);
 }
 {
   // Vai không phải sale (leader/account/creator) được xem tất cả — cùng một
