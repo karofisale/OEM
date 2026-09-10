@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import LoginModal from './components/LoginModal';
@@ -95,23 +95,27 @@ export default function App() {
   // chạy song song với việc tải chunk của màn — người dùng không chờ thêm.
   // Nạp một lần cho cả phiên: đây là KPI năm và số nền 2025, không đổi trong
   // ngày, và cả hai màn dùng chung một lượt gọi.
+  //
+  // Tách thành hàm gọi được (2026-09-10) để màn "Đề xuất kế hoạch" có nút thử
+  // lại: bảng nhập kế hoạch giờ DỰNG TỪ plan2026, nên một lượt gọi hỏng (đường
+  // mạng này hỏng chừng một nửa số lượt) không được để Sale ngồi chờ đổi tab
+  // qua lại. Hàm này CỐ Ý ném lỗi ra ngoài để nút bấm báo được cho người dùng.
+  const napBaoCao = useCallback(async () => {
+    if (!session?.token) return;
+    const d = await api.getReportContext(session.token);
+    setPlan2026(d.plan2026 || {});
+    setBaselines2025(new Map(Object.entries(d.baselines2025 || {})));
+    setDaNapBaoCao(true);
+  }, [session?.token]);
+
   useEffect(() => {
     const canDenBaoCao = activeTab === 'revenue-reports' || activeTab === 'sales-plan';
     if (!canDenBaoCao || daNapBaoCao || !session?.token) return;
-    let huy = false;
-    api.getReportContext(session.token)
-      .then(d => {
-        if (huy) return;
-        setPlan2026(d.plan2026 || {});
-        setBaselines2025(new Map(Object.entries(d.baselines2025 || {})));
-        setDaNapBaoCao(true);
-      })
-      .catch(() => {
-        // Không đặt cờ daNapBaoCao: lần sau mở màn này sẽ thử lại. Hai màn vẫn
-        // hiện được, chỉ thiếu cột so sánh — không chặn việc.
-      });
-    return () => { huy = true; };
-  }, [activeTab, daNapBaoCao, session?.token]);
+    napBaoCao().catch(() => {
+      // Không đặt cờ daNapBaoCao: lần sau mở màn này sẽ thử lại. Hai màn vẫn
+      // hiện được, chỉ thiếu cột so sánh — không chặn việc.
+    });
+  }, [activeTab, daNapBaoCao, session?.token, napBaoCao]);
 
   const applyBootstrap = (data) => {
     setClients(data.clients || []);
@@ -418,6 +422,7 @@ export default function App() {
               planDefaultMonth={planDefaultMonth}
               activeUser={activeUser}
               onDataChanged={fetchAllData}
+              onReloadPlanKpi={napBaoCao}
             />
           </KeepAliveTab>
 

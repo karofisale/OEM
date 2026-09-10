@@ -130,6 +130,34 @@ function oemAppLoadSalesPlans_() {
 // Row 5 (0-indexed): real header — Mã KH, Tên Khách hàng, PIC, Năm 2026,
 // Tháng 1..Tháng 12 (columns 4-15). Data starts row 6. Keyed by "Mã KH", which
 // is the same text-code format as codeSearch/searchCode elsewhere in this app.
+//
+// Trả thêm `name` (2026-09-10): màn "Đề xuất kế hoạch" giờ dựng bảng TỪ danh
+// sách này chứ không từ tab Clients, nên một khách có KPI năm mà tab Clients
+// chưa có dòng (hoặc để Inactive) vẫn phải hiện ra được — mà muốn hiện thì phải
+// có tên lấy từ đâu đó, và chỗ duy nhất còn lại là chính tab này.
+//
+// Bỏ qua dòng tổng hợp: tab này có sẵn mấy dòng cộng ở đầu (đã nhảy qua bằng
+// i = 6) nhưng cũng có thể có dòng cộng nằm giữa/cuối do người dùng tự thêm.
+// Trước đây chúng vô hại vì chỉ dùng để TRA KPI theo mã khách; giờ mỗi mã trong
+// map này thành một DÒNG NHẬP trên màn đề xuất, nên một dòng "Tổng cộng" sẽ
+// biến thành một khách hàng giả mà Sale nhập số vào được.
+//
+// CHỈ soi cột Mã KH, KHÔNG soi cột tên: mã khách ở đây là token ngắn kiểu
+// TECOM/CTMAXIMVN, còn tên thật rất hay bắt đầu bằng "Tổng công ty ..." — lọc
+// theo tên là tự tay xoá khách thật khỏi bảng kế hoạch. Và so KHỚP TRỌN mã chứ
+// không so theo tiền tố: một mã thật là "CONGTYABC" mà bị tiền tố "cong" ăn mất
+// thì Sale mất luôn khả năng lập kế hoạch cho khách đó — hỏng nặng hơn nhiều so
+// với việc để lọt một dòng tổng.
+var OEMAPP_PLAN2026_SKIP_CODES_ = {
+  'TONG': 1, 'TỔNG': 1, 'TONGCONG': 1, 'TỔNGCỘNG': 1, 'CONG': 1, 'CỘNG': 1,
+  'TOTAL': 1, 'SUBTOTAL': 1, 'GRANDTOTAL': 1, 'MAKH': 1, 'MÃKH': 1
+};
+
+function oemAppPlan2026IsAggregateCode_(code) {
+  var key = String(code || '').trim().toUpperCase().replace(/[ ._-]/g, '');
+  return !!OEMAPP_PLAN2026_SKIP_CODES_[key];
+}
+
 function oemAppLoadPlan2026_() {
   var sheet;
   try {
@@ -143,9 +171,11 @@ function oemAppLoadPlan2026_() {
   for (var i = 6; i < rows.length; i++) {
     var code = String(rows[i][0] || '').trim();
     if (!code) continue;
+    if (oemAppPlan2026IsAggregateCode_(code)) continue;
+    var name = String(rows[i][1] || '').trim();
     var months = [];
     for (var m = 0; m < 12; m++) months.push(oemAppParseNum_(rows[i][4 + m]));
-    map[code] = { pic: String(rows[i][2] || ''), months: months };
+    map[code] = { name: name, pic: String(rows[i][2] || ''), months: months };
   }
   return map;
 }
@@ -393,11 +423,16 @@ function oemAppGetReportContext_(token) {
   var user = oemAppRequireSession_(token);
   var scope = oemAppScopeOf_(user);
 
+  // Giữ nguyên phép ép phạm vi; chỉ đổi HÌNH DẠNG giá trị trả về từ mảng 12
+  // tháng thành { months, name, pic } (2026-09-10) — màn đề xuất cần tên + PIC
+  // để dựng dòng cho khách chưa có trong tab Clients. Không nơi nào khác đọc
+  // plan2026 (xem ghi chú đầu hàm), nên đổi hình dạng ở đây là an toàn.
   var plan2026Full = oemAppLoadPlan2026_();
   var plan2026 = {};
   Object.keys(plan2026Full).forEach(function (code) {
-    if (scope.all || oemAppMatchesSale_(plan2026Full[code].pic, scope)) {
-      plan2026[code] = plan2026Full[code].months;
+    var entry = plan2026Full[code];
+    if (scope.all || oemAppMatchesSale_(entry.pic, scope)) {
+      plan2026[code] = { months: entry.months, name: entry.name, pic: entry.pic };
     }
   });
 
