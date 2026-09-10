@@ -13,6 +13,11 @@
  *        Hai mục này đọc thẳng mã nguồn Python và so từng phần tử.
  *   3-8. LOGIC ĐỌC FILE. Mỗi mục là một cái bẫy đã có thật trong dữ liệu ZSD450.
  *   9-10. NỐI DÂY. Cơ chế đúng mà không ai gọi thì panel không chạy.
+ *   11-16. Nút "Cào từ SAP" — giao thức karofi-oem://, xem chú thích tại chỗ.
+ *   17. export_zsd450.py — đọc thẳng workbook Excel mà SAP đang nhúng, thay
+ *       cho SendKeys vào hộp thoại "Save As" (10/09/2026: ZSD450 không có ALV
+ *       grid nên không có &COPY/&PC — chỉ có nút Save As, và kết quả là một
+ *       control Office nhúng, tận dụng được bằng COM trực tiếp).
  */
 
 const fs = require('fs');
@@ -458,6 +463,57 @@ console.log('\n16. Trình cài đặt: HKCU, có đường gỡ, có kiểm đi�
   check('kiểm đủ file trước khi đăng ký',
     /export_zsd450\.py/.test(ci) && /push_to_sheet\.py/.test(ci) && /config\.json/.test(ci));
   check('cảnh báo khi đang trỏ tới thư mục khác', /duong dan KHAC|CANH BAO/.test(ci));
+}
+
+console.log('\n17. export_zsd450.py — đọc workbook nhúng, có dự phòng Save As');
+{
+  const DTOEM = 'D:/Operation/Claude/Scripts/dt-oem/export_zsd450.py';
+  const py = docNeuCo(DTOEM);
+  check('có file export_zsd450.py', py.length > 0);
+
+  // ZSD450 KHÔNG dựng ALV grid (dò cây đối tượng 10/09/2026) — kết quả là một
+  // control Office (GuiShell subtype=OfficeIntegration) nhúng trong cửa sổ
+  // SAP. Đó là lý do read_doi_workbook() bắt Excel qua Running Object Table
+  // thay vì qua findById một GridView không tồn tại.
+  check('bắt Excel qua ROT (Running Object Table)',
+    /GetObject\(Class="Excel\.Application"\)/.test(py));
+
+  // PHẢI khớp theo tiền tố tên workbook, KHÔNG lấy workbook đầu tiên. Nếu
+  // người dùng đang mở file Excel riêng của họ và code lấy Workbooks(1) thì
+  // đó chính là file bị đọc và đẩy lên tab Data — dữ liệu của người khác.
+  check('có hằng số tiền tố ~SAP{', /SAP_DOI_PREFIX\s*=\s*"~SAP\{"/.test(py));
+  check('duyệt HẾT workbook để tìm đúng tiền tố, không lấy phần tử đầu',
+    /for i in range\(1, xl\.Workbooks\.Count \+ 1\)/.test(py) &&
+    /startswith\(SAP_DOI_PREFIX\)/.test(py));
+
+  // Bẫy múi giờ: ô SAP về dạng datetime CÓ tzinfo (UTC). astimezone/utcoffset
+  // ở máy có múi giờ khác 0 sẽ dịch ngày — 04/09 thành 03/09, sai một ngày và
+  // sai im lặng. SAP đưa ra một NGÀY, không phải một mốc thời gian tuyệt đối,
+  // nên phải lấy thẳng year/month/day chứ không quy đổi múi giờ.
+  // Bắt LỜI GỌI thật (`.astimezone(` / `.utcoffset(`), không bắt bừa chữ
+  // "astimezone" — hàm này cố ý GIẢI THÍCH trong chú thích vì sao không dùng
+  // chúng, nên một regex bắt từ khoá sẽ tự đỏ trên đúng dòng nói đúng.
+  check('_o_thuong tồn tại và lấy thẳng year/month/day, không quy đổi múi giờ',
+    /def _o_thuong/.test(py) &&
+    /datetime\.datetime\(v\.year, v\.month, v\.day/.test(py) &&
+    !/\.astimezone\(|\.utcoffset\(/.test(py));
+
+  // Đường Save As VẪN PHẢI CÒN — đây là dự phòng khi không bắt được workbook
+  // ~SAP{...} nào (SAP cũ không dùng Office Integration, hoặc COM đang bận).
+  // Rơi về đường cũ chứ không phải ném lỗi ngay.
+  check('vẫn giữ đường Save As làm dự phòng',
+    /run_save_as_helper/.test(py) && /APPL_SAVEAS/.test(py));
+  check('chỉ dùng Save As khi read_doi_workbook trả None',
+    /rows = read_doi_workbook\(\)/.test(py) && /if rows is None:/.test(py));
+  // Đường nào được dùng phải lộ ra ngoài, để nhật ký sau này phân biệt được
+  // "đang chạy đường mới" với "đã rơi về đường cũ".
+  check('kết quả báo rõ đã dùng đường nào (doi / save-as)',
+    /"duong":\s*duong/.test(py) && /duong = "doi"/.test(py) && /duong = "save-as"/.test(py));
+
+  // no_data vẫn phải kiểm TRƯỚC khi thử đọc workbook — tháng chưa có chứng từ
+  // thì không có gì để đọc ở cả hai đường, và detect_no_data() đã biết việc đó.
+  check('vẫn kiểm no_data trước khi chọn đường đọc',
+    py.indexOf('detect_no_data(session)') < py.indexOf('read_doi_workbook()'));
 }
 
 console.log('');
