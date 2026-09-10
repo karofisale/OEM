@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Filter, Calendar, User, FileText, Layers, Upload, ChevronUp } from 'lucide-react';
 import { monthsFromTransactions, latestMonthKey } from '../utils/period';
+import CaoSapPanel from './transactions/CaoSapPanel';
 import RevenueImportPanel from './transactions/RevenueImportPanel';
 
 export default function TransactionGrid({ transactions, token, activeUser, onImported }) {
@@ -88,7 +89,7 @@ export default function TransactionGrid({ transactions, token, activeUser, onImp
               onClick={() => setMoNhap((v) => !v)}
             >
               {moNhap ? <ChevronUp size={16} /> : <Upload size={16} />}
-              {moNhap ? 'Đóng' : 'Nhập ZSD450'}
+              {moNhap ? 'Đóng' : 'Cập nhật doanh thu'}
             </button>
           )}
           <span className="badge badge-blue" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
@@ -98,14 +99,24 @@ export default function TransactionGrid({ transactions, token, activeUser, onImp
       </div>
 
       {moNhap && coQuyenNhap && (
-        <RevenueImportPanel
-          token={token}
-          activeUser={activeUser}
-          onImported={() => {
-            setMoNhap(false);
-            if (onImported) onImported();
-          }}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Hai đường vào cùng một chỗ, cố ý để cạnh nhau: cào thẳng chỉ chạy
+              được trên máy có SAP, còn kéo file thì chạy ở đâu cũng được — nên
+              khi đường trên không dùng được, đường lui nằm ngay dưới mắt. */}
+          <CaoSapPanel
+            token={token}
+            activeUser={activeUser}
+            onImported={onImported}
+          />
+          <RevenueImportPanel
+            token={token}
+            activeUser={activeUser}
+            onImported={() => {
+              setMoNhap(false);
+              if (onImported) onImported();
+            }}
+          />
+        </div>
       )}
 
       {/* Filter Bar */}

@@ -260,6 +260,183 @@ console.log('\n10. Client: hạn giờ dài hơn mặc định, và panel đư�
   check('có bước xác nhận trước khi ghi', panel.indexOf('ConfirmDialog') >= 0);
 }
 
+// =====================================================================
+// Nút "Cào từ SAP" — giao thức karofi-oem://
+// =====================================================================
+
+const PROTO = 'D:/Operation/Claude/Scripts/karofi-oem-protocol';
+const docNeuCo = (p) => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '');
+
+console.log('\n11. Phép lọc URL trong chay.vbs — CỬA CHẶN DUY NHẤT');
+{
+  const vbs = docNeuCo(path.join(PROTO, 'chay.vbs'));
+  check('có file chay.vbs', vbs.length > 0);
+
+  // Một giao thức đã đăng ký thì MỌI trang web đều gọi được. Chuỗi URL là dữ
+  // liệu không tin được, và nó bị ghép vào một dòng lệnh ngay sau đó — nên
+  // phép lọc này là thứ duy nhất đứng giữa một trang web lạ và shell của máy.
+  const m = vbs.match(/re\.Pattern\s*=\s*"([^"]+)"/);
+  check('đọc được biểu thức lọc', !!m, m && m[1]);
+  if (m) {
+    // VBScript không coi \ là ký tự thoát trong chuỗi, nên mẫu lấy ra là mẫu
+    // thật — dùng thẳng được trong JS.
+    const re = new RegExp(m[1]);
+
+    check('nhận URL đúng khuôn', re.test('karofi-oem://dt-oem?month=2026-09'));
+    check('nhận cả dạng có / thừa', re.test('karofi-oem://dt-oem/?month=2026-09'));
+    check('nhận dạng không có tháng', re.test('karofi-oem://dt-oem'));
+
+    // Mỗi dòng dưới đây là một cách thoát ra khỏi cặp nháy kép trong dòng lệnh
+    // mà chay.vbs dựng, hoặc một cách nối thêm lệnh thứ hai.
+    const doc = [
+      'karofi-oem://dt-oem?month=2026-09" & shell("calc")',
+      'karofi-oem://dt-oem?month=2026-09"',
+      'karofi-oem://dt-oem&calc',
+      'karofi-oem://dt-oem|calc',
+      'karofi-oem://dt-oem;calc',
+      'karofi-oem://dt-oem?month=2026-09 extra',
+      'karofi-oem://dt-oem?month=../../windows',
+      'karofi-oem://dt-oem?month=2026-9',
+      'karofi-oem://dt-oem?month=20269',
+      'karofi-oem://dt-oem?thang=2026-09&month=2026-09',
+      'karofi-oem://../dt-oem?month=2026-09',
+      'karofi-oem://dt oem?month=2026-09',
+      'karofi-oem://dt-oem?month=2026-09%00',
+      'karofi-oem://DT-OEM?month=2026-09',
+      'http://x/karofi-oem://dt-oem'
+    ];
+    const lot = doc.filter((u) => re.test(u));
+    check('chặn hết ' + doc.length + ' chuỗi độc/lệch khuôn', lot.length === 0, lot);
+
+    // Tên việc phải là danh sách CHO PHÉP, không phải "cái gì cũng chạy".
+    check('chỉ chấp nhận đúng việc dt-oem', /hanhDong <> "dt-oem"/.test(vbs));
+    check('thoát ngay nếu không khớp khuôn', /If Not re\.Test\(url\) Then WScript\.Quit/.test(vbs));
+    // Ghép dòng lệnh phải nằm SAU phép lọc — lọc sau khi ghép là vô nghĩa.
+    check('lọc đứng trước bước ghép lệnh',
+      vbs.indexOf('re.Test(url)') < vbs.indexOf('lenh = "powershell'));
+  }
+
+  // Cửa sổ console đen: bài học 08/09/2026 — "-WindowStyle Hidden" không ẩn
+  // được cửa sổ do người gọi tạo ra, chỉ WScript.Shell.Run(..., 0, False) mới.
+  check('chạy ẩn bằng shim .vbs (style 0)', /sh\.Run lenh, 0, False/.test(vbs));
+}
+
+console.log('\n12. dieu-phoi.ps1 — kiểm lớp hai, khoá, và không nói dối nhịp tim');
+{
+  const ps = docNeuCo(path.join(PROTO, 'dieu-phoi.ps1'));
+  check('có file dieu-phoi.ps1', ps.length > 0);
+  // Nhận tham số đã lọc, KHÔNG nhận URL — không có chỗ nào để phân tích chuỗi
+  // lạ lần thứ hai.
+  check('không nhận URL, chỉ nhận tham số đã lọc',
+    /\[string\]\$HanhDong/.test(ps) && !/\$Url/.test(ps));
+  check('kiểm lại việc cho phép', /\$HanhDong -ne 'dt-oem'/.test(ps));
+  check('kiểm lại định dạng tháng', /\$Thang -notmatch '\^\\d\{4\}-\\d\{2\}\$'/.test(ps));
+
+  // doPost của up-dt-oem KHÔNG có LockService; nút thì rất dễ bị bấm hai lần.
+  check('có khoá chống chồng lượt', /dang-chay\.lock/.test(ps) && /Test-Path \$khoa/.test(ps));
+  check('khoá cũ quá lâu thì tự bỏ', /TotalMinutes -lt 30/.test(ps));
+
+  // 0 dòng: gọi Web App là xoá trắng tháng đó mà không có gì thay thế.
+  check('SAP không có dữ liệu thì KHÔNG gọi bước 2', /\$j1\.no_data/.test(ps));
+
+  // Nhịp dữ liệu do replaceMonth_ ghi, ngay tại chỗ dữ liệu vào Sheet. Bộ điều
+  // phối ghi thêm dòng đó là kể lại một việc nó chỉ nghe qua HTTP.
+  check("chỉ ghi dòng 'oem.doanh-thu.nut', không đụng dòng dữ liệu",
+    /\$JOB\s*=\s*'oem\.doanh-thu\.nut'/.test(ps) && !/'oem\.doanh-thu'/.test(ps));
+  check("dùng trạng thái 'dang-chay' làm hợp đồng với app", /'dang-chay'/.test(ps));
+  check('lỗi ghi nhịp tim không làm hỏng việc chính', /không được để lỗi ở đây|khong phá|cái đo/i.test(ps) || /catch \{[\s\S]{0,120}Ghi-NhatKy/.test(ps));
+  check('có nhật ký và tự giữ độ dài', /nhat-ky\.log/.test(ps) && /Select-Object -Last 400/.test(ps));
+}
+
+console.log('\n13. Web App chỉ cho ghi nhịp phụ, không cho ghi đè dòng dữ liệu');
+{
+  const code = docNeuCo('D:/Operation/Claude/Scripts/up-dt-oem/Code.gs');
+  check('có nhánh action heartbeat', /body\.action === 'heartbeat'/.test(code));
+
+  const m = code.match(/if \(!\/(\^oem[^/]+)\/\.test\(job\)\)/);
+  check('khoá job bị giới hạn bằng biểu thức', !!m, m && m[1]);
+  if (m) {
+    const re = new RegExp(m[1]);
+    // Nếu secret lọt, việc ghi đè `oem.doanh-thu` bằng một mốc giả sẽ làm dòng
+    // nhịp thật KHÔNG BAO GIỜ báo ôi nữa — đúng thứ nhịp tim sinh ra để chống.
+    check('CHẶN ghi đè dòng dữ liệu oem.doanh-thu', !re.test('oem.doanh-thu'));
+    check('chặn oem.cong-no', !re.test('oem.cong-no'));
+    check('cho ghi dòng phụ oem.doanh-thu.nut', re.test('oem.doanh-thu.nut'));
+    check('chặn job của app khác', !re.test('fc.dong-bo-gia') && !re.test('export.sync-bom'));
+    check('chặn job rỗng và ký tự lạ',
+      !re.test('') && !re.test('oem..x') && !re.test('oem.a.b.c') && !re.test('OEM.A.B'));
+  }
+  // Dòng kể lại một lượt CHẠY thì không có số dòng và không được đặt ngưỡng ôi
+  // — đặt ngưỡng cho nó là báo động về lịch chứ không về dữ liệu.
+  check('không nhận soDong/hanGio từ ngoài',
+    !/soDong:\s*body\./.test(code) && !/hanGio:\s*body\./.test(code));
+  check('ba trạng thái hợp lệ', /\['ok', 'loi', 'dang-chay'\]/.test(code));
+}
+
+console.log('\n14. App theo dõi lượt chạy mà không phụ thuộc đồng hồ máy');
+{
+  const p = docNeuCo(path.join(SRC, 'components', 'transactions', 'CaoSapPanel.jsx'));
+  check('có CaoSapPanel', p.length > 0);
+  check('gọi đúng giao thức', /karofi-oem:\/\/dt-oem\?month=\$\{thang\}/.test(p));
+  // `lanCuoi` do máy chủ Google ghi, `Date.now()` là đồng hồ trình duyệt. So
+  // hai đồng hồ khác nhau là mời một lỗi chỉ xuất hiện trên máy lệch giờ.
+  check('chụp mốc trước khi bấm rồi chờ mốc ĐỔI', /mocNut/.test(p) && /!== mocNut/.test(p));
+  check("dừng theo trạng thái 'dang-chay', không đoán qua chữ",
+    /trangThai !== 'dang-chay'/.test(p));
+  check('có hạn chờ khởi động (báo "chưa cài")', /CHO_KHOI_DONG_MS/.test(p) && /khongCai/.test(p));
+  check('có hạn tối đa, không quay vòng mãi', /CHO_TOI_DA_MS/.test(p));
+  // setInterval sẽ xếp các lượt hỏi chồng lên nhau khi một lượt chậm. Bắt
+  // đúng LỜI GỌI (`setInterval(`) chứ không bắt cái tên: bản trước của phép
+  // kiểm này bắt cả chữ "setInterval" trong câu chú thích giải thích vì sao
+  // không dùng nó — tức là một phép kiểm hỏng ngay khi có ai giải thích đúng.
+  check('hỏi vòng tuần tự, không gọi setInterval', !/setInterval\s*\(/.test(p));
+  check('dừng vòng hỏi khi rời màn', /dungRef/.test(p) && /useEffect\(\(\) => \(\) =>/.test(p));
+  // Chỉ tải lại khi dòng DỮ LIỆU đổi: có ca chạy xong mà không ghi gì.
+  check('chỉ tải lại khi dòng dữ liệu thật đổi', /!== mocData/.test(p));
+  check('nút chỉ hiện với admin/creator', /\['admin',\s*'creator'\]\.includes\(activeUser\?\.role\)/.test(p));
+
+  const grid = fs.readFileSync(path.join(SRC, 'components', 'TransactionGrid.jsx'), 'utf8');
+  check('gắn vào tab Lịch sử doanh thu, cạnh đường kéo file',
+    grid.indexOf('CaoSapPanel') >= 0 && grid.indexOf('RevenueImportPanel') >= 0);
+}
+
+console.log('\n15. Endpoint đọc nhịp tim: có, nhẹ, và KHÔNG cache');
+{
+  const nt = fs.readFileSync(path.join(GAS, 'NhipTimApi.gs'), 'utf8');
+  check('tự kiểm phiên', nt.indexOf('oemAppRequireSession_(token)') >= 0);
+  // Cache 10 phút làm mốc thời gian đứng yên 10 phút — đúng cái panel cần theo
+  // dõi. Ở đây cache không phải tối ưu, nó là hỏng chức năng.
+  check('không dùng CacheService', nt.indexOf('CacheService') < 0);
+
+  const code = fs.readFileSync(path.join(GAS, 'Code.gs'), 'utf8');
+  check('có trong bảng định tuyến', /getNhipTim:\s*oemAppGetNhipTim_/.test(code));
+  // Chỉ đọc — nằm trong WRITE_FNS là bắt mỗi lượt hỏi vòng giành khoá ghi với
+  // chính lượt nhập đang chạy.
+  check('KHÔNG nằm trong OEMAPP_WRITE_FNS_',
+    !/OEMAPP_WRITE_FNS_[\s\S]{0,600}?getNhipTim/.test(code));
+
+  const api = fs.readFileSync(path.join(SRC, 'services', 'api.js'), 'utf8');
+  check('client dùng hạn giờ ngắn cho lượt hỏi vòng',
+    /getNhipTim'\s*,\s*\[token\]\s*,\s*15000/.test(api));
+}
+
+console.log('\n16. Trình cài đặt: HKCU, có đường gỡ, có kiểm điều kiện');
+{
+  const ci = docNeuCo(path.join(PROTO, 'cai-dat.ps1'));
+  check('có cai-dat.ps1', ci.length > 0);
+  // HKCU: không cần quyền quản trị, và không ảnh hưởng người khác dùng chung
+  // máy. Giao thức này chỉ có nghĩa trên đúng một máy (máy có SAP).
+  check('ghi vào HKCU, không phải HKLM',
+    /HKCU:\\Software\\Classes\\karofi-oem/.test(ci) && !/HKLM/.test(ci));
+  check('có đường gỡ', /-Go/.test(ci) && /Remove-Item \$khoa -Recurse -Force/.test(ci));
+  check('có đường chỉ kiểm, không sửa', /-Kiem/.test(ci));
+  // Đăng ký một giao thức trỏ tới file không tồn tại thì nút bấm im lặng
+  // không làm gì, và không ai biết vì sao.
+  check('kiểm đủ file trước khi đăng ký',
+    /export_zsd450\.py/.test(ci) && /push_to_sheet\.py/.test(ci) && /config\.json/.test(ci));
+  check('cảnh báo khi đang trỏ tới thư mục khác', /duong dan KHAC|CANH BAO/.test(ci));
+}
+
 console.log('');
 console.log(pass + ' đạt, ' + fail + ' hỏng');
 process.exit(fail ? 1 : 0);

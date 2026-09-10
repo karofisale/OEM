@@ -311,6 +311,18 @@ export async function importRevenueExcel(token, month, rows) {
   return callApi('importRevenueExcel', [token, month, rows], 180000);
 }
 
+/**
+ * Nhịp tim của các việc tự động — dùng để theo dõi một lượt cào SAP đang chạy.
+ * KHÔNG cache ở backend, có chủ ý (xem NhipTimApi.gs): thứ cần theo dõi chính
+ * là mốc thời gian, mà bản cache 10 phút thì mốc đứng yên 10 phút.
+ *
+ * Hạn giờ 15 giây thay vì 60: đây là lượt hỏi vòng, hỏng một nhịp thì nhịp sau
+ * hỏi lại. Chờ 60 giây cho một lượt hỏi mỗi 5 giây là xếp hàng chồng lên nhau.
+ */
+export async function getNhipTim(token) {
+  return callApi('getNhipTim', [token], 15000);
+}
+
 export async function submitPriceProposal(token, rows) {
   return callApi('submitPriceProposal', [token, rows]);
 }

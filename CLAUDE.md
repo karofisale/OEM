@@ -165,6 +165,25 @@ dạng chữ `"08 %"` phải thành `0.08` nếu không cột DT thuần sau VAT
 cả cột; và 7 cột công thức phải gửi `null` chứ không phải chuỗi rỗng — chuỗi
 rỗng là GHI đè lên ARRAYFORMULA.
 
+### Nút "Cào thẳng từ SAP" — giao thức `karofi-oem://`
+
+Cùng chỗ, phía trên panel kéo file. Nút gọi
+`karofi-oem://dt-oem?month=YYYY-MM`; phần còn lại nằm ở
+`D:\Operation\Claude\Scripts\karofi-oem-protocol` (đọc README ở đó **trước khi
+sửa** — nó là bề mặt bảo mật, mọi trang web đều gọi được giao thức đã đăng ký).
+
+**Đường về là nhịp tim, không phải HTTP** — giao thức riêng là một chiều, và JS
+không phát hiện được là nó đã cài hay chưa. `CaoSapPanel.jsx` chụp mốc
+`oem.doanh-thu.nut` **trước** khi bấm rồi chờ mốc đổi; so với `Date.now()` là
+sai vì `lanCuoi` do máy chủ Google ghi, hai đồng hồ khác nhau.
+
+Ba trạng thái là **hợp đồng** với `dieu-phoi.ps1`, đừng đổi một bên:
+`dang-chay` → còn chạy · `ok` → xong · `loi` → hỏng, `ghi_chu` là lý do.
+
+`getNhipTim` (`gas/NhipTimApi.gs`) **không cache**, có chủ ý: `getPortalStats`
+cũng trả `nhipTim` nhưng cache 10 phút, và với bản cache thì mốc thời gian đứng
+yên đúng 10 phút — cache ở đây không phải tối ưu, nó là hỏng chức năng.
+
 **File chứa nhiều hơn một tháng thì panel CHẶN.** `replaceMonth_` xoá đúng một
 tháng rồi chèn tất cả dòng gửi lên, nên dòng của tháng còn lại sẽ nằm cạnh dòng
 cũ của chính nó — nhân đôi. `push_to_sheet.py` không có chốt này (nó tin

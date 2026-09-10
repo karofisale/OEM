@@ -191,6 +191,7 @@ var oemAppApiMap_ = {
   getDebtView: oemAppGetDebtView_,
   importDebtExcel: oemAppImportDebtExcel_,
   importRevenueExcel: oemAppImportRevenueExcel_,
+  getNhipTim: oemAppGetNhipTim_,
   submitPriceProposal: oemAppSubmitPriceProposal_,
   getPendingPriceProposals: oemAppGetPendingPriceProposals_,
   approvePriceBatch: oemAppApprovePriceBatch_,
