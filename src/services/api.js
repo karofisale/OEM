@@ -74,16 +74,17 @@ const NON_IDEMPOTENT_FNS = new Set([
   'changePassword'
 ]);
 
-async function callApi(fn, args = []) {
+async function callApi(fn, args = [], timeoutMs) {
   if (!API_URL) {
     throw new Error('Backend chưa được cấu hình (API_URL trống trong src/services/api.js). Xem gas/SETUP.md.');
   }
-  return callApiAttempt(fn, args, 0);
+  return callApiAttempt(fn, args, 0, timeoutMs);
 }
 
-async function callApiAttempt(fn, args, attempt) {
+async function callApiAttempt(fn, args, attempt, timeoutMs) {
+  const hetGio = timeoutMs || REQUEST_TIMEOUT_MS;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), hetGio);
 
   let response;
   try {
@@ -96,22 +97,22 @@ async function callApiAttempt(fn, args, attempt) {
     });
   } catch (networkErr) {
     const message = networkErr.name === 'AbortError'
-      ? `Máy chủ không phản hồi sau ${REQUEST_TIMEOUT_MS / 1000}s — mạng có thể đang chập chờn.`
+      ? `Máy chủ không phản hồi sau ${hetGio / 1000}s — mạng có thể đang chập chờn.`
       : 'Không kết nối được tới máy chủ — mạng có thể đang chập chờn.';
-    return retryOrThrow(fn, args, attempt, new Error(message));
+    return retryOrThrow(fn, args, attempt, new Error(message), hetGio);
   } finally {
     clearTimeout(timeoutId);
   }
 
   if (!response.ok) {
-    return retryOrThrow(fn, args, attempt, new Error(`HTTP ${response.status} — máy chủ phản hồi bất thường (có thể do mạng/proxy chặn giữa đường).`));
+    return retryOrThrow(fn, args, attempt, new Error(`HTTP ${response.status} — máy chủ phản hồi bất thường (có thể do mạng/proxy chặn giữa đường).`), hetGio);
   }
 
   let json;
   try {
     json = await response.json();
   } catch (parseErr) {
-    return retryOrThrow(fn, args, attempt, new Error('Phản hồi không đúng định dạng — có thể do mạng chặn giữa đường.'));
+    return retryOrThrow(fn, args, attempt, new Error('Phản hồi không đúng định dạng — có thể do mạng chặn giữa đường.'), hetGio);
   }
 
   if (json.error) throw new Error(json.error); // real answer from our backend — never retry
@@ -123,13 +124,13 @@ async function callApiAttempt(fn, args, attempt) {
   // caused "Cannot read properties of undefined" crashes downstream — treat
   // it as a fluke and retry instead.
   if (!json || typeof json !== 'object' || !('result' in json)) {
-    return retryOrThrow(fn, args, attempt, new Error('Phản hồi từ máy chủ không hợp lệ — có thể do mạng chặn giữa đường.'));
+    return retryOrThrow(fn, args, attempt, new Error('Phản hồi từ máy chủ không hợp lệ — có thể do mạng chặn giữa đường.'), hetGio);
   }
 
   return json.result;
 }
 
-async function retryOrThrow(fn, args, attempt, err) {
+async function retryOrThrow(fn, args, attempt, err, timeoutMs) {
   // Hàm ghi không lặp lại được: hỏng thì báo ngay và nói rõ phải kiểm tra
   // trước khi bấm lại — vì rất có thể lượt vừa rồi đã ghi xong.
   if (NON_IDEMPOTENT_FNS.has(fn)) {
@@ -141,7 +142,9 @@ async function retryOrThrow(fn, args, attempt, err) {
   }
   if (attempt < MAX_RETRIES) {
     await sleep(RETRY_DELAY_MS * (attempt + 1));
-    return callApiAttempt(fn, args, attempt + 1);
+    // Giữ nguyên hạn giờ của lượt đầu: lượt thử lại của một hàm được nới hạn
+    // mà rơi về 60 giây mặc định thì nó sẽ đứt đúng ở chỗ lượt đầu đã đứt.
+    return callApiAttempt(fn, args, attempt + 1, timeoutMs);
   }
   throw err;
 }
@@ -290,6 +293,22 @@ export async function getDebtView(token, forceRefresh) {
 
 export async function importDebtExcel(token, rows) {
   return callApi('importDebtExcel', [token, rows]);
+}
+
+/**
+ * Nhập doanh thu ZSD450 vào tab Data. `month` là tháng SẼ BỊ THAY TOÀN BỘ.
+ *
+ * Hạn giờ 180 giây thay vì 60 mặc định: backend còn chuyển tiếp sang Web App
+ * `up-dt-oem`, nơi `replaceMonth_` xoá cả tháng rồi chèn lại từng khối cột.
+ * `push_to_sheet.py` đang để 180 giây cho đúng việc đó — để 60 ở đây là cắt
+ * ngang một lượt ghi đang chạy dở.
+ *
+ * KHÔNG nằm trong NON_IDEMPOTENT_FNS, có chủ ý: `replaceMonth_` xoá sạch tháng
+ * rồi ghi lại nguyên tháng, nên gửi lại cùng payload cho ra đúng cùng kết quả.
+ * Và lượt gọi này chạy trong oemAppRunExclusive_ nên hai lượt không chồng nhau.
+ */
+export async function importRevenueExcel(token, month, rows) {
+  return callApi('importRevenueExcel', [token, month, rows], 180000);
 }
 
 export async function submitPriceProposal(token, rows) {

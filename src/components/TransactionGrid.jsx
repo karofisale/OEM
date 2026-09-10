@@ -1,8 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, Calendar, User, FileText, Layers } from 'lucide-react';
+import { Search, Filter, Calendar, User, FileText, Layers, Upload, ChevronUp } from 'lucide-react';
 import { monthsFromTransactions, latestMonthKey } from '../utils/period';
+import RevenueImportPanel from './transactions/RevenueImportPanel';
 
-export default function TransactionGrid({ transactions }) {
+export default function TransactionGrid({ transactions, token, activeUser, onImported }) {
+  // Panel nhập ZSD450 mặc định ĐÓNG: màn này chủ yếu để tra cứu, còn nhập là
+  // việc mỗi tháng vài lần. Mở sẵn thì phần lớn lượt vào tab phải cuộn qua nó.
+  const [moNhap, setMoNhap] = useState(false);
+  const coQuyenNhap = ['admin', 'creator'].includes(activeUser?.role);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSale, setSelectedSale] = useState('ALL');
   const [selectedGroup, setSelectedGroup] = useState('ALL');
@@ -76,10 +81,32 @@ export default function TransactionGrid({ transactions }) {
           </p>
         </div>
 
-        <span className="badge badge-blue" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
-          Hiển thị {filteredData.length.toLocaleString('vi-VN')} bản ghi
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {coQuyenNhap && (
+            <button
+              className={moNhap ? 'btn btn-ghost' : 'btn btn-primary'}
+              onClick={() => setMoNhap((v) => !v)}
+            >
+              {moNhap ? <ChevronUp size={16} /> : <Upload size={16} />}
+              {moNhap ? 'Đóng' : 'Nhập ZSD450'}
+            </button>
+          )}
+          <span className="badge badge-blue" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
+            Hiển thị {filteredData.length.toLocaleString('vi-VN')} bản ghi
+          </span>
+        </div>
       </div>
+
+      {moNhap && coQuyenNhap && (
+        <RevenueImportPanel
+          token={token}
+          activeUser={activeUser}
+          onImported={() => {
+            setMoNhap(false);
+            if (onImported) onImported();
+          }}
+        />
+      )}
 
       {/* Filter Bar */}
       <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px' }}>

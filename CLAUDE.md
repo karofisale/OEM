@@ -126,6 +126,51 @@ chuyện phân quyền — mọi dòng thiếu cột sale bị gán cho một ng
 người đó thấy chúng như đơn của mình. Sửa được nhưng phải rà cả đường
 getBootstrap.
 
+## Nhập ZSD450 từ trong app (tab Lịch sử doanh thu)
+
+Nút **"Nhập ZSD450"** trong tab `transactions` làm đúng việc mà
+`Scripts/up-dt-oem/push_to_sheet.py` làm ở dòng lệnh: đọc file Excel xuất từ
+SAP, dựng mảng 65 ô mỗi dòng, ghi vào tab Data.
+
+**Đường ghi vẫn chỉ có MỘT.** `oemAppImportRevenueExcel_` không tự ghi Sheet —
+nó `UrlFetchApp` sang Web App `up-dt-oem`, nơi `replaceMonth_` đã chạy thật
+nhiều tháng và biết những thứ không nhìn ra từ đây (7 cột công thức/điền tay,
+dòng neo ARRAYFORMULA không được xoá, ghi theo từng khối cột). Viết lại logic
+đó ở đây là tạo bản thứ hai của cùng một sự thật.
+
+**Cần hai Script Property, thiếu là panel báo lỗi ngay khi bấm:**
+
+```
+UPDT_WEBAPP_URL = URL /exec của dự án up-dt-oem
+UPDT_SECRET     = đúng chuỗi trong Script Property SECRET của dự án đó
+```
+
+Hai giá trị nằm sẵn ở `Scripts/up-dt-oem/config.json`. Chạy
+`setup_kiemCauHinhNhapDoanhThu()` để kiểm — nó in CÓ/KHÔNG, **không in giá
+trị**. Secret KHÔNG BAO GIỜ xuống client: kho này là **public**, mọi chuỗi
+trong bundle đều đọc được trên GitHub.
+
+**Bản đồ 65 cột có HAI BẢN** — `src/utils/zsd450.js` và `push_to_sheet.py`. SAP
+đổi tên một cột mà chỉ sửa một bên thì bên kia im lặng gửi sai. `test/revenue-import.test.cjs`
+đọc thẳng mã nguồn Python và so từng phần tử.
+
+```bash
+node test/revenue-import.test.cjs   # 45 test
+```
+
+Ba cái bẫy bộ test đang canh, đều là chuyện thật của dữ liệu ZSD450: dòng "nhãn
+số cột" (1,2,3…) SAP chèn dưới tiêu đề phải lọc theo **kiểu Date** chứ không
+theo rỗng — nên file **bắt buộc** đọc với `cellDates: true`; cột Thuế suất ra
+dạng chữ `"08 %"` phải thành `0.08` nếu không cột DT thuần sau VAT ra `#VALUE!`
+cả cột; và 7 cột công thức phải gửi `null` chứ không phải chuỗi rỗng — chuỗi
+rỗng là GHI đè lên ARRAYFORMULA.
+
+**File chứa nhiều hơn một tháng thì panel CHẶN.** `replaceMonth_` xoá đúng một
+tháng rồi chèn tất cả dòng gửi lên, nên dòng của tháng còn lại sẽ nằm cạnh dòng
+cũ của chính nó — nhân đôi. `push_to_sheet.py` không có chốt này (nó tin
+`--month`); trong thực tế không gặp vì `export_zsd450.py` luôn xuất đúng một
+tháng.
+
 ## Nhịp tim của việc tự động
 
 `gas/NhipTim.gs` giống hệt **từng byte** với bản ở FC App, Export Ops Hub,

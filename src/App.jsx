@@ -389,7 +389,15 @@ export default function App() {
           </KeepAliveTab>
 
           <KeepAliveTab isActive={activeTab === 'transactions'} hasVisited={visitedTabs.has('transactions')}>
-            <TransactionGrid transactions={transactions} />
+            <TransactionGrid
+              transactions={transactions}
+              token={session?.token}
+              activeUser={activeUser}
+              // Ép đọc lại: dữ liệu vừa được ghi bởi một dự án Apps Script
+              // KHÁC (up-dt-oem), nên cache bootstrap phía client không có
+              // đường nào tự biết là nó đã cũ.
+              onImported={() => fetchAllData(true)}
+            />
           </KeepAliveTab>
 
           <KeepAliveTab isActive={activeTab === 'products'} hasVisited={visitedTabs.has('products')}>

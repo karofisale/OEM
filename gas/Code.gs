@@ -97,7 +97,7 @@ var OEMAPP_WRITE_FNS_ = {
   addClient: 1, editClient: 1, addMaterial: 1, editMaterial: 1,
   submitSalesPlan: 1, approveSalesPlan: 1, changePassword: 1,
   saveOrder: 1, updateOrderLine: 1, insertOrderLine: 1, deleteOrderLine: 1, deleteOrder: 1,
-  submitSopDraft: 1, approveSop: 1, importDebtExcel: 1,
+  submitSopDraft: 1, approveSop: 1, importDebtExcel: 1, importRevenueExcel: 1,
   submitPriceProposal: 1, approvePriceBatch: 1, rejectPriceBatch: 1, importCostExcel: 1
 };
 
@@ -190,6 +190,7 @@ var oemAppApiMap_ = {
   getMySopPlan: oemAppGetMySopPlan_,
   getDebtView: oemAppGetDebtView_,
   importDebtExcel: oemAppImportDebtExcel_,
+  importRevenueExcel: oemAppImportRevenueExcel_,
   submitPriceProposal: oemAppSubmitPriceProposal_,
   getPendingPriceProposals: oemAppGetPendingPriceProposals_,
   approvePriceBatch: oemAppApprovePriceBatch_,
