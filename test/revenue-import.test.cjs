@@ -309,7 +309,9 @@ console.log('\n11. Phép lọc URL trong chay.vbs — CỬA CHẶN DUY NHẤT');
     check('chặn hết ' + doc.length + ' chuỗi độc/lệch khuôn', lot.length === 0, lot);
 
     // Tên việc phải là danh sách CHO PHÉP, không phải "cái gì cũng chạy".
-    check('chỉ chấp nhận đúng việc dt-oem', /hanhDong <> "dt-oem"/.test(vbs));
+    // Đúng hai việc: dt-oem (cào thật) và tu-kiem (không đụng SAP, không ghi).
+    check('chỉ chấp nhận dt-oem và tu-kiem',
+      /hanhDong <> "dt-oem" And hanhDong <> "tu-kiem" Then WScript\.Quit/.test(vbs));
     check('thoát ngay nếu không khớp khuôn', /If Not re\.Test\(url\) Then WScript\.Quit/.test(vbs));
     // Ghép dòng lệnh phải nằm SAU phép lọc — lọc sau khi ghép là vô nghĩa.
     check('lọc đứng trước bước ghép lệnh',
@@ -329,7 +331,18 @@ console.log('\n12. dieu-phoi.ps1 — kiểm lớp hai, khoá, và không nói d�
   // lạ lần thứ hai.
   check('không nhận URL, chỉ nhận tham số đã lọc',
     /\[string\]\$HanhDong/.test(ps) && !/\$Url/.test(ps));
-  check('kiểm lại việc cho phép', /\$HanhDong -ne 'dt-oem'/.test(ps));
+  check('kiểm lại việc cho phép', /@\('dt-oem', 'tu-kiem'\) -notcontains \$HanhDong/.test(ps));
+
+  // `cai-dat.ps1 -Kiem` chỉ chứng minh khoá registry tồn tại. Sáu thứ khác
+  // (Windows có gọi tới đây không, python, hai thư viện, config.json, Web App)
+  // hỏng thứ nào thì nút cũng im lặng y như nhau. Đường tu-kiem đi hết chuỗi
+  // trừ SAP và trừ việc ghi dữ liệu, nên nó là phép thử duy nhất không tốn một
+  // lượt cào thật.
+  check('có đường tự kiểm', /\$HanhDong -eq 'tu-kiem'/.test(ps));
+  check('tự kiểm KHÔNG gọi hai script ghi dữ liệu',
+    ps.indexOf("if ($HanhDong -eq 'tu-kiem')") < ps.indexOf('Chay-Python $dtOem'));
+  check('tự kiểm chỉ HỎI SAP, không mở transaction nào',
+    /GetScriptingEngine/.test(ps) && !/tu-kiem[\s\S]{0,900}ZSD450/.test(ps));
   check('kiểm lại định dạng tháng', /\$Thang -notmatch '\^\\d\{4\}-\\d\{2\}\$'/.test(ps));
 
   // doPost của up-dt-oem KHÔNG có LockService; nút thì rất dễ bị bấm hai lần.

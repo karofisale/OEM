@@ -213,8 +213,16 @@ export default function CaoSapPanel({ token, activeUser, onImported }) {
               Ba lý do có thể, theo thứ tự hay gặp: máy này chưa cài trình chạy
               (chạy <code>Scripts\karofi-oem-protocol\cai-dat.ps1</code> trên máy có SAP);
               trình duyệt đã chặn hoặc anh bấm "Huỷ" ở hộp thoại xác nhận;
-              hoặc SAP GUI chưa mở và đăng nhập. Nếu không phải máy có SAP thì
-              dùng <strong>Nhập ZSD450</strong> bên dưới — kéo file vào, chạy ở đâu cũng được.
+              hoặc SAP GUI chưa mở và đăng nhập.
+              <div style={{ marginTop: '6px' }}>
+                Muốn biết hỏng chỗ nào: dán <code>karofi-oem://tu-kiem</code> vào cửa sổ Run (Win+R)
+                trên máy có SAP, rồi xem <code>nhat-ky.log</code> — nó kiểm cả chuỗi mà không đụng SAP
+                và không ghi dữ liệu nào.
+              </div>
+              <div style={{ marginTop: '6px' }}>
+                Nếu đây không phải máy có SAP thì dùng <strong>Nhập ZSD450</strong> ngay bên dưới —
+                kéo file vào, chạy ở đâu cũng được.
+              </div>
             </div>
           </div>
         </div>
