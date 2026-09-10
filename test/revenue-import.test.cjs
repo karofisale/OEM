@@ -339,6 +339,16 @@ console.log('\n12. dieu-phoi.ps1 — kiểm lớp hai, khoá, và không nói d�
   // trừ SAP và trừ việc ghi dữ liệu, nên nó là phép thử duy nhất không tốn một
   // lượt cào thật.
   check('có đường tự kiểm', /\$HanhDong -eq 'tu-kiem'/.test(ps));
+
+  // Bẫy đã trả giá 10/09/2026: export_zsd450.py in JSON MỘT dòng còn
+  // push_to_sheet.py in NHIỀU dòng (indent=2). Bản đầu của Doc-Json lọc "dòng
+  // nào bắt đầu bằng {" nên đúng với bước 1 và sai với bước 2 — báo "không đẩy
+  // lên Sheet được" cho một lượt ĐÃ GHI XONG 47 dòng. Sai kiểu tệ nhất: không
+  // mất dữ liệu, nhưng đẩy người dùng đi chạy lại.
+  check('Doc-Json lấy từ dấu { tới hết chuỗi, không lọc theo dòng',
+    /IndexOf\('\{'\)/.test(ps) && !/StartsWith\('\{'\)/.test(ps));
+  check('tự kiểm thử Doc-Json với CẢ HAI dạng JSON',
+    /Doc-Json 1 dong/.test(ps) && /Doc-Json nhieu dong/.test(ps));
   check('tự kiểm KHÔNG gọi hai script ghi dữ liệu',
     ps.indexOf("if ($HanhDong -eq 'tu-kiem')") < ps.indexOf('Chay-Python $dtOem'));
   check('tự kiểm chỉ HỎI SAP, không mở transaction nào',
