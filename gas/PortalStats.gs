@@ -128,6 +128,10 @@ function oemAppBuildPortalStats_(scope) {
     // lượng ra ngoài để cổng nói được là con số đang thiếu bao nhiêu dòng,
     // thay vì im lặng bỏ qua chúng.
     soDongThieuThang: soDongThieuThang,
+    // Độ tươi của hai đợt đổ số từ SAP (tab Data và tab Debt). Nằm trong khối
+    // được cache 10 phút cùng mọi con số khác — chấp nhận được vì đây là phép
+    // đo tính bằng GIỜ, chậm 10 phút không đổi kết luận nào. Xem NhipTim.gs.
+    nhipTim: docNhipTim_(oemAppSS_()),
     phamVi: scope.all ? '' : scope.saleId
   };
 }

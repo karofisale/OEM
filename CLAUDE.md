@@ -126,6 +126,22 @@ chuyện phân quyền — mọi dòng thiếu cột sale bị gán cho một ng
 người đó thấy chúng như đơn của mình. Sửa được nhưng phải rà cả đường
 getBootstrap.
 
+## Nhịp tim của việc tự động
+
+`gas/NhipTim.gs` giống hệt **từng byte** với bản ở FC App, Export Ops Hub,
+Karofi ID và `D:\Operation\Claude\Scripts\up-dt-oem`. `test/nhip-tim.test.js`
+của Karofi ID so cả năm file.
+
+Điểm dễ nhầm ở app này: **backend OEM App KHÔNG ghi nhịp nào cả, chỉ đọc.** Hai
+việc `oem.doanh-thu` và `oem.cong-no` do dự án `Scripts/up-dt-oem` ghi — dự án
+khác, gắn (container-bound) vào chính file Sheet OEM. Nhịp tim do **bên nhận**
+ghi chứ không phải bên gửi, nên `push_to_sheet.py` và `push_debt_to_sheet.py`
+không phải sửa gì, và thứ được ghi lại là dữ liệu ĐÃ vào Sheet chứ không phải
+một script tự khai là đã chạy.
+
+`oemAppBuildPortalStats_` trả `nhipTim` kèm số liệu (nằm trong khối cache 10
+phút — chấp nhận được vì đây là phép đo tính bằng giờ).
+
 ## Liên quan tới app khác
 
 `gas/KarofiToken.gs`, `gas/KarofiSession.gs`, `src/services/karofiSession.js` là
