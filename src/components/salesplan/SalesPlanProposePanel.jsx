@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Filter, CheckCircle2, Save, ShieldCheck, User, UserPlus, Plus, RefreshCw, AlertTriangle, Check } from 'lucide-react';
+import { Search, Filter, CheckCircle2, Save, ShieldCheck, User, UserPlus, Plus, RefreshCw, AlertTriangle, Check, Lock } from 'lucide-react';
 import * as api from '../../services/api';
 import Combobox from '../Combobox';
 import Pagination, { usePagedSlice } from '../Pagination';
 import { useToast } from '../ToastProvider';
 import { parseMonthKey, formatMonthKey } from '../../utils/period';
+import { canSeeAllSales, ownsSaleRow } from '../../utils/roles';
 
 const PAGE_SIZE = 25;
 
@@ -53,11 +54,15 @@ const draftFromPlanRow = (p) => ({
 // KPI năm), (3) khách Sale tự bổ sung bằng ô tìm + nút "Thêm KH vào kế hoạch".
 export default function SalesPlanProposePanel({ token, clients, plans, plan2026, planDefaultMonth, activeUser, onSubmitted, onReloadPlanKpi }) {
   const toast = useToast();
-  const canFilterAllSales = ['creator', 'admin', 'leader'].includes(activeUser.role);
+  const canFilterAllSales = canSeeAllSales(activeUser.role);
+  const isSale = String(activeUser.role || '').toLowerCase() === 'sale';
 
   const [month, setMonth] = useState(planDefaultMonth || '');
   const [periodConfirmed, setPeriodConfirmed] = useState(false);
-  const [selectedSale, setSelectedSale] = useState('ALL');
+  // Sale mở màn này là để lập kế hoạch cho khách CỦA MÌNH, nên mặc định lọc
+  // sẵn về mình — xem của người khác thì đổi sang "Tất cả SALE". Nếu vào thẳng
+  // danh sách toàn công ty thì khách của chính mình lẫn trong hàng trăm dòng.
+  const [selectedSale, setSelectedSale] = useState(isSale && activeUser.saleId ? activeUser.saleId : 'ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
@@ -88,27 +93,20 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
     return map;
   }, [clients]);
 
-  // Khách mà Sale này được phép nhìn thấy trong ô bổ sung. `plans` và `plan2026`
-  // đã được backend ép phạm vi rồi, nhưng `clients` thì KHÔNG (getBootstrap trả
-  // toàn bộ danh bạ), nên chỗ này phải tự ép.
-  //
-  // Fail CLOSED khi saleId trống, giống oemAppScopeOf_ bên backend: `includes('')`
-  // đúng với mọi dòng, tức một Sale thiếu saleId sẽ thấy TOÀN BỘ danh bạ.
+  // Toàn bộ danh bạ, bỏ trùng theo Mã KH chữ. Từ 14/09/2026 không cắt theo Sale
+  // nữa — ai cũng tra được mọi khách. Bổ sung khách của Sale khác vào bảng thì
+  // thấy được số nhưng ô nhập bị khoá (canEditRow), và backend chặn thật ở
+  // oemAppRequirePlanOwnership_.
   const pickableClients = useMemo(() => {
-    const saleId = normalizeForSearch(activeUser.saleId || '').trim();
     const seen = new Set();
     const out = [];
     clients.forEach(c => {
       if (!c.codeSearch || seen.has(c.codeSearch)) return;
-      if (!canFilterAllSales) {
-        if (!saleId) return;
-        if (!normalizeForSearch(c.sale).includes(saleId)) return;
-      }
       seen.add(c.codeSearch);
       out.push(c);
     });
     return out;
-  }, [clients, canFilterAllSales, activeUser.saleId]);
+  }, [clients]);
 
   // Hợp ba nguồn thành danh sách dòng của bảng. Không ép phạm vi lại cho nguồn
   // (1) và (2): backend đã ép theo PIC/Sale, ép thêm ở đây bằng `c.sale` của tab
@@ -176,6 +174,10 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
     allRows.forEach(r => { if (r.sale) set.add(r.sale); });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'vi'));
   }, [allRows]);
+
+  // Sửa được dòng này không. Khách chưa có chủ (cột Sale trống) thì cho nhập —
+  // đó là khách mới, và backend cũng cho qua đúng theo luật đó.
+  const canEditRow = (r) => !r.sale || ownsSaleRow(activeUser, r.sale);
 
   const planKpiForCode = (code) => {
     const p = parseMonthKey(month);
@@ -417,9 +419,15 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
         {canFilterAllSales && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <User size={15} color="var(--text-muted)" />
-            <select className="input-field" style={{ width: '160px' }} value={selectedSale} onChange={(e) => { setSelectedSale(e.target.value); setPage(1); }}>
+            <select className="input-field" style={{ width: '190px' }} value={selectedSale} onChange={(e) => { setSelectedSale(e.target.value); setPage(1); }}>
               <option value="ALL">Tất cả SALE</option>
-              {salesList.map(s => <option key={s} value={s}>{s}</option>)}
+              {/* Giá trị lọc là saleId (vd "Đình Hoan"), không phải tên đầy đủ trên
+                  Sheet (vd "KH Đình Hoan") — bộ lọc so theo kiểu "chứa" nên vẫn
+                  đúng, nhưng phải có option này thì ô select mới hiện được chữ. */}
+              {isSale && activeUser.saleId && (
+                <option value={activeUser.saleId}>⭐ Khách của tôi</option>
+              )}
+              {salesList.filter(s => s !== activeUser.saleId).map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
         )}
@@ -504,6 +512,7 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
               const sum = (d.w1 || 0) + (d.w2 || 0) + (d.w3 || 0) + (d.w4 || 0) + (d.w5 || 0);
               const isDirty = !!draftMap[code] && draftSignature(draftMap[code]) !== savedMap[code];
               const isJustSaved = !!draftMap[code] && draftSignature(draftMap[code]) === savedMap[code];
+              const editable = canEditRow(r);
               return (
                 <tr key={code}>
                   <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>
@@ -519,6 +528,11 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
                     {isDirty && (
                       <span style={{ marginLeft: '6px', fontSize: '0.65rem', fontWeight: 800, color: 'var(--warning-text)' }}>CHƯA LƯU</span>
                     )}
+                    {!editable && (
+                      <span title={`Khách của ${r.sale} — chỉ xem`} style={{ marginLeft: '6px', fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                        <Lock size={11} /> CHỈ XEM
+                      </span>
+                    )}
                   </td>
                   <td style={{ fontSize: '0.8rem' }}>
                     <div style={{ fontWeight: 600 }}>{r.name}</div>
@@ -532,23 +546,29 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
                     {planKpiForCode(code).toLocaleString('vi-VN')}
                   </td>
                   {['w1', 'w2', 'w3', 'w4', 'w5'].map(field => (
-                    <td key={field}>
-                      <input
-                        type="text" inputMode="numeric" className="input-field"
-                        style={{ textAlign: 'right', padding: '6px 8px', fontFamily: "'JetBrains Mono', monospace" }}
-                        value={formatDigits(d[field])}
-                        placeholder="0"
-                        onChange={(e) => setCell(code, field, parseDigits(e.target.value))}
-                      />
+                    <td key={field} style={editable ? undefined : { textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      {editable ? (
+                        <input
+                          type="text" inputMode="numeric" className="input-field"
+                          style={{ textAlign: 'right', padding: '6px 8px', fontFamily: "'JetBrains Mono', monospace" }}
+                          value={formatDigits(d[field])}
+                          placeholder="0"
+                          onChange={(e) => setCell(code, field, parseDigits(e.target.value))}
+                        />
+                      ) : (
+                        (d[field] || 0).toLocaleString('vi-VN')
+                      )}
                     </td>
                   ))}
                   <td style={{ textAlign: 'right', fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{sum.toLocaleString('vi-VN')}</td>
-                  <td>
-                    <input
-                      type="text" className="input-field" style={{ padding: '6px 8px' }}
-                      value={d.note} placeholder="Ghi chú..."
-                      onChange={(e) => setCell(code, 'note', e.target.value)}
-                    />
+                  <td style={editable ? undefined : { fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    {editable ? (
+                      <input
+                        type="text" className="input-field" style={{ padding: '6px 8px' }}
+                        value={d.note} placeholder="Ghi chú..."
+                        onChange={(e) => setCell(code, 'note', e.target.value)}
+                      />
+                    ) : (d.note || '')}
                   </td>
                 </tr>
               );

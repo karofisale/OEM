@@ -22,7 +22,7 @@
  * lập dòng thì mục tiêu biến mất khỏi tổng. Đọc thẳng Plan2026 thì mục tiêu
  * của tháng luôn đủ, không phụ thuộc sale đã lập kế hoạch hay chưa.
  *
- * VÌ SAO ĐÚNG PHÂN QUYỀN: dùng đúng oemAppScopeOf_ + oemAppMatchesSale_ mà
+ * VÌ SAO ĐÚNG PHÂN QUYỀN: dùng oemAppScopeCaNhan_ + oemAppMatchesSale_ mà
  * getBootstrap và bảng công nợ đang dùng. Sale chỉ cộng được dòng của chính
  * mình; saleId trống thì KHÔNG cộng gì (fail closed) chứ không cộng tất cả.
  *
@@ -138,7 +138,10 @@ function oemAppBuildPortalStats_(scope) {
 
 function oemAppGetPortalStats_(token) {
   var user = oemAppRequireSession_(token);
-  var scope = oemAppScopeOf_(user);
+  // CỐ Ý dùng phạm vi cá nhân, không phải oemAppScopeOf_ (từ 14/09/2026 hàm đó
+  // trả về "thấy tất cả" cho mọi role). Thẻ này không có bộ lọc chọn xem của
+  // ai — một con số duy nhất — nên nó phải là số của CHÍNH người đang xem.
+  var scope = oemAppScopeCaNhan_(user);
 
   var cache = CacheService.getScriptCache();
   var key = OEMAPP_PSTATS_CACHE_KEY_ + '_' + oemAppBootstrapVersion_() + '_' + scope.key;

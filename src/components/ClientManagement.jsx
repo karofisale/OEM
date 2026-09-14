@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Users, Plus, Edit3, Search, MapPin, UserCheck, Lock, Table, LayoutGrid, Filter } from 'lucide-react';
 import Pagination, { usePagedSlice } from './Pagination';
+import { canSeeAllSales } from '../utils/roles';
 
 const PAGE_SIZE = 25;
 
@@ -22,14 +23,11 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
   const [saleFilter, setSaleFilter] = useState('ALL');
 
   const isLeader = activeUser.role === 'leader';
-  const isSale = activeUser.role === 'sale';
   // Sales can add their own leads (same pattern as propose-price/propose-plan);
   // only Creator/Admin can edit existing records. Leader stays view-only.
   const canAdd = ['creator', 'admin', 'sale'].includes(activeUser.role);
   const canEditExisting = ['creator', 'admin'].includes(activeUser.role);
-  // Sale accounts already only ever see their own clients (scopedClients below) —
-  // a Sale filter dropdown is only useful for roles that see everyone.
-  const canFilterAllSales = ['creator', 'admin', 'leader'].includes(activeUser.role);
+  const canFilterAllSales = canSeeAllSales(activeUser.role);
 
   // Form state
   const [codeSearch, setCodeSearch] = useState('');
@@ -38,13 +36,9 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
   const [sale, setSale] = useState(activeUser.saleId || 'KH Đình Hoan');
   const [address, setAddress] = useState('');
 
-  // Scoped clients list if Sale role
-  const scopedClients = useMemo(() => clients.filter(c => {
-    if (isSale) {
-      return c.sale.toLowerCase().includes((activeUser.saleId || '').toLowerCase());
-    }
-    return true; // Creator, Admin, Leader see all
-  }), [clients, isSale, activeUser.saleId]);
+  // 14/09/2026: mọi role thấy toàn bộ danh bạ; muốn xem của riêng ai thì dùng
+  // bộ lọc SALE. Quyền SỬA không đổi — canEditExisting vẫn chỉ Creator/Admin.
+  const scopedClients = clients;
 
   const salesList = useMemo(() => {
     const set = new Set(clients.map(c => c.sale).filter(Boolean));
@@ -125,7 +119,7 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
             <Users size={22} color="var(--karofi-cyan)" /> Danh Bạ Khách Hàng OEM Karofi
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-            {isSale ? `Hiển thị danh sách Khách hàng được gán cho ${activeUser.saleId}.` : 'Quản lý toàn bộ đối tác OEM và nhân sự phụ trách.'}
+            Quản lý toàn bộ đối tác OEM và nhân sự phụ trách. Lọc theo cột SALE để xem danh sách của từng người.
           </p>
         </div>
 

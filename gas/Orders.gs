@@ -57,6 +57,25 @@ function oemAppRequireOrderEditRole_(user) {
 }
 
 
+/**
+ * Sale chỉ sửa được đơn do CHÍNH MÌNH tạo (cột PIC, cột 11).
+ *
+ * Cần từ 14/09/2026, khi màn "Đơn Hàng Chờ Duyệt" bắt đầu hiện đơn của mọi
+ * Sale (trước đó giao diện lọc sẵn theo PIC nên chưa ai chạm tới đơn người
+ * khác — backend chưa từng phải kiểm). So theo `user.name` chứ không phải
+ * saleId, vì cột PIC lưu tên đăng nhập, xem oemAppSaveOrder_.
+ *
+ * Admin/Creator không bị chặn: họ vốn là người soát và sửa đơn cho cả nhóm.
+ */
+function oemAppRequireOrderOwnership_(user, picCuaDong) {
+  if (String(user.role || '').toLowerCase() !== 'sale') return;
+  if (String(picCuaDong || '').trim() !== String(user.name || '').trim()) {
+    throw new Error('Đơn này do ' + (String(picCuaDong || '').trim() || 'người khác') +
+                    ' tạo — anh/chị xem được nhưng không sửa được.');
+  }
+}
+
+
 function oemAppSaveOrder_(token, order) {
   var user = oemAppRequireSession_(token);
   oemAppRequireOrderEditRole_(user);
@@ -119,12 +138,14 @@ function oemAppGetOrders_(token) {
 
 
 function oemAppUpdateOrderLine_(token, rowIndex, updates) {
-  oemAppRequireOrderEditRole_(oemAppRequireSession_(token));
+  var user = oemAppRequireSession_(token);
+  oemAppRequireOrderEditRole_(user);
   var sheet = oemAppGetOrdersSheet_();
   var idx = parseInt(rowIndex, 10);
   if (!idx || idx < 2) throw new Error('rowIndex không hợp lệ.');
 
   var existing = sheet.getRange(idx, 1, 1, 12).getValues()[0];
+  oemAppRequireOrderOwnership_(user, existing[10]);
   var sku = updates.sku != null ? updates.sku : existing[1];
   var name = updates.name != null ? updates.name : existing[2];
   var qty = updates.qty != null ? updates.qty : existing[3];
@@ -163,6 +184,7 @@ function oemAppInsertOrderLine_(token, refRowIndex, position, item) {
   if (!idx || idx < 2) throw new Error('rowIndex không hợp lệ.');
 
   var refRow = sheet.getRange(idx, 1, 1, 12).getValues()[0];
+  oemAppRequireOrderOwnership_(user, refRow[10]);
   var insertAt = position === 'above' ? idx : idx + 1;
   sheet.insertRowBefore(insertAt);
 
@@ -187,10 +209,12 @@ function oemAppInsertOrderLine_(token, refRowIndex, position, item) {
 
 
 function oemAppDeleteOrderLine_(token, rowIndex) {
-  oemAppRequireOrderEditRole_(oemAppRequireSession_(token));
+  var user = oemAppRequireSession_(token);
+  oemAppRequireOrderEditRole_(user);
   var sheet = oemAppGetOrdersSheet_();
   var idx = parseInt(rowIndex, 10);
   if (!idx || idx < 2) throw new Error('rowIndex không hợp lệ.');
+  oemAppRequireOrderOwnership_(user, sheet.getRange(idx, 11, 1, 1).getValue());
   sheet.deleteRow(idx);
   return { ok: true };
 }

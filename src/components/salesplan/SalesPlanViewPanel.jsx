@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Filter, User, Clock, CheckCircle2 } from 'lucide-react';
 import Pagination, { usePagedSlice } from '../Pagination';
 import { monthSortValue } from '../../utils/period';
+import { canSeeAllSales } from '../../utils/roles';
 
 const PAGE_SIZE = 25;
 
@@ -20,7 +21,7 @@ function StatusBadge({ status }) {
 // Read-only table over whatever tab Plan_Thang currently holds — filterable by
 // month (now a real per-row field) and, for Admin/Creator/Leader, by Sale.
 export default function SalesPlanViewPanel({ plans, activeUser }) {
-  const canFilterAllSales = ['creator', 'admin', 'leader'].includes(activeUser.role);
+  const canFilterAllSales = canSeeAllSales(activeUser.role);
   const monthsList = useMemo(() => {
     const set = new Set(plans.map(p => p.month).filter(Boolean));
     return Array.from(set).sort((a, b) => monthSortValue(b) - monthSortValue(a));
@@ -44,11 +45,7 @@ export default function SalesPlanViewPanel({ plans, activeUser }) {
   const filteredPlans = useMemo(() => {
     return plans.filter(p => {
       if (selectedMonth !== 'ALL' && p.month !== selectedMonth) return false;
-      if (canFilterAllSales) {
-        if (selectedSale !== 'ALL' && !p.sale.toLowerCase().includes(selectedSale.toLowerCase())) return false;
-      } else if (!p.sale.toLowerCase().includes((activeUser.saleId || '').toLowerCase())) {
-        return false;
-      }
+      if (selectedSale !== 'ALL' && !p.sale.toLowerCase().includes(selectedSale.toLowerCase())) return false;
       return true;
     });
   }, [plans, selectedMonth, selectedSale, canFilterAllSales, activeUser]);

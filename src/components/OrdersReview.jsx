@@ -7,6 +7,7 @@ import { useToast } from './ToastProvider';
 import SkuPickerCell from './SkuPickerCell';
 import ClientPickerCell from './ClientPickerCell';
 import RowActionButtons from './RowActionButtons';
+import { ownsOrder } from '../utils/roles';
 
 export default function OrdersReview({ token, activeUser, materials, clients, isActive = true, isStale = true, onLoaded }) {
   const toast = useToast();
@@ -60,13 +61,12 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
     if (isActive && isStale) fetchOrders();
   }, [isActive, isStale]);
 
-  // Sale chỉ thấy đơn do mình tạo (cột PIC); admin/creator/leader xem toàn bộ.
-  const visibleOrders = useMemo(() => {
-    if (activeUser.role === 'sale') {
-      return orders.filter(o => o.pic === activeUser.name);
-    }
-    return orders;
-  }, [orders, activeUser]);
+  // 14/09/2026: mọi role thấy đơn của mọi người. Nhưng Sale chỉ SỬA được đơn
+  // do chính mình tạo — xem canEditOrder bên dưới, và chốt thật ở backend
+  // (oemAppRequireOrderOwnership_).
+  const visibleOrders = orders;
+
+  const canEditOrder = (pic) => canEdit && ownsOrder(activeUser, pic);
 
   const groups = useMemo(() => {
     const map = new Map();
@@ -295,6 +295,9 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
 
       {groups.map(([orderNo, rows]) => {
         const groupTotal = rows.reduce((sum, r) => sum + (Number(getValue(r, 'qty')) * Number(getValue(r, 'price')) || r.total || 0), 0);
+        // Mọi dòng của một đơn dùng chung PIC (ghi một lần lúc lưu đơn), nên
+        // khoá theo cả đơn chứ không theo từng dòng.
+        const canEditThis = canEditOrder(rows[0].pic);
         return (
           <div key={orderNo} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
@@ -349,14 +352,14 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
                     <th style={{ width: '120px', textAlign: 'right' }}>Đơn Giá</th>
                     <th style={{ width: '130px', textAlign: 'right' }}>Thành Tiền</th>
                     <th style={{ width: '220px' }}>Khách Hàng OEM (Mã KH / Mã KH Chữ)</th>
-                    {canEdit && <th style={{ width: '150px' }}></th>}
+                    {canEditThis && <th style={{ width: '150px' }}></th>}
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map(row => (
                     <tr key={row.rowIndex}>
                       <td>
-                        {canEdit ? (
+                        {canEditThis ? (
                           <SkuPickerCell
                             sku={getValue(row, 'sku')}
                             name={getValue(row, 'name')}
@@ -368,7 +371,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
                         )}
                       </td>
                       <td>
-                        {canEdit ? (
+                        {canEditThis ? (
                           <input
                             className="input-field"
                             style={{ padding: '4px 6px', fontSize: '0.775rem' }}
@@ -378,7 +381,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
                         ) : row.name}
                       </td>
                       <td>
-                        {canEdit ? (
+                        {canEditThis ? (
                           <input
                             type="number"
                             className="input-field"
@@ -391,7 +394,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
                         )}
                       </td>
                       <td>
-                        {canEdit ? (
+                        {canEditThis ? (
                           <input
                             type="number"
                             className="input-field"
@@ -407,7 +410,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
                         {Math.round((parseFloat(getValue(row, 'qty')) || 0) * (parseFloat(getValue(row, 'price')) || 0)).toLocaleString('vi-VN')} ₫
                       </td>
                       <td>
-                        {canEdit ? (
+                        {canEditThis ? (
                           <ClientPickerCell
                             code={getValue(row, 'clientCode')}
                             name={getValue(row, 'clientCodeSearch')}
@@ -425,7 +428,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
                           })()}
                         </div>
                       </td>
-                      {canEdit && (
+                      {canEditThis && (
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <RowActionButtons

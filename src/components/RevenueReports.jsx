@@ -4,20 +4,18 @@ import KeepAliveTab from './KeepAliveTab';
 import DtSaleReport from './reports/DtSaleReport';
 import DtThangReport from './reports/DtThangReport';
 import DtNgayReport from './reports/DtNgayReport';
+import { canSeeAllSales } from '../utils/roles';
 
 export default function RevenueReports({ transactions, clients, activeUser, baselines2025 }) {
   const [reportTab, setReportTab] = useState('dt-sale'); // 'dt-sale' | 'dt-thang' | 'kh-date'
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'grid'
 
-  const canFilterAllSales = ['creator', 'admin', 'leader'].includes(activeUser.role);
+  const canFilterAllSales = canSeeAllSales(activeUser.role);
 
-  // Sale-role users only ever see revenue for their own portfolio, across every tab —
-  // mirrors the scoping already applied in ClientManagement/SalesPlan.
-  const scopedTransactions = useMemo(() => {
-    if (canFilterAllSales) return transactions;
-    const saleId = (activeUser.saleId || '').toLowerCase();
-    return transactions.filter(t => (t.sale || '').toLowerCase().includes(saleId));
-  }, [transactions, canFilterAllSales, activeUser.saleId]);
+  // 14/09/2026: Sale xem được doanh thu của mọi Sale, chọn xem của ai bằng bộ
+  // lọc SALE ngay bên dưới. Trước đây hàm này cắt cứng theo saleId nên dù
+  // backend có gửi đủ thì màn này vẫn chỉ hiện của riêng mình.
+  const scopedTransactions = transactions;
 
   const salesList = useMemo(() => {
     const set = new Set(transactions.map(t => t.sale).filter(Boolean));
@@ -34,9 +32,7 @@ export default function RevenueReports({ transactions, clients, activeUser, base
             <BarChart3 size={24} color="var(--karofi-cyan)" /> Báo cáo doanh thu
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-            {canFilterAllSales
-              ? 'Theo dõi phân tích doanh số đa chiều theo Sale, theo Tháng và theo Ngày phát sinh.'
-              : `Doanh số của riêng ${activeUser.saleId || 'bạn'} — theo Tháng và theo Ngày phát sinh.`}
+            Theo dõi phân tích doanh số đa chiều theo Sale, theo Tháng và theo Ngày phát sinh.
           </p>
         </div>
 

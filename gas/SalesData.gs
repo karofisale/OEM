@@ -234,14 +234,44 @@ var OEMAPP_FORCE_FLOOR_SECONDS_ = 15;
 // other Sales' rows — except the "Lịch sử doanh thu" tab, which never filtered at
 // all, so one Sale could simply read another's revenue there. Even where the UI
 // did hide it, the data still sat in the browser.
+/**
+ * Phạm vi ĐỌC trong app. Từ 14/09/2026: mọi role đều thấy toàn bộ dữ liệu.
+ *
+ * Trước đó role 'sale' chỉ thấy dòng của chính mình. Theo yêu cầu 14/09/2026,
+ * các Sale cần xem được số của nhau — đúng bằng những gì role 'leader' đã thấy
+ * sẵn. Mở ở ĐÂY chứ không sửa rải rác từng hàm: mọi đường đọc dữ liệu trong
+ * backend này đều đi qua oemAppScopeOf_ + oemAppMatchesSale_, nên một chỗ này
+ * là đủ và không màn nào bị bỏ sót hay lệch luật với màn khác.
+ *
+ * MỞ ĐỌC KHÔNG PHẢI MỞ GHI. Xem được của nhau nhưng không sửa được của nhau —
+ * ràng buộc chủ sở hữu nằm ở oemAppRequirePlanOwnership_ (kế hoạch tháng) và
+ * oemAppRequireOrderOwnership_ (đơn hàng). Hai chốt đó là thật, giao diện chỉ
+ * làm cho dễ nhìn.
+ *
+ * key = 'all' cho mọi người nên cache bootstrap giờ dùng chung một mục thay vì
+ * mỗi Sale một mục — đúng vì payload đã giống hệt nhau.
+ *
+ * Vẫn trả kèm saleId cho chỗ nào cần biết danh tính người gọi.
+ */
 function oemAppScopeOf_(user) {
+  return { all: true, saleId: String(user.saleId || '').trim().toLowerCase(), key: 'all' };
+}
+
+
+/**
+ * Phạm vi CÁ NHÂN — chỉ dòng của chính người này. Dùng cho thẻ tổng quan trên
+ * cổng Karofi ID (PortalStats.gs).
+ *
+ * Vì sao thẻ đó KHÔNG mở theo oemAppScopeOf_: nó không có bộ lọc chọn xem của
+ * ai, chỉ là một con số duy nhất. Đổi nó thành số toàn công ty thì Sale nhìn
+ * vào tưởng đó là doanh số mình làm ra — sai lệch chứ không phải minh bạch hơn.
+ *
+ * Fail CLOSED. saleId trống thì KHÔNG trả gì, chứ không trả tất cả:
+ * `indexOf('')` đúng với mọi dòng.
+ */
+function oemAppScopeCaNhan_(user) {
   var role = String(user.role || '').toLowerCase();
   if (role !== 'sale') return { all: true, key: 'all' };
-
-  // Fail CLOSED. An empty saleId used to make the frontend's
-  // `includes('')` test true for every row, i.e. a Sale with no saleId saw
-  // everything. If the Users tab is missing a saleId we return nothing rather
-  // than everything — visible immediately, instead of silently over-sharing.
   var saleId = String(user.saleId || '').trim();
   return { all: false, saleId: saleId.toLowerCase(), key: 'sale:' + saleId.toLowerCase() };
 }
@@ -466,6 +496,71 @@ function oemAppRequirePlanEditRole_(user) {
   }
 }
 
+/**
+ * Sale chỉ được lưu kế hoạch cho khách của CHÍNH MÌNH.
+ *
+ * Cần từ 14/09/2026, khi phạm vi đọc mở ra cho mọi Sale xem số của nhau
+ * (oemAppScopeOf_): bảng "Đề xuất kế hoạch" giờ liệt kê khách của tất cả Sale,
+ * nên khoá ô nhập ở giao diện thôi là không đủ — đây mới là chốt thật.
+ *
+ * Chủ sở hữu xác định BÊN SERVER, KHÔNG tin `plan.sale` client gửi lên (client
+ * gửi gì cũng được). Thứ tự tra: dòng đã có trong Plan_Thang -> cột D; chưa có
+ * -> PIC trong Plan2026; cuối cùng -> cột Sale của tab Clients.
+ *
+ * Khách không tra được chủ ở cả ba nơi thì CHO QUA: đó là khách mới Sale tự bổ
+ * sung vào kế hoạch, đúng quy trình. Chốt này chỉ để không ai giẫm lên khách đã
+ * có chủ khác.
+ *
+ * Hai lượt đọc Sheet phụ (Plan2026, Clients) chỉ chạy khi thật sự cần — Sale
+ * sửa các dòng đã có của mình là trường hợp thường gặp nhất, và trường hợp đó
+ * tra xong ngay từ `existing`.
+ */
+function oemAppRequirePlanOwnership_(user, rows, existing, rowIndexByCode) {
+  if (String(user.role || '').toLowerCase() !== 'sale') return;
+
+  var saleId = String(user.saleId || '').trim().toLowerCase();
+  if (!saleId) {
+    throw new Error('Tài khoản chưa được gán mã Sale nên chưa lưu được kế hoạch. ' +
+                    'Nhờ Admin bổ sung cột Sale ID cho tài khoản này trong tab Users.');
+  }
+
+  var plan2026 = null, clientSaleByCode = null;
+  var viPham = [];
+
+  rows.forEach(function (plan) {
+    if (!plan || !plan.searchCode) return;
+    var code = String(plan.searchCode).trim();
+
+    var chu = '';
+    var idx = rowIndexByCode[code];
+    if (idx !== undefined) chu = String(existing[idx][3] || '').trim();
+
+    if (!chu) {
+      if (plan2026 === null) plan2026 = oemAppLoadPlan2026_();
+      if (plan2026[code]) chu = String(plan2026[code].pic || '').trim();
+    }
+    if (!chu) {
+      if (clientSaleByCode === null) {
+        clientSaleByCode = {};
+        oemAppLoadClients_().forEach(function (c) {
+          if (c.codeSearch && !clientSaleByCode[c.codeSearch]) clientSaleByCode[c.codeSearch] = c.sale;
+        });
+      }
+      chu = String(clientSaleByCode[code] || '').trim();
+    }
+
+    if (!chu) return; // khách mới, chưa có chủ -> cho qua
+    if (chu.toLowerCase().indexOf(saleId) === -1) viPham.push(code);
+  });
+
+  if (viPham.length) {
+    throw new Error('Chưa lưu gì cả. ' + viPham.slice(0, 5).join(', ') +
+      (viPham.length > 5 ? ' và ' + (viPham.length - 5) + ' khách nữa' : '') +
+      ' là khách của Sale khác. Anh/chị XEM được kế hoạch của mọi Sale nhưng chỉ SỬA được khách mình phụ trách.');
+  }
+}
+
+
 // Bulk upsert — Sale fills in a table of their own clients for one month and
 // submits once, same "ghi cả bảng đã lọc" pattern as oemAppSubmitSopDraft_.
 // Matches existing rows by (Tháng, Search_code); a client with no existing row
@@ -494,6 +589,8 @@ function oemAppSubmitSalesPlan_(token, thang, rows) {
       rowIndexByCode[String(existing[i][1]).trim()] = i; // 0-indexed into `existing`
     }
   }
+
+  oemAppRequirePlanOwnership_(user, rows, existing, rowIndexByCode);
 
   var newRows = [];
   rows.forEach(function (plan) {

@@ -322,15 +322,15 @@ export default function App() {
           </div>
         )}
 
-        {/* The backend now scopes data per Sale and deliberately fails CLOSED when a
-            Sale account has no saleId — returning nothing rather than everything.
-            Without this notice that looks like a broken app instead of a
-            misconfigured Users row. */}
+        {/* Từ 14/09/2026 thiếu saleId KHÔNG còn làm mất số liệu (mọi role đọc được
+            tất cả), nhưng vẫn làm hỏng phần GHI: không có mã Sale thì không xác
+            định được khách nào là của mình, nên lưu kế hoạch sẽ bị chặn. Giữ lại
+            cảnh báo với nội dung đúng theo hệ quả mới. */}
         {activeUser.role === 'sale' && !activeUser.saleId && hasLoadedOnce && (
           <div style={{ margin: '16px 32px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--warning-bg)', color: 'var(--warning-text)', fontSize: '0.85rem' }}>
-            Tài khoản của bạn chưa được gán mã Sale trong tab <strong>Users</strong> của Google Sheet,
-            nên hệ thống chưa xác định được dữ liệu nào thuộc về bạn và tạm thời không hiển thị số liệu.
-            Vui lòng liên hệ Admin để bổ sung.
+            Tài khoản của bạn chưa được gán mã Sale trong tab <strong>Users</strong> của Google Sheet.
+            Bạn vẫn xem được số liệu, nhưng chưa lập được kế hoạch kinh doanh vì hệ thống
+            không biết khách nào do bạn phụ trách. Vui lòng liên hệ Admin để bổ sung.
           </div>
         )}
 
