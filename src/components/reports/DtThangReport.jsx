@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Filter, TrendingUp, TrendingDown } from 'lucide-react';
-import { monthsFromTransactions, priorMonthKey, shortMonthLabel } from '../../utils/period';
+import { monthsFromTransactions, priorMonthKey, shortMonthLabel, latestMonthKey } from '../../utils/period';
 
 // Replaces a hardcoded if-chain that only knew T04..T08-2026 and fell through to
 // 'T07-2026' for anything else — so from September the report would silently have
@@ -8,13 +8,20 @@ import { monthsFromTransactions, priorMonthKey, shortMonthLabel } from '../../ut
 
 export default function DtThangReport({ transactions, salesList, canFilterAllSales, viewMode, baselines2025 }) {
   const [thangFilterSale, setThangFilterSale] = useState('ALL');
-  const [thangFilterMonth, setThangFilterMonth] = useState('ALL');
+  // null = người dùng CHƯA chọn gì, để giá trị hiệu lực tự rơi về tháng mới
+  // nhất có dữ liệu. Mặc định cũ là 'ALL' — cộng gộp MỌI tháng của MỌI năm rồi
+  // so với nền 2025, tức mở báo cáo ra là thấy số luỹ kế chứ không phải kỳ đang
+  // chạy. Không đặt cứng "tháng theo đồng hồ máy": mùng 1-3 hàng tháng đợt đổ
+  // dữ liệu SAP chưa về thì báo cáo sẽ rỗng — đúng cái bẫy mà ghi chú đầu file
+  // này đã kể. "Tháng mới nhất CÓ DỮ LIỆU" là quy ước chung của cả app.
+  const [thangFilterMonth, setThangFilterMonth] = useState(null);
 
   const monthsList = useMemo(() => monthsFromTransactions(transactions), [transactions]);
+  const effectiveMonth = thangFilterMonth ?? latestMonthKey(transactions) ?? 'ALL';
 
   const dtThangData = useMemo(() => {
     const map = new Map();
-    const targetMonth = thangFilterMonth;
+    const targetMonth = effectiveMonth;
     const priorMonth = priorMonthKey(targetMonth);
 
     transactions.forEach(t => {
@@ -33,7 +40,7 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
       }
       const item = map.get(clientCode);
 
-      if (thangFilterMonth === 'ALL') {
+      if (effectiveMonth === 'ALL') {
         item.totalRevenue += t.netRevenue || 0;
       } else {
         if (t.month === targetMonth) {
@@ -47,7 +54,7 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
     });
 
     return Array.from(map.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
-  }, [transactions, thangFilterSale, thangFilterMonth, canFilterAllSales]);
+  }, [transactions, thangFilterSale, effectiveMonth, canFilterAllSales]);
 
   const dtThangTotals = useMemo(() => {
     return dtThangData.reduce((acc, i) => {
@@ -76,7 +83,7 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
           <select
             className="input-field"
             style={{ width: '180px' }}
-            value={thangFilterMonth}
+            value={effectiveMonth}
             onChange={(e) => setThangFilterMonth(e.target.value)}
             aria-label="Lọc theo tháng"
           >
@@ -121,13 +128,13 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
                 let baseline = null;
                 let compareLabel = '';
 
-                if (thangFilterMonth === 'ALL') {
+                if (effectiveMonth === 'ALL') {
                   const b2025 = baselines2025.get(row.clientCode);
                   baseline = b2025 > 0 ? b2025 : null;
                   compareLabel = 'vs 2025';
                 } else {
                   baseline = row.priorMonthRevenue > 0 ? row.priorMonthRevenue : null;
-                  compareLabel = `vs ${priorMonthKey(thangFilterMonth) || 'kỳ trước'}`;
+                  compareLabel = `vs ${priorMonthKey(effectiveMonth) || 'kỳ trước'}`;
                 }
 
                 const hasBaseline = baseline !== null;

@@ -3,6 +3,7 @@ import { Search, Filter, Calendar, User, FileText, Layers, Upload, ChevronUp } f
 import { monthsFromTransactions, latestMonthKey } from '../utils/period';
 import CaoSapPanel from './transactions/CaoSapPanel';
 import RevenueImportPanel from './transactions/RevenueImportPanel';
+import NhipDoanhThu from './transactions/NhipDoanhThu';
 
 export default function TransactionGrid({ transactions, token, activeUser, onImported }) {
   // Panel nhập ZSD450 mặc định ĐÓNG: màn này chủ yếu để tra cứu, còn nhập là
@@ -20,6 +21,13 @@ export default function TransactionGrid({ transactions, token, activeUser, onImp
   const [selectedMonth, setSelectedMonth] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 25;
+  // Bơm để NhipDoanhThu đọc lại mốc sau mỗi lượt nhập/cào — nếu không thì dòng
+  // "cập nhật lần cuối" vẫn là mốc cũ ngay sau khi người dùng vừa cập nhật xong.
+  const [nhipTick, setNhipTick] = useState(0);
+  const daCapNhat = () => {
+    setNhipTick((v) => v + 1);
+    if (onImported) onImported();
+  };
 
   const salesList = useMemo(() => {
     const set = new Set(transactions.map(t => t.sale).filter(Boolean));
@@ -80,6 +88,7 @@ export default function TransactionGrid({ transactions, token, activeUser, onImp
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
             Tra cứu nhật ký chi tiết các giao dịch xuất bán thực tế tích hợp từ hệ thống SAP.
           </p>
+          <NhipDoanhThu token={token} refreshTick={nhipTick} />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -106,14 +115,14 @@ export default function TransactionGrid({ transactions, token, activeUser, onImp
           <CaoSapPanel
             token={token}
             activeUser={activeUser}
-            onImported={onImported}
+            onImported={daCapNhat}
           />
           <RevenueImportPanel
             token={token}
             activeUser={activeUser}
             onImported={() => {
               setMoNhap(false);
-              if (onImported) onImported();
+              daCapNhat();
             }}
           />
         </div>

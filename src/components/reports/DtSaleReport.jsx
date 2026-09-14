@@ -1,12 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { Filter, Table, LayoutGrid } from 'lucide-react';
-import { monthsFromTransactions, yearsFromTransactions, weeksFromTransactions } from '../../utils/period';
+import { monthsFromTransactions, yearsFromTransactions, weeksFromTransactions, latestMonthKey } from '../../utils/period';
 
 export default function DtSaleReport({ transactions, viewMode }) {
   // null = not chosen yet; resolves to the newest year present once data loads.
   // Was hardcoded '2026' with a single <option>Năm 2026</option>.
   const [saleFilterYear, setSaleFilterYear] = useState(null);
-  const [saleFilterMonth, setSaleFilterMonth] = useState('ALL');
+  // null = chưa chọn, rơi về tháng mới nhất có dữ liệu (xem effectiveMonth).
+  // Mặc định cũ 'ALL' nghĩa là mở màn ra thấy số cộng gộp cả năm chứ không
+  // phải kỳ đang chạy.
+  const [saleFilterMonth, setSaleFilterMonth] = useState(null);
   const [saleFilterWeek, setSaleFilterWeek] = useState('ALL');
 
   const yearsList = useMemo(() => yearsFromTransactions(transactions), [transactions]);
@@ -20,8 +23,15 @@ export default function DtSaleReport({ transactions, viewMode }) {
     return effectiveYear === 'ALL' ? all : all.filter(m => m.endsWith(`-${effectiveYear}`));
   }, [transactions, effectiveYear]);
 
-  // If the year changes out from under the selected month, drop back to "all".
-  const effectiveMonth = monthsList.includes(saleFilterMonth) ? saleFilterMonth : 'ALL';
+  // Chưa chọn -> tháng mới nhất CÓ DỮ LIỆU (không phải tháng theo đồng hồ máy:
+  // mùng 1-3 đợt đổ dữ liệu SAP chưa về thì màn sẽ rỗng). Đã chọn 'ALL' thì tôn
+  // trọng. Chọn một tháng rồi đổi năm làm tháng đó biến mất khỏi danh sách ->
+  // lùi về 'ALL' như cũ, chứ không lặng lẽ nhảy sang một tháng khác.
+  const effectiveMonth = useMemo(() => {
+    const mong = saleFilterMonth ?? latestMonthKey(transactions) ?? 'ALL';
+    if (mong === 'ALL') return 'ALL';
+    return monthsList.includes(mong) ? mong : 'ALL';
+  }, [saleFilterMonth, transactions, monthsList]);
 
   const dtSaleData = useMemo(() => {
     const map = new Map();
