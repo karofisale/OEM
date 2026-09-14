@@ -4,6 +4,7 @@ import * as api from '../../services/api';
 import ConfirmDialog from '../ConfirmDialog';
 import { useToast } from '../ToastProvider';
 import { monthSortValue } from '../../utils/period';
+import { doneTheoKhach, doneCuaDong } from '../../utils/salesPlan';
 
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
 
@@ -11,7 +12,7 @@ const fmt = (v) => (v || 0).toLocaleString('vi-VN');
 // approves the whole month in one action — mirrors SopApprovePanel, but no
 // aggregation step is needed here: each Plan_Thang row is already unique per
 // (month, client), so "pending for this month" IS the approve batch.
-export default function SalesPlanApprovePanel({ token, plans, onApproved }) {
+export default function SalesPlanApprovePanel({ token, plans, transactions, onApproved }) {
   const toast = useToast();
   const [confirming, setConfirming] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
@@ -25,12 +26,18 @@ export default function SalesPlanApprovePanel({ token, plans, onApproved }) {
 
   const pendingRows = useMemo(() => plans.filter(p => p.month === month && p.status === 'Chờ duyệt'), [plans, month]);
 
+  // Doanh thu đã thực hiện của đúng tháng đang duyệt — người duyệt cần đối
+  // chiếu kế hoạch đề xuất với số khách đã mua thật, không chỉ với KPI năm.
+  // Tính từ tab Data, xem doneTheoKhach().
+  const doneByCode = useMemo(() => doneTheoKhach(transactions, month), [transactions, month]);
+
   const totals = useMemo(() => pendingRows.reduce((acc, p) => {
     acc.planKpi += p.planKpi || 0;
     acc.planUpdate += p.planUpdate || 0;
     acc.w1 += p.w1 || 0; acc.w2 += p.w2 || 0; acc.w3 += p.w3 || 0; acc.w4 += p.w4 || 0; acc.w5 += p.w5 || 0;
+    acc.done += doneCuaDong(p, doneByCode.get(p.searchCode)).value;
     return acc;
-  }, { planKpi: 0, planUpdate: 0, w1: 0, w2: 0, w3: 0, w4: 0, w5: 0 }), [pendingRows]);
+  }, { planKpi: 0, planUpdate: 0, w1: 0, w2: 0, w3: 0, w4: 0, w5: 0, done: 0 }), [pendingRows, doneByCode]);
 
   const handleApprove = async () => {
     setIsApproving(true);
@@ -81,6 +88,7 @@ export default function SalesPlanApprovePanel({ token, plans, onApproved }) {
               <th style={{ textAlign: 'right', width: '120px' }}>Tuần 4</th>
               <th style={{ textAlign: 'right', width: '120px' }}>Tuần 5</th>
               <th style={{ textAlign: 'right', width: '140px' }}>Plan_Update</th>
+              <th style={{ textAlign: 'right', width: '140px' }}>Doanh thu done</th>
               <th>Note</th>
             </tr>
           </thead>
@@ -94,6 +102,7 @@ export default function SalesPlanApprovePanel({ token, plans, onApproved }) {
               <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.w4)}</td>
               <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.w5)}</td>
               <td style={{ textAlign: 'right', color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.planUpdate)}</td>
+              <td style={{ textAlign: 'right', color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.done)}</td>
               <td />
             </tr>
             {pendingRows.map((p, idx) => (
@@ -108,6 +117,7 @@ export default function SalesPlanApprovePanel({ token, plans, onApproved }) {
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(p.w4)}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(p.w5)}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(p.planUpdate)}</td>
+                <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(doneCuaDong(p, doneByCode.get(p.searchCode)).value)}</td>
                 <td style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>{p.note || '-'}</td>
               </tr>
             ))}

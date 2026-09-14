@@ -426,6 +426,7 @@ export default function App() {
               token={session.token}
               plans={plans}
               clients={clients}
+              transactions={transactions}
               plan2026={plan2026}
               planDefaultMonth={planDefaultMonth}
               activeUser={activeUser}

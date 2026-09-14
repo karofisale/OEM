@@ -6,6 +6,7 @@ import Pagination, { usePagedSlice } from '../Pagination';
 import { useToast } from '../ToastProvider';
 import { parseMonthKey, formatMonthKey } from '../../utils/period';
 import { canSeeAllSales, ownsSaleRow } from '../../utils/roles';
+import { doneTheoKhach, doneCuaDong } from '../../utils/salesPlan';
 
 const PAGE_SIZE = 25;
 
@@ -52,7 +53,7 @@ const draftFromPlanRow = (p) => ({
 // giờ là hợp của ba nguồn: (1) mọi mã trong Plan2026 thuộc phạm vi của mình,
 // (2) mọi khách đã có dòng kế hoạch của đúng tháng này (kể cả khách không có
 // KPI năm), (3) khách Sale tự bổ sung bằng ô tìm + nút "Thêm KH vào kế hoạch".
-export default function SalesPlanProposePanel({ token, clients, plans, plan2026, planDefaultMonth, activeUser, onSubmitted, onReloadPlanKpi }) {
+export default function SalesPlanProposePanel({ token, clients, plans, transactions, plan2026, planDefaultMonth, activeUser, onSubmitted, onReloadPlanKpi }) {
   const toast = useToast();
   const canFilterAllSales = canSeeAllSales(activeUser.role);
   const isSale = String(activeUser.role || '').toLowerCase() === 'sale';
@@ -75,6 +76,12 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
   const [pickerKey, setPickerKey] = useState(0);  // đổi để Combobox tự xoá chữ đã gõ
 
   const kpiLoaded = useMemo(() => Object.keys(plan2026 || {}).length > 0, [plan2026]);
+
+  // Doanh thu đã thực hiện của đúng tháng đang lập. Ưu tiên cột Done của dòng
+  // Plan_Thang (để khớp màn "Xem Kế Hoạch"), rơi về tab Data cho khách chưa có
+  // dòng kế hoạch nào — xem doneCuaDong().
+  const doneByCode = useMemo(() => doneTheoKhach(transactions, month), [transactions, month]);
+  const doneCua = (r) => doneCuaDong(r.plan, doneByCode.get(r.codeSearch));
 
   // Existing plan row for (month, client), if any — used to pre-fill, to show
   // the current approval status, and to decide when a saved draft can be
@@ -283,9 +290,10 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
       const d = getDraft(r.codeSearch);
       acc.planKpi += planKpiForCode(r.codeSearch);
       acc.w1 += d.w1 || 0; acc.w2 += d.w2 || 0; acc.w3 += d.w3 || 0; acc.w4 += d.w4 || 0; acc.w5 += d.w5 || 0;
+      acc.done += doneCua(r).value;
       return acc;
-    }, { planKpi: 0, w1: 0, w2: 0, w3: 0, w4: 0, w5: 0 });
-  }, [filteredRows, draftMap, existingByCode, month, plan2026]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, { planKpi: 0, w1: 0, w2: 0, w3: 0, w4: 0, w5: 0, done: 0 });
+  }, [filteredRows, draftMap, existingByCode, month, plan2026, doneByCode]); // eslint-disable-line react-hooks/exhaustive-deps
   const totalPlanUpdate = totals.w1 + totals.w2 + totals.w3 + totals.w4 + totals.w5;
   const fmt = (v) => (v || 0).toLocaleString('vi-VN');
 
@@ -490,6 +498,7 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
               <th style={{ textAlign: 'right', width: '140px' }}>Tuần 4</th>
               <th style={{ textAlign: 'right', width: '140px' }}>Tuần 5</th>
               <th style={{ textAlign: 'right', width: '150px' }}>Plan_Update</th>
+              <th style={{ textAlign: 'right', width: '150px' }}>Doanh thu done</th>
               <th style={{ minWidth: '150px' }}>Note</th>
             </tr>
           </thead>
@@ -504,6 +513,7 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
               <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.w4)}</td>
               <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.w5)}</td>
               <td style={{ textAlign: 'right', color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totalPlanUpdate)}</td>
+              <td style={{ textAlign: 'right', color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.done)}</td>
               <td style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>Tổng kế hoạch đang nhập</td>
             </tr>
             {pagedRows.map(r => {
@@ -513,6 +523,7 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
               const isDirty = !!draftMap[code] && draftSignature(draftMap[code]) !== savedMap[code];
               const isJustSaved = !!draftMap[code] && draftSignature(draftMap[code]) === savedMap[code];
               const editable = canEditRow(r);
+              const done = doneCua(r);
               return (
                 <tr key={code}>
                   <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>
@@ -561,6 +572,12 @@ export default function SalesPlanProposePanel({ token, clients, plans, plan2026,
                     </td>
                   ))}
                   <td style={{ textAlign: 'right', fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{sum.toLocaleString('vi-VN')}</td>
+                  <td
+                    style={{ textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}
+                    title={done.tuGiaoDich ? 'Tính từ doanh thu thực tế (tab Data) — khách này chưa có dòng kế hoạch tháng này' : 'Cột Done của dòng kế hoạch'}
+                  >
+                    {done.value.toLocaleString('vi-VN')}
+                  </td>
                   <td style={editable ? undefined : { fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                     {editable ? (
                       <input

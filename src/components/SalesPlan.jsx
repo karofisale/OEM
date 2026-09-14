@@ -5,7 +5,7 @@ import SalesPlanViewPanel from './salesplan/SalesPlanViewPanel';
 import SalesPlanProposePanel from './salesplan/SalesPlanProposePanel';
 import SalesPlanApprovePanel from './salesplan/SalesPlanApprovePanel';
 
-export default function SalesPlan({ token, plans, clients, plan2026, planDefaultMonth, activeUser, onDataChanged, onReloadPlanKpi }) {
+export default function SalesPlan({ token, plans, clients, transactions, plan2026, planDefaultMonth, activeUser, onDataChanged, onReloadPlanKpi }) {
   const [subView, setSubView] = useState('view'); // 'view' | 'propose' | 'approve'
 
   const canPropose = ['sale', 'admin', 'creator'].includes(activeUser.role);
@@ -55,6 +55,7 @@ export default function SalesPlan({ token, plans, clients, plan2026, planDefault
             token={token}
             clients={clients}
             plans={plans}
+            transactions={transactions}
             plan2026={plan2026}
             planDefaultMonth={planDefaultMonth}
             activeUser={activeUser}
@@ -69,6 +70,7 @@ export default function SalesPlan({ token, plans, clients, plan2026, planDefault
           <SalesPlanApprovePanel
             token={token}
             plans={plans}
+            transactions={transactions}
             onApproved={() => { onDataChanged(); setSubView('view'); }}
           />
         </KeepAliveTab>
