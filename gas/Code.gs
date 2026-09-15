@@ -37,6 +37,7 @@
  *   Debt.gs               - customer debt (công nợ) view + Excel import
  *   PricePlan.gs           - bảng giá bán: đề xuất/duyệt giá lẻ+KM (chung hoặc theo khách)
  *   Cost.gs                - giá vốn theo tháng: so sánh LNG khi duyệt giá, công cụ tính giá gợi ý
+ *   Bom.gs                 - định mức nguyên vật liệu theo mã máy (tab BOM), nguồn SAP Z_BOM
  *   Ai.gs                 - Gemini API order parsing (replaces the old client-side heuristic matcher)
  *   AiChat.gs             - Gemini function-calling lookup chat (separate feature from Ai.gs)
  */
@@ -94,11 +95,12 @@ var OEMAPP_SESSION_TTL_SECONDS = 6 * 60 * 60; // 6h
  * khoá duy nhất, trên một backend vốn đã chậm.
  */
 var OEMAPP_WRITE_FNS_ = {
-  addClient: 1, editClient: 1, addMaterial: 1, editMaterial: 1,
+  addClient: 1, editClient: 1, addMaterial: 1, addMaterials: 1, editMaterial: 1,
   submitSalesPlan: 1, approveSalesPlan: 1, changePassword: 1,
   saveOrder: 1, updateOrderLine: 1, insertOrderLine: 1, deleteOrderLine: 1, deleteOrder: 1,
   submitSopDraft: 1, approveSop: 1, importDebtExcel: 1, importRevenueExcel: 1,
-  submitPriceProposal: 1, approvePriceBatch: 1, rejectPriceBatch: 1, importCostExcel: 1
+  submitPriceProposal: 1, approvePriceBatch: 1, rejectPriceBatch: 1, importCostExcel: 1,
+  updateBom: 1
 };
 
 /**
@@ -172,6 +174,7 @@ var oemAppApiMap_ = {
   addClient: oemAppAddClient_,
   editClient: oemAppEditClient_,
   addMaterial: oemAppAddMaterial_,
+  addMaterials: oemAppAddMaterials_,
   editMaterial: oemAppEditMaterial_,
   submitSalesPlan: oemAppSubmitSalesPlan_,
   approveSalesPlan: oemAppApproveSalesPlan_,
@@ -197,6 +200,8 @@ var oemAppApiMap_ = {
   approvePriceBatch: oemAppApprovePriceBatch_,
   rejectPriceBatch: oemAppRejectPriceBatch_,
   getClientPriceOverrides: oemAppGetClientPriceOverrides_,
+  getBom: oemAppGetBom_,
+  updateBom: oemAppUpdateBom_,
   getCostBySku: oemAppGetCostBySku_,
   calculateSuggestedPrice: oemAppCalculateSuggestedPrice_,
   importCostExcel: oemAppImportCostExcel_,

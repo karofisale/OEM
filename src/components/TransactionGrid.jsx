@@ -4,8 +4,9 @@ import { monthsFromTransactions, latestMonthKey } from '../utils/period';
 import CaoSapPanel from './transactions/CaoSapPanel';
 import RevenueImportPanel from './transactions/RevenueImportPanel';
 import NhipDoanhThu from './transactions/NhipDoanhThu';
+import SanPhamChuaCoPanel from './transactions/SanPhamChuaCoPanel';
 
-export default function TransactionGrid({ transactions, token, activeUser, onImported }) {
+export default function TransactionGrid({ transactions, materials, token, activeUser, onImported }) {
   // Panel nhập ZSD450 mặc định ĐÓNG: màn này chủ yếu để tra cứu, còn nhập là
   // việc mỗi tháng vài lần. Mở sẵn thì phần lớn lượt vào tab phải cuộn qua nó.
   const [moNhap, setMoNhap] = useState(false);
@@ -106,6 +107,13 @@ export default function TransactionGrid({ transactions, token, activeUser, onImp
           </span>
         </div>
       </div>
+
+      <SanPhamChuaCoPanel
+        token={token}
+        materials={materials}
+        activeUser={activeUser}
+        onSaved={onImported}
+      />
 
       {moNhap && coQuyenNhap && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

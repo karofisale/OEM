@@ -70,9 +70,12 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 const NON_IDEMPOTENT_FNS = new Set([
   'saveOrder', 'addClient', 'insertOrderLine', 'deleteOrderLine', 'submitPriceProposal',
-  'addMaterial', 'deleteOrder', 'approveSop', 'approvePriceBatch', 'rejectPriceBatch',
+  'addMaterial', 'addMaterials', 'deleteOrder', 'approveSop', 'approvePriceBatch', 'rejectPriceBatch',
   'changePassword'
 ]);
+// `addMaterials` thuộc nhóm B: dữ liệu AN TOÀN khi gửi lại (nó bỏ qua SKU đã có
+// nên lượt hai không tạo dòng trùng), nhưng lượt hai báo "đã thêm 0, bỏ qua N"
+// — một câu đúng về kỹ thuật mà sai về ý nghĩa với người vừa bấm lưu.
 
 async function callApi(fn, args = [], timeoutMs) {
   if (!API_URL) {
@@ -218,6 +221,12 @@ export async function addMaterial(token, material) {
   return callApi('addMaterial', [token, material]);
 }
 
+// Lô nhiều SKU trong MỘT lượt gọi — xem oemAppAddMaterials_ để biết vì sao
+// không gọi addMaterial nhiều lần.
+export async function addMaterials(token, list) {
+  return callApi('addMaterials', [token, list]);
+}
+
 export async function editMaterial(token, sku, updates) {
   return callApi('editMaterial', [token, sku, updates]);
 }
@@ -341,6 +350,20 @@ export async function rejectPriceBatch(token, batchId, note) {
 
 export async function getClientPriceOverrides(token, clientCode) {
   return callApi('getClientPriceOverrides', [token, clientCode]);
+}
+
+// BOM (định mức nguyên vật liệu theo mã máy) — xem gas/Bom.gs.
+export async function getBom(token, sku) {
+  return callApi('getBom', [token, sku]);
+}
+
+// CỐ Ý không nằm trong NON_IDEMPOTENT_FNS: hàm này THAY toàn bộ BOM của đúng
+// một mã bằng lô dòng gửi lên, nên gửi lại cùng payload cho ra đúng cùng kết
+// quả. Đây lại là lượt gửi to (cả bảng linh kiện) trên một đường mạng hỏng
+// chừng một nửa số lượt — chặn thử lại ở đây là bắt người dùng dán lại cả bảng
+// mỗi lần mạng chập.
+export async function updateBom(token, sku, rows) {
+  return callApi('updateBom', [token, sku, rows]);
 }
 
 export async function getCostBySku(token) {

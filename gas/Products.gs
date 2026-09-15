@@ -63,7 +63,12 @@ function oemAppDeriveMaterials_(transactions, aliasHints, catalogMap) {
       exclusiveTo: override.exclusiveTo || '',
       promoPrice: override.promoPrice || 0,
       promoQty: override.promoQty || 0,
-      learnedAliases: (aliasHints && aliasHints[sku]) || []
+      learnedAliases: (aliasHints && aliasHints[sku]) || [],
+      // SKU này đã có dòng trong tab Products chưa. Sai khác quan trọng: phần
+      // lớn SKU ở đây SUY RA TỪ LỊCH SỬ GIAO DỊCH, chưa từng được ai khai báo
+      // vào danh mục — tức chưa có Nhóm SP, chưa có alias chuẩn. Màn "Lịch sử
+      // doanh thu" dùng cờ này để nhắc sau mỗi lượt nhập ZSD450.
+      inCatalog: !!catalogMap[sku]
     };
   });
 
@@ -78,6 +83,7 @@ function oemAppDeriveMaterials_(transactions, aliasHints, catalogMap) {
       exclusiveTo: c.exclusiveTo || '',
       promoPrice: c.promoPrice || 0,
       promoQty: c.promoQty || 0,
+      inCatalog: true,
       learnedAliases: (aliasHints && aliasHints[sku]) || []
     });
   });
@@ -188,6 +194,76 @@ function oemAppAddMaterial_(token, material) {
   oemAppInvalidateCatalog_();
   return { ok: true };
 }
+
+/**
+ * Thêm NHIỀU sản phẩm mới vào tab Products trong MỘT lượt gọi.
+ *
+ * Vì sao cần bản gộp thay vì gọi addMaterial nhiều lần: sau một đợt nhập ZSD450
+ * có thể lòi ra hàng chục SKU chưa khai báo, mà đường mạng tới backend này hỏng
+ * chừng một nửa số lượt (xem api.js) — hai chục lượt gọi liên tiếp gần như chắc
+ * chắn có lượt hỏng giữa chừng, để lại một nửa danh sách đã lưu và người dùng
+ * không biết nửa nào. Một lượt gọi thì hoặc xong hết, hoặc không gì cả.
+ *
+ * SKU đã có trong tab thì BỎ QUA chứ không ném lỗi: cả lô là danh sách máy tự
+ * rà ra, một mã đã được người khác thêm xong trong lúc đó không phải là lỗi của
+ * người đang bấm. Trả về số bỏ qua để giao diện nói lại cho đúng.
+ *
+ * CateID cấp phát trong bộ nhớ khi chạy: lô có hai nhóm mới thì hai nhóm đó
+ * phải nhận hai id khác nhau — dùng oemAppResolveCateId_ cho từng dòng sẽ cấp
+ * trùng một id vì maxCateId không đổi trong suốt vòng lặp.
+ */
+function oemAppAddMaterials_(token, list) {
+  var user = oemAppRequireSession_(token);
+  if (!['creator', 'admin', 'sale'].includes(user.role)) {
+    throw new Error('Khong co quyen them san pham moi.');
+  }
+  if (!list || !list.length) throw new Error('Khong co san pham nao de luu.');
+
+  var sheet = oemAppGetProductsSheet_();
+  var catalog = oemAppLoadMaterialCatalog_();
+  var nextCateId = catalog.maxCateId;
+  var groupToCateId = {};
+  Object.keys(catalog.groupToCateId).forEach(function (g) { groupToCateId[g] = catalog.groupToCateId[g]; });
+
+  var rows = [];
+  var added = [], skipped = [];
+  var daThayTrongLo = {};
+
+  list.forEach(function (m) {
+    if (!m || !m.sku) return;
+    var sku = String(m.sku).trim();
+    if (!sku) return;
+    // Trùng ngay trong chính lô gửi lên cũng phải chặn, không chỉ trùng với tab.
+    if (catalog.bySku[sku] || daThayTrongLo[sku]) { skipped.push(sku); return; }
+    daThayTrongLo[sku] = true;
+
+    var group = String(m.group || '').trim();
+    var cateId;
+    var khoa = group.toLowerCase();
+    if (group && groupToCateId[khoa]) {
+      cateId = groupToCateId[khoa];
+    } else {
+      nextCateId++;
+      cateId = nextCateId;
+      if (group) groupToCateId[khoa] = cateId;
+    }
+
+    rows.push([
+      cateId, sku, m.name || '', group,
+      m.alias || '', m.suggestedPrice || 0, '', '', m.exclusiveTo || ''
+    ]);
+    added.push(sku);
+  });
+
+  if (rows.length) {
+    // Ghi một khối thay vì appendRow từng dòng — cùng khuôn với mọi hàm ghi lô
+    // khác trong backend này.
+    sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+    oemAppInvalidateCatalog_();
+  }
+  return { ok: true, added: added, addedCount: added.length, skipped: skipped, skippedCount: skipped.length };
+}
+
 
 // Admin/Creator only - editing Alias/Nhom SP/Gia ban of a material that may
 // already exist purely from transaction history (no Products row yet), hence

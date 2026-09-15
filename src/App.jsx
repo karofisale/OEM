@@ -391,6 +391,7 @@ export default function App() {
           <KeepAliveTab isActive={activeTab === 'transactions'} hasVisited={visitedTabs.has('transactions')}>
             <TransactionGrid
               transactions={transactions}
+              materials={materials}
               token={session?.token}
               activeUser={activeUser}
               // Ép đọc lại: dữ liệu vừa được ghi bởi một dự án Apps Script

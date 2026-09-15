@@ -60,6 +60,7 @@ export default function ProductPricing({ token, materials, clients, activeUser, 
       <KeepAliveTab isActive={subView === 'catalog'}>
         <ProductManagement
           materials={materials}
+          token={token}
           activeUser={activeUser}
           onAddMaterial={onAddMaterial}
           onEditMaterial={onEditMaterial}

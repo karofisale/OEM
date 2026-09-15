@@ -1,13 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { Package, Plus, Edit3, Search, Sparkles, Tag, Check, ArrowUpRight, Lock, Table, LayoutGrid } from 'lucide-react';
+import { Package, Plus, Edit3, Search, Sparkles, Tag, Check, ArrowUpRight, Lock, Table, LayoutGrid, Layers } from 'lucide-react';
 import Pagination, { usePagedSlice } from './Pagination';
+import BomModal from './products/BomModal';
+import { laMaMay } from '../utils/bom';
 
 const fmtPrice = (v) => (v ? v.toLocaleString('vi-VN') : '-');
 const PAGE_SIZE = 25;
 
 // `transactions` used to be passed in and destructured here but was never read —
 // dropped, so this component no longer re-renders when the transaction list changes.
-export default function ProductManagement({ materials, activeUser, onAddMaterial, onEditMaterial }) {
+export default function ProductManagement({ materials, token, activeUser, onAddMaterial, onEditMaterial }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState('table');
@@ -16,6 +18,8 @@ export default function ProductManagement({ materials, activeUser, onAddMaterial
   const [editAlias, setEditAlias] = useState('');
   const [editGroup, setEditGroup] = useState('');
   const [editSuggestedPrice, setEditSuggestedPrice] = useState('');
+  // Mã máy đang mở BOM (null = đóng). Chỉ mã máy mới có BOM — xem laMaMay().
+  const [bomMat, setBomMat] = useState(null);
 
   // Permission flags
   const isLeader = activeUser.role === 'leader';
@@ -180,11 +184,18 @@ export default function ProductManagement({ materials, activeUser, onAddMaterial
                 {/* display:flex on a <td> takes the cell out of table layout, so it
                     stopped honouring the 190px <th> width and broke row alignment. */}
                 <td>
-                  {isAdmin && (
-                    <button onClick={() => openEditModal(mat)} className="btn btn-secondary btn-sm">
-                      <Edit3 size={14} /> Sửa
-                    </button>
-                  )}
+                  <div style={{ display: 'inline-flex', gap: '6px' }}>
+                    {laMaMay(mat.sku) && (
+                      <button onClick={() => setBomMat(mat)} className="btn btn-ghost btn-sm" title="Xem định mức nguyên vật liệu">
+                        <Layers size={14} /> BOM
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button onClick={() => openEditModal(mat)} className="btn btn-secondary btn-sm">
+                        <Edit3 size={14} /> Sửa
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -236,11 +247,18 @@ export default function ProductManagement({ materials, activeUser, onAddMaterial
                 Tổng bán: <strong>{mat.totalQty?.toLocaleString('vi-VN') || 0} {mat.unit}</strong>
               </span>
 
-              {isAdmin && (
-                <button onClick={() => openEditModal(mat)} className="btn btn-secondary btn-sm">
-                  <Edit3 size={14} /> Sửa
-                </button>
-              )}
+              <div style={{ display: 'inline-flex', gap: '6px' }}>
+                {laMaMay(mat.sku) && (
+                  <button onClick={() => setBomMat(mat)} className="btn btn-ghost btn-sm" title="Xem định mức nguyên vật liệu">
+                    <Layers size={14} /> BOM
+                  </button>
+                )}
+                {isAdmin && (
+                  <button onClick={() => openEditModal(mat)} className="btn btn-secondary btn-sm">
+                    <Edit3 size={14} /> Sửa
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))}
@@ -347,6 +365,16 @@ export default function ProductManagement({ materials, activeUser, onAddMaterial
       <datalist id="product-group-options">
         {groupsList.map(g => <option key={g} value={g} />)}
       </datalist>
+
+      {bomMat && (
+        <BomModal
+          token={token}
+          sku={bomMat.sku}
+          materialName={bomMat.name}
+          canUpdate={isAdmin}
+          onClose={() => setBomMat(null)}
+        />
+      )}
 
     </div>
   );
