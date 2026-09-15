@@ -145,6 +145,44 @@ function oemAppUpdateBom_(token, sku, rows) {
   if (!['admin', 'creator'].includes(user.role)) {
     throw new Error('Chỉ Admin/Creator mới cập nhật được BOM.');
   }
+  return oemAppGhiBom_(sku, rows);
+}
+
+
+/**
+ * Đường vào cho TIẾN TRÌNH TRÊN MÁY — script cào Z_BOM chạy sau khi người dùng
+ * bấm nút "Cào từ SAP", xác thực bằng SECRET dùng chung chứ không phải phiên
+ * đăng nhập.
+ *
+ * VÌ SAO KHÔNG DÙNG TOKEN PHIÊN: script chạy trong một tiến trình Windows do
+ * giao thức karofi-oem:// khởi động, không có trình duyệt, không có phiên. Đây
+ * đúng khuôn `push_to_sheet.py` -> web app up-dt-oem đã dùng ổn định từ lâu.
+ *
+ * ĐÂY LÀ HÀM CÔNG KHAI THEO NGHĨA MẠNG — backend deploy "Anyone", nên bất kỳ ai
+ * biết secret đều ghi được. Vì vậy:
+ *   - Secret nằm ở Script Property BOM_PUSH_SECRET, KHÔNG có mặc định. Chưa đặt
+ *     thì hàm từ chối mọi lượt gọi, không phải "cho qua vì chưa cấu hình".
+ *   - So sánh độ dài trước rồi mới so nội dung, và chỉ trả một câu lỗi duy nhất
+ *     cho mọi kiểu sai — không nói cho người gọi biết họ sai ở đâu.
+ *   - Quyền hạn hẹp nhất có thể: chỉ ghi được tab BOM của đúng một mã mỗi lượt.
+ *     Thiệt hại tối đa nếu secret lọt là BOM bị ghi sai, và BOM luôn cào lại
+ *     được từ SAP. Nếu sau này đường này được nới ra tab khác thì phép tính đổi
+ *     hẳn và phải chuyển sang xác thực thật.
+ */
+function oemAppPushBom_(secret, sku, rows) {
+  var mong = PropertiesService.getScriptProperties().getProperty('BOM_PUSH_SECRET');
+  var nhan = String(secret === null || secret === undefined ? '' : secret);
+  if (!mong || nhan.length !== String(mong).length || nhan !== String(mong)) {
+    throw new Error('Không có quyền ghi BOM từ máy trạm.');
+  }
+  return oemAppGhiBom_(sku, rows);
+}
+
+
+/** Thân chung của hai đường ghi ở trên. Tách ra để luật ghi BOM chỉ tồn tại
+ *  MỘT bản — đường dán và đường cào phải cư xử giống hệt nhau, nếu không thì
+ *  cùng một tab có hai hành vi tuỳ theo ai ghi. */
+function oemAppGhiBom_(sku, rows) {
   var key = oemAppBomKey_(sku);
   if (!key) throw new Error('Thiếu mã sản phẩm.');
 

@@ -100,7 +100,7 @@ var OEMAPP_WRITE_FNS_ = {
   saveOrder: 1, updateOrderLine: 1, insertOrderLine: 1, deleteOrderLine: 1, deleteOrder: 1,
   submitSopDraft: 1, approveSop: 1, importDebtExcel: 1, importRevenueExcel: 1,
   submitPriceProposal: 1, approvePriceBatch: 1, rejectPriceBatch: 1, importCostExcel: 1,
-  updateBom: 1
+  updateBom: 1, pushBom: 1
 };
 
 /**
@@ -202,6 +202,9 @@ var oemAppApiMap_ = {
   getClientPriceOverrides: oemAppGetClientPriceOverrides_,
   getBom: oemAppGetBom_,
   updateBom: oemAppUpdateBom_,
+  // Xác thực bằng SECRET, KHÔNG phải token phiên — xem oemAppPushBom_.
+  // Script cào Z_BOM trên máy có SAP gọi đường này.
+  pushBom: oemAppPushBom_,
   getCostBySku: oemAppGetCostBySku_,
   calculateSuggestedPrice: oemAppCalculateSuggestedPrice_,
   importCostExcel: oemAppImportCostExcel_,
