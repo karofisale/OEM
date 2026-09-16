@@ -46,14 +46,17 @@ export default function TransactionGrid({ transactions, materials, token, active
   const effectiveMonth = selectedMonth ?? latestMonthKey(transactions) ?? 'ALL';
 
   const filteredData = useMemo(() => {
+    // Hạ chuỗi tìm kiếm 1 lần, không phải 5 lần mỗi dòng mỗi phím gõ — giống
+    // mẫu đã sửa ở ClientManagement/ProductManagement, bảng này bị bỏ sót.
+    const q = searchTerm.trim().toLowerCase();
     return transactions.filter(t => {
-      const matchSearch = 
-        !searchTerm ||
-        t.clientCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.skuName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.orderNo.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchSearch =
+        !q ||
+        t.clientCode.toLowerCase().includes(q) ||
+        t.clientName.toLowerCase().includes(q) ||
+        t.skuName.toLowerCase().includes(q) ||
+        t.sku.toLowerCase().includes(q) ||
+        t.orderNo.toLowerCase().includes(q);
 
       const matchSale = selectedSale === 'ALL' || t.sale === selectedSale;
       const matchGroup = selectedGroup === 'ALL' || t.group === selectedGroup;
