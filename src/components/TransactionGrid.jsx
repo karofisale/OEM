@@ -5,6 +5,7 @@ import CaoSapPanel from './transactions/CaoSapPanel';
 import RevenueImportPanel from './transactions/RevenueImportPanel';
 import NhipDoanhThu from './transactions/NhipDoanhThu';
 import SanPhamChuaCoPanel from './transactions/SanPhamChuaCoPanel';
+import Pagination, { usePagedSlice } from './Pagination';
 
 export default function TransactionGrid({ transactions, materials, token, activeUser, onImported }) {
   // Panel nhập ZSD450 mặc định ĐÓNG: màn này chủ yếu để tra cứu, còn nhập là
@@ -66,11 +67,11 @@ export default function TransactionGrid({ transactions, materials, token, active
     });
   }, [transactions, searchTerm, selectedSale, selectedGroup, effectiveMonth]);
 
-  const totalPages = Math.ceil(filteredData.length / pageSize) || 1;
-  const pageData = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredData.slice(start, start + pageSize);
-  }, [filteredData, currentPage]);
+  // usePagedSlice tự lùi trang khi bộ lọc làm filteredData ngắn lại, không chỉ
+  // dựa vào setCurrentPage(1) gắn thủ công ở từng ô lọc — trước đây bảng này tự
+  // tính totalPages/pageData riêng, không dùng lại usePagedSlice như các bảng
+  // khác nên đứng khựng ở trang trống khi số trang giảm.
+  const { safePage: currentPageSafe, totalPages, pageItems: pageData } = usePagedSlice(filteredData, currentPage, pageSize);
 
   const totals = useMemo(() => {
     return filteredData.reduce((acc, t) => {
@@ -265,29 +266,13 @@ export default function TransactionGrid({ transactions, materials, token, active
         </table>
       </div>
 
-      {/* Pagination Footer */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-          Trang {currentPage} / {totalPages} (Tổng số {filteredData.length.toLocaleString('vi-VN')} bản ghi)
-        </span>
-
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button 
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-            className="btn btn-secondary btn-sm"
-          >
-            Trang Trước
-          </button>
-          <button 
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-            className="btn btn-secondary btn-sm"
-          >
-            Trang Sau
-          </button>
-        </div>
-      </div>
+      <Pagination
+        page={currentPageSafe}
+        pageSize={pageSize}
+        totalItems={filteredData.length}
+        onPageChange={setCurrentPage}
+        itemLabel="bản ghi"
+      />
 
     </div>
   );
