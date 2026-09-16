@@ -20,6 +20,13 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
   const [editSuggestedPrice, setEditSuggestedPrice] = useState('');
   // Mã máy đang mở BOM (null = đóng). Chỉ mã máy mới có BOM — xem laMaMay().
   const [bomMat, setBomMat] = useState(null);
+  // withOptimistic cập nhật bảng ngay rồi mới gọi backend nền — trước đây modal
+  // đóng NGAY sau khi bấm Lưu nên không có gì chặn việc mở lại và Lưu lần nữa
+  // cho ĐÚNG SKU đó trước khi lượt ghi đầu về, gửi hai lệnh chồng nhau. Giữ
+  // modal mở và khoá riêng nút Lưu tới khi call() xong — overlay của modal đã
+  // chặn thao tác khác, không cần khoá cả màn hình.
+  const [savingAdd, setSavingAdd] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Permission flags
   const isLeader = activeUser.role === 'leader';
@@ -57,9 +64,9 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
   // each row carrying one or two icon buttons.
   const { safePage, pageItems: pagedMaterials } = usePagedSlice(filteredMaterials, page, PAGE_SIZE);
 
-  const handleCreateMaterial = (e) => {
+  const handleCreateMaterial = async (e) => {
     e.preventDefault();
-    if (!newSku || !newName) return;
+    if (!newSku || !newName || savingAdd) return;
 
     const mat = {
       sku: newSku,
@@ -74,12 +81,17 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
       totalQty: 0
     };
 
-    onAddMaterial(mat);
-    setShowAddModal(false);
-    setNewSku('');
-    setNewName('');
-    setNewAlias('');
-    setNewSuggestedPrice('');
+    setSavingAdd(true);
+    try {
+      await onAddMaterial(mat);
+      setShowAddModal(false);
+      setNewSku('');
+      setNewName('');
+      setNewAlias('');
+      setNewSuggestedPrice('');
+    } finally {
+      setSavingAdd(false);
+    }
   };
 
   const openEditModal = (mat) => {
@@ -89,15 +101,20 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
     setEditSuggestedPrice(mat.suggestedPrice || '');
   };
 
-  const handleSaveEditMaterial = (e) => {
+  const handleSaveEditMaterial = async (e) => {
     e.preventDefault();
-    if (!editingMat) return;
-    onEditMaterial(editingMat.sku, {
-      alias: editAlias,
-      group: editGroup,
-      suggestedPrice: parseFloat(editSuggestedPrice) || 0
-    });
-    setEditingMat(null);
+    if (!editingMat || savingEdit) return;
+    setSavingEdit(true);
+    try {
+      await onEditMaterial(editingMat.sku, {
+        alias: editAlias,
+        group: editGroup,
+        suggestedPrice: parseFloat(editSuggestedPrice) || 0
+      });
+      setEditingMat(null);
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   return (
@@ -309,8 +326,8 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setEditingMat(null)} className="btn btn-secondary">Hủy</button>
-                <button type="submit" className="btn btn-primary">Lưu Thay Đổi</button>
+                <button type="button" onClick={() => setEditingMat(null)} className="btn btn-secondary" disabled={savingEdit}>Hủy</button>
+                <button type="submit" className="btn btn-primary" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu Thay Đổi'}</button>
               </div>
             </form>
           </div>
@@ -354,8 +371,8 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setShowAddModal(false)} className="btn btn-secondary">Hủy</button>
-                <button type="submit" className="btn btn-primary">Lưu Sản Phẩm</button>
+                <button type="button" onClick={() => setShowAddModal(false)} className="btn btn-secondary" disabled={savingAdd}>Hủy</button>
+                <button type="submit" className="btn btn-primary" disabled={savingAdd}>{savingAdd ? 'Đang lưu...' : 'Lưu Sản Phẩm'}</button>
               </div>
             </form>
           </div>

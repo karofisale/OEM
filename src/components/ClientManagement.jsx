@@ -16,6 +16,13 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
   const [editSale, setEditSale] = useState('');
   const [editAddress, setEditAddress] = useState('');
   const [editStatus, setEditStatus] = useState('Active');
+  // withOptimistic cập nhật bảng ngay rồi mới gọi backend nền — trước đây modal
+  // đóng NGAY sau khi bấm Lưu nên không có gì chặn việc mở lại và Lưu lần nữa
+  // cho ĐÚNG khách đó trước khi lượt ghi đầu về, gửi hai lệnh chồng nhau. Giữ
+  // modal mở và khoá riêng nút Lưu tới khi call() xong — overlay của modal đã
+  // chặn thao tác khác, không cần khoá cả màn hình.
+  const [savingAdd, setSavingAdd] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Default to Active only — most day-to-day lookups don't want inactive
   // clients cluttering the list; "Tất cả" is one click away.
@@ -64,9 +71,9 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
 
   const { safePage, pageItems: pagedClients } = usePagedSlice(filteredClients, page, PAGE_SIZE);
 
-  const handleSaveClient = (e) => {
+  const handleSaveClient = async (e) => {
     e.preventDefault();
-    if (!codeSearch || !name) return;
+    if (!codeSearch || !name || savingAdd) return;
 
     const newClient = {
       code: 'CLI-' + Math.floor(1000 + Math.random() * 9000),
@@ -79,10 +86,15 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
       status: 'Active'
     };
 
-    onAddClient(newClient);
-    setShowModal(false);
-    setCodeSearch('');
-    setName('');
+    setSavingAdd(true);
+    try {
+      await onAddClient(newClient);
+      setShowModal(false);
+      setCodeSearch('');
+      setName('');
+    } finally {
+      setSavingAdd(false);
+    }
   };
 
   const openEditModal = (client) => {
@@ -94,19 +106,24 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
     setEditStatus(client.status || 'Active');
   };
 
-  const handleUpdateClient = (e) => {
+  const handleUpdateClient = async (e) => {
     e.preventDefault();
-    if (!editingClient || !editName) return;
+    if (!editingClient || !editName || savingEdit) return;
 
-    onEditClient({
-      ...editingClient,
-      name: editName,
-      alias: editAlias,
-      sale: editSale,
-      address: editAddress,
-      status: editStatus
-    });
-    setEditingClient(null);
+    setSavingEdit(true);
+    try {
+      await onEditClient({
+        ...editingClient,
+        name: editName,
+        alias: editAlias,
+        sale: editSale,
+        address: editAddress,
+        status: editStatus
+      });
+      setEditingClient(null);
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   return (
@@ -296,8 +313,8 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
                 <input type="text" required className="input-field" placeholder="VD: Công ty CP ABC" value={name} onChange={(e) => setName(e.target.value)} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary">Hủy</button>
-                <button type="submit" className="btn btn-primary">Lưu Khách Hàng</button>
+                <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary" disabled={savingAdd}>Hủy</button>
+                <button type="submit" className="btn btn-primary" disabled={savingAdd}>{savingAdd ? 'Đang lưu...' : 'Lưu Khách Hàng'}</button>
               </div>
             </form>
           </div>
@@ -339,8 +356,8 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
                 </select>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setEditingClient(null)} className="btn btn-secondary">Hủy</button>
-                <button type="submit" className="btn btn-primary">Lưu Thay Đổi</button>
+                <button type="button" onClick={() => setEditingClient(null)} className="btn btn-secondary" disabled={savingEdit}>Hủy</button>
+                <button type="submit" className="btn btn-primary" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu Thay Đổi'}</button>
               </div>
             </form>
           </div>

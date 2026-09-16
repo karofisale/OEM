@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Upload, ArrowRight, AlertTriangle } from 'lucide-react';
 import * as api from '../../services/api';
 import ConfirmDialog from '../ConfirmDialog';
@@ -31,6 +31,17 @@ export default function RevenueImportPanel({ token, activeUser, onImported }) {
   // báo cáo và số tổng quan trên cổng đứng lên. Backend kiểm lại lần nữa —
   // ẩn nút chỉ là cho gọn màn hình, không phải phân quyền.
   const canImport = ['admin', 'creator'].includes(activeUser?.role);
+
+  // Lượt ghi này XOÁ SẠCH một tháng rồi ghi lại, mất khoảng một phút — rời
+  // trang giữa chừng (đóng tab, bấm quay lại) không có cách nào huỷ nửa chừng
+  // và cũng không hiện gì báo là đang dở dang. Cảnh báo chuẩn của trình duyệt
+  // là chốt chặn duy nhất còn lại.
+  useEffect(() => {
+    if (!isImporting) return;
+    const canhBao = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', canhBao);
+    return () => window.removeEventListener('beforeunload', canhBao);
+  }, [isImporting]);
 
   const chon = (e) => {
     const file = e.target.files[0];

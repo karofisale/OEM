@@ -72,6 +72,17 @@ export default function CaoSapPanel({ token, activeUser, onImported }) {
   const coQuyen = ['admin', 'creator'].includes(activeUser?.role);
   const dangBan = pha === 'choKhoiDong' || pha === 'dangChay';
 
+  // Lượt cào thật chạy trên máy khác (script SAP), không phải trong tab này —
+  // đóng tab giữa lúc đang chờ không huỷ được lượt chạy đó, nhưng vòng hỏi nhịp
+  // tim ở đây sẽ chết theo tab, và trạng thái 'xong'/'lỗi' sẽ không ai thấy để
+  // bấm tải lại. Cảnh báo chuẩn trước khi rời trang là chốt chặn còn lại.
+  useEffect(() => {
+    if (!dangBan) return;
+    const canhBao = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', canhBao);
+    return () => window.removeEventListener('beforeunload', canhBao);
+  }, [dangBan]);
+
   const doNhip = async () => {
     const d = await api.getNhipTim(token);
     return d.nhipTim || [];
