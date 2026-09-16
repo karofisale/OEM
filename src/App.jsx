@@ -17,9 +17,6 @@ import LoadingScreen from './components/LoadingScreen';
  * Ranh giới Suspense nằm trong chính KeepAliveTab, mỗi tab một cái, nên lượt
  * tải chunk không làm nháy tab đang xem.
  *
- * AiChatWidget KHÔNG tải lười: nó là widget nổi luôn có mặt trên mọi tab, tách
- * ra chỉ thêm một lượt request mà không bỏ được byte nào.
- *
  * AIOrderAgent là tab mặc định nên gần như luôn được tải — nhưng tách vẫn có
  * lợi: nó kéo theo services/aiAgent.js, và giờ lượt tải đó chạy SONG SONG với
  * request getBootstrap thay vì nằm chặn trước nó. */
@@ -34,7 +31,6 @@ const SalesPlan = React.lazy(() => import('./components/SalesPlan'));
 const SopPlan = React.lazy(() => import('./components/SopPlan'));
 const DebtManagement = React.lazy(() => import('./components/DebtManagement'));
 
-import AiChatWidget from './components/AiChatWidget';
 import KeepAliveTab from './components/KeepAliveTab';
 import { RefreshCw } from 'lucide-react';
 
@@ -467,9 +463,6 @@ export default function App() {
           onClose={() => setShowChangePasswordModal(false)}
         />
       )}
-
-      {/* Floating widget, reachable from every tab — not a sidebar entry. */}
-      <AiChatWidget token={session.token} />
     </div>
   );
 }

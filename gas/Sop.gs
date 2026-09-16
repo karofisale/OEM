@@ -510,9 +510,10 @@ function oemAppApproveSop_(token, anchor, overrideRows) {
 
 // ---------- SOP (read-facing forecast) ----------
 
-// No session check here — split out so oemAppAiChat_'s sku_info tool (called
-// after the ONE session check already done at the top of that request) can
-// read the current SOP without a second, redundant auth check.
+// No session check here — split out so a caller that has ALREADY done the one
+// session check at the top of its request can read the current SOP without a
+// second, redundant auth check. (Dùng bởi oemAppGetSopView_ và trước đây bởi
+// công cụ sku_info của AI hỏi đáp, đã gỡ 2026-09-16.)
 function oemAppReadSopView_() {
   var sheet = oemAppGetSopSheet_();
   var rows = sheet.getDataRange().getValues();

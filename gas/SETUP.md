@@ -108,7 +108,9 @@ Cột "Độc quyền" trên tab **Products** (cột thứ 9, do người dùng 
 
 ## Tab tuỳ chọn "Kits" — công thức "Bộ sản phẩm" cho AI Agent (thêm 2026-08-24)
 
-**Cập nhật 2026-08-25**: AI Agent đặt hàng đã rollback về xử lý cục bộ (không gọi API ngoài — xem `src/services/aiAgent.js`), sau khi gặp lỗi hạn mức/xác thực API liên tục. Tab "Kits" vẫn hoạt động y hệt: đọc qua `oemAppLoadKits_` (Ai.gs), đưa vào `getBootstrap` (trường `kits`), và việc TÁCH "Bộ" thành các SKU thành phần giờ chạy ở frontend (`expandKit_` trong `aiAgent.js`) thay vì trong prompt Gemini — không cần đổi gì trên Sheet. Đường Gemini (`gas/Ai.gs`'s `oemAppAiParseOrder_`, route `aiParseOrder`) vẫn còn nguyên, chỉ tạm không có nơi nào gọi tới — dễ bật lại nếu muốn.
+**Cập nhật 2026-09-16**: màn "AI nhận đơn" chạy bằng Gemini ở backend (`gas/Ai.gs`, route `aiParseOrder`) — đọc được cả văn bản, ảnh chụp/viết tay, PDF và file Excel. Tính năng "AI hỏi đáp" (`AiChat.gs`, route `aiChat`) đã **gỡ hẳn** trong cùng lượt này để dồn toàn bộ hạn mức Gemini cho việc nhận đơn. Tab "Kits" vẫn đọc qua `oemAppLoadKits_` (Ai.gs) và vẫn đưa vào `getBootstrap` (trường `kits`); việc TÁCH "Bộ" thành các SKU thành phần giờ nằm trong prompt Gemini, còn `expandKit_` trong `src/services/aiAgent.js` là đường lùi khi không gọi được AI — không cần đổi gì trên Sheet.
+
+**Cần cấu hình**: Project Settings (bánh răng) → Script properties → `GEMINI_API_KEY` = khoá Google AI Studio. Tuỳ chọn `GEMINI_MODEL` (mặc định `gemini-3.6-flash`). Thiếu khoá thì màn nhận đơn tự lùi về bộ dò cục bộ và hiện băng báo lý do.
 
 Không bắt buộc — nếu tab "Kits" không tồn tại, `oemAppLoadKits_` trả về mảng rỗng và AI Agent xử lý "bộ"/"combo" như 1 sản phẩm đơn lẻ như trước (không tách dòng). Tạo tab này khi muốn dạy cho AI Agent biết một "Bộ <tên>" cụ thể gồm những SKU nào, mỗi SKU bao nhiêu cái.
 

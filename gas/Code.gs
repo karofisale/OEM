@@ -38,8 +38,7 @@
  *   PricePlan.gs           - bảng giá bán: đề xuất/duyệt giá lẻ+KM (chung hoặc theo khách)
  *   Cost.gs                - giá vốn theo tháng: so sánh LNG khi duyệt giá, công cụ tính giá gợi ý
  *   Bom.gs                 - định mức nguyên vật liệu theo mã máy (tab BOM), nguồn SAP Z_BOM
- *   Ai.gs                 - Gemini API order parsing (replaces the old client-side heuristic matcher)
- *   AiChat.gs             - Gemini function-calling lookup chat (separate feature from Ai.gs)
+ *   Ai.gs                 - đọc đơn đặt hàng bằng Gemini (văn bản / ảnh / PDF / bảng Excel)
  */
 
 var OEMAPP_SHEET_ID = '1lSeQyfHmd-H0s7Qu7n9b8LAJ3Deap9hHFLEKf6F0Cnk';
@@ -208,8 +207,9 @@ var oemAppApiMap_ = {
   getCostBySku: oemAppGetCostBySku_,
   calculateSuggestedPrice: oemAppCalculateSuggestedPrice_,
   importCostExcel: oemAppImportCostExcel_,
-  aiParseOrder: oemAppAiParseOrder_,
-  aiChat: oemAppAiChat_
+  // Gỡ 2026-09-16: `aiChat` (AI hỏi đáp). Toàn bộ hạn mức Gemini dồn cho
+  // đường đọc đơn dưới đây — xem đầu file Ai.gs.
+  aiParseOrder: oemAppAiParseOrder_
 };
 
 

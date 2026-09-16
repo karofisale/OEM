@@ -1,4 +1,15 @@
-// AI Order Agent — local heuristic parser (no external API call).
+// Bộ dò đơn hàng cục bộ — không gọi API nào.
+//
+// 2026-09-16: KHÔNG còn là đường chính. Màn "AI nhận đơn" giờ gọi Gemini ở
+// backend (gas/Ai.gs). Module này còn lại hai việc, cả hai đều quan trọng:
+//
+//   1. ĐỐI CHIẾU ĐỘC LẬP. Với mỗi dòng Gemini trả về, AIOrderAgent chạy lại
+//      findMatchingMaterial trên chính đoạn chữ gốc của dòng đó. Hai bộ dò
+//      khác hẳn nhau về nguyên lý mà cùng ra một mã thì gần như chắc đúng;
+//      lệch nhau thì đó đúng là dòng người duyệt cần nhìn. Không có lớp này
+//      thì "độ tin cậy" chỉ là con số model tự chấm cho chính nó.
+//   2. ĐƯỜNG LÙI. Hết hạn mức Gemini / chưa cấu hình khoá / mạng chập — Sale
+//      vẫn lên được đơn, chỉ kém chính xác hơn và có băng báo rõ.
 //
 // 2026-08-24: briefly replaced with a real Gemini call (see the audit +
 // follow-up commits), rolled back 2026-08-25 — API quota/auth issues made it
@@ -45,24 +56,11 @@ function similarityScore(str1, str2) {
   return common.length / Math.max(words1.length, words2.length);
 }
 
-// Perform Optical Character Recognition on image file
-export async function extractTextFromImage(imageFile, onProgress) {
-  try {
-    // Lazy-loaded: tesseract.js is a large dependency, only worth the download
-    // when OCR is actually used.
-    const { createWorker } = await import('tesseract.js');
-    const worker = await createWorker('vie+eng');
-    if (onProgress) {
-      onProgress('Đang quét OCR nhận diện chữ trên hình ảnh...');
-    }
-    const ret = await worker.recognize(imageFile);
-    await worker.terminate();
-    return ret.data.text;
-  } catch (error) {
-    console.error('OCR Error:', error);
-    throw new Error('Không thể đọc chữ từ hình ảnh này. Xin thử lại với file ảnh rõ nét hơn.');
-  }
-}
+// Gỡ 2026-09-16: extractTextFromImage (Tesseract OCR). Ảnh giờ gửi thẳng cho
+// Gemini đọc (gas/Ai.gs, lượt 1) — cùng một ảnh chụp tin nhắn/đơn viết tay,
+// Tesseract trả về chữ rời rạc đủ sai để bộ dò bên dưới bám vào nhầm mã, còn
+// model đa phương thức đọc được cả bảng lẫn chữ tay. Gỡ luôn phụ thuộc
+// tesseract.js (~2MB tải về) khỏi package.json.
 
 // Free-type search for the "sửa mã vật tư" comboboxes (AI Order Agent review table,
 // Orders Chờ Duyệt page) — every typed word must appear SOMEWHERE in the SKU/name/
@@ -88,22 +86,31 @@ export function clientMatchesQuery(client, query) {
 const MATCH_MIN_SCORE = 0.25;
 const HISTORY_ORDER_BOOST = 0.15; // clientOrderedSkus tie-breaker, applied within whichever tier is active
 
-// Shared by every fuzzy tier below: score every material with `scorer`, add
-// the small clientOrderedSkus nudge, keep the best. `scorer` returns 0 (or
-// falsy) for materials with nothing to compare (eg no alias set).
+// Shared by every fuzzy tier below: score every material with `scorer`, keep
+// the best. `scorer` returns 0 (or falsy) for materials with nothing to
+// compare (eg no alias set).
+//
+// NGƯỠNG XÉT TRÊN ĐIỂM GỐC, ƯU TIÊN LỊCH SỬ CHỈ DÙNG ĐỂ XẾP HẠNG (sửa
+// 2026-09-16). Trước đây cú hích clientOrderedSkus được cộng vào TRƯỚC khi so
+// với MATCH_MIN_SCORE, nên một mã khách từng mua mà chỉ khớp lèo tèo
+// (0.2 + 0.15 = 0.35) vẫn vượt ngưỡng và làm tầng này trả về ngay — cắt luôn
+// tầng "Tên SP" phía sau, nơi mã ĐÚNG đang chờ với 0.6. Ca thật bắt được:
+// "100 phin lọc 2 đầu" ra "Màng RO 100G" chỉ vì cả hai cùng chứa "100" và
+// khách này từng mua màng RO. Cú hích vẫn còn nguyên tác dụng tách hoà giữa
+// các ứng viên ĐÃ đủ điểm.
 function bestByScorer_(materialsCatalog, scorer, clientOrderedSkus) {
   let best = null;
   let bestScore = 0;
   materialsCatalog.forEach(mat => {
-    let score = scorer(mat);
-    if (!score) return;
-    if (clientOrderedSkus && clientOrderedSkus.has(mat.sku)) score += HISTORY_ORDER_BOOST;
+    const raw = scorer(mat);
+    if (!raw || raw < MATCH_MIN_SCORE) return;
+    const score = clientOrderedSkus && clientOrderedSkus.has(mat.sku) ? raw + HISTORY_ORDER_BOOST : raw;
     if (score > bestScore) {
       bestScore = score;
       best = mat;
     }
   });
-  return best && bestScore >= MATCH_MIN_SCORE ? { material: best, confidence: Math.min(bestScore, 1) } : null;
+  return best ? { material: best, confidence: Math.min(bestScore, 1) } : null;
 }
 
 // Match material from catalog, checked in priority order:

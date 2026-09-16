@@ -45,7 +45,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
   ];
 
   const allMenuItems = [
-    { id: 'ai-agent', label: 'AI Agent Đặt Hàng SAP', icon: Bot },
+    { id: 'ai-agent', label: 'AI Nhận Đơn Hàng', icon: Bot },
     { id: 'pending-orders', label: 'Đơn Hàng Chờ Duyệt', icon: ClipboardList },
     { id: 'doanh-thu', label: 'Doanh thu', icon: PieChart, children: revenueChildren },
     { id: 'products', label: 'Sản phẩm & Bảng giá', icon: Package },

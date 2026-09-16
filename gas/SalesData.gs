@@ -1,9 +1,9 @@
 /** Transactions (tab "Data"), sales plans, 2025 baselines, combined getBootstrap payload. */
 
 // Perf (2026-08-26): reading + mapping tab "Data" is the single most expensive
-// read in this backend, and oemAppAiChat_'s tools (oemAppAiToolClientRevenue_,
-// oemAppAiToolSkuInfo_) can each call this independently within ONE doPost —
-// Gemini function-calling may invoke both in a single chat turn. Memoized per
+// read in this backend, and several helpers reach for it independently within
+// ONE doPost (oemAppAiParseOrder_ pulls the catalog block AND the transaction
+// history to work out what this client has bought before). Memoized per
 // SCRIPT EXECUTION only (a plain top-level var, reset fresh on every new
 // Apps Script invocation — never shared across requests, no staleness risk).
 var OEMAPP_TRANSACTIONS_MEMO_ = null;

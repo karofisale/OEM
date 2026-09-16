@@ -378,14 +378,17 @@ export async function importCostExcel(token, monthLabel, rows) {
   return callApi('importCostExcel', [token, monthLabel, rows]);
 }
 
-// Dormant since the 2026-08-25 rollback (see aiAgent.js) — AIOrderAgent.jsx
-// no longer calls this, order parsing is back to the local heuristic. Left
-// wired (gas/Code.gs still routes it) so switching back to Gemini-backed
-// order parsing later doesn't need re-plumbing, just a caller again.
+// Doc don dat hang bang Gemini — xem gas/Ai.gs.
+//
+// Han gio rieng 150s, khong dung REQUEST_TIMEOUT_MS 60s: mot don co anh chay
+// HAI luot goi Gemini (chep chu -> ghep ma), moi luot vai giay den vai chuc
+// giay, cong luot doc danh muc o backend. Cat o 60s la cat dung nhung don
+// nang nhat — dung nhung don can AI nhat.
+//
+// CO Y khong nam trong NON_IDEMPOTENT_FNS: ham nay chi DOC (khong ghi Sheet
+// nao), nen gui lai chi ton them han muc Gemini chu khong lam hong du lieu.
+// Tren duong mang hong chung mot nua so luot, chan thu lai o day la bat nguoi
+// dung dinh kem lai anh tu dau.
 export async function aiParseOrder(token, input) {
-  return callApi('aiParseOrder', [token, input]);
-}
-
-export async function aiChat(token, message, history) {
-  return callApi('aiChat', [token, message, history]);
+  return callApi('aiParseOrder', [token, input], 150000);
 }
