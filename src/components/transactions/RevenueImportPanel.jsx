@@ -54,8 +54,10 @@ export default function RevenueImportPanel({ token, activeUser, onImported }) {
     reader.onload = async (evt) => {
       try {
         const XLSX = await import('xlsx');
-        // cellDates BẮT BUỘC — xem chú thích trong docLuoi.
-        const wb = XLSX.read(evt.target.result, { type: 'binary', cellDates: true });
+        // cellDates BẮT BUỘC — xem chú thích trong docLuoi. type 'array' đi kèm
+        // readAsArrayBuffer bên dưới — readAsBinaryString là API cũ, chậm hơn
+        // với file lớn (phải build chuỗi binary string thay vì đọc thẳng buffer).
+        const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array', cellDates: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const luoi = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
         const r = docLuoi(luoi);
@@ -74,7 +76,7 @@ export default function RevenueImportPanel({ token, activeUser, onImported }) {
         setIsParsing(false);
       }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const nhap = async () => {

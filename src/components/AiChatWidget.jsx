@@ -15,6 +15,13 @@ const SUGGESTIONS = [
   'Tổng quan kế hoạch kinh doanh hiện tại'
 ];
 
+// Mỗi lượt hỏi-đáp ghi 2 phần tử vào history (role 'user' + role 'model' —
+// xem oemAppAiChat_ trong gas/AiChat.gs), và gas/AiChat.gs chỉ NỐI THÊM vào
+// đúng history nó nhận được rồi trả lại nguyên vẹn — nên cắt bớt ngay khi
+// nhận kết quả là đủ, phiên chat càng dài cũng không gửi nguyên cả lịch sử.
+const MAX_HISTORY_TURNS = 10;
+const MAX_HISTORY_ENTRIES = MAX_HISTORY_TURNS * 2;
+
 export default function AiChatWidget({ token }) {
   const toast = useToast();
   const [isOpen, setIsOpen] = useState(false);
@@ -37,7 +44,7 @@ export default function AiChatWidget({ token }) {
     try {
       const result = await api.aiChat(token, q, geminiHistory);
       setMessages(m => [...m, { role: 'model', text: result.reply }]);
-      setGeminiHistory(result.history || []);
+      setGeminiHistory((result.history || []).slice(-MAX_HISTORY_ENTRIES));
     } catch (err) {
       toast.error('Không hỏi được: ' + err.message);
       setMessages(m => m.slice(0, -1)); // drop the optimistic user bubble that never got an answer

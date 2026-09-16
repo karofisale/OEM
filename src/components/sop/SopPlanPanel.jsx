@@ -5,6 +5,7 @@ import Pagination, { usePagedSlice } from '../Pagination';
 import LoadingScreen from '../LoadingScreen';
 import ConfirmDialog from '../ConfirmDialog';
 import { useToast } from '../ToastProvider';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 const PAGE_SIZE = 25;
 
@@ -66,9 +67,12 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
     return Array.from(set).sort();
   }, [materials]);
 
+  // Debounce ô tìm — nhất quán với ClientManagement/ProductManagement.
+  const debouncedSearchTerm = useDebouncedValue(searchTerm);
+
   const filteredMaterials = useMemo(() => {
     if (!context) return [];
-    const q = searchTerm.trim().toLowerCase();
+    const q = debouncedSearchTerm.trim().toLowerCase();
     return materials.filter(m => {
       if (onlyPriorPlanned && !(context.priorApprovedBySku[m.sku] > 0)) return false;
       if (groupFilter !== 'ALL' && m.group !== groupFilter) return false;
@@ -76,7 +80,7 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
       if (q && !(m.name.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q) || (m.alias || '').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [materials, context, searchTerm, groupFilter, exclusiveFilter, onlyPriorPlanned]);
+  }, [materials, context, debouncedSearchTerm, groupFilter, exclusiveFilter, onlyPriorPlanned]);
 
   const { safePage, pageItems: pagedMaterials } = usePagedSlice(filteredMaterials, page, PAGE_SIZE);
 

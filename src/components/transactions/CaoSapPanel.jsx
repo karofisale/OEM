@@ -116,6 +116,12 @@ export default function CaoSapPanel({ token, activeUser, onImported }) {
       await new Promise((r) => setTimeout(r, NHIP_MS));
       if (dungRef.current) return;
 
+      // Tab bị ẩn (chuyển sang tab khác) thì bỏ qua lượt hỏi này, không gọi
+      // API — không cần hỏi bù ngay khi quay lại, lượt hỏi định kỳ tiếp theo
+      // (5 giây sau) tự xử lý là đủ. Các mốc thời gian (batDau, CHO_KHOI_DONG_MS,
+      // CHO_TOI_DA_MS) vẫn tính theo Date.now() thật nên không bị lệch vì việc này.
+      if (document.visibilityState !== 'visible') continue;
+
       let ds;
       try {
         ds = await doNhip();

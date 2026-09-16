@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Users, Plus, Edit3, Search, MapPin, UserCheck, Lock, Table, LayoutGrid, Filter } from 'lucide-react';
 import Pagination, { usePagedSlice } from './Pagination';
 import { canSeeAllSales } from '../utils/roles';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 
 const PAGE_SIZE = 25;
 
@@ -52,10 +53,14 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
     return Array.from(set);
   }, [clients]);
 
+  // Debounce ô tìm — dữ liệu còn nhỏ nên chưa giật, nhưng gõ nhanh không nên
+  // lọc lại toàn bộ danh bạ ở mỗi ký tự.
+  const debouncedSearchTerm = useDebouncedValue(searchTerm);
+
   // Memoised, and the search term is lowercased once rather than once per client
   // per keystroke — this reran on every render, including typing in a modal.
   const filteredClients = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
+    const q = debouncedSearchTerm.trim().toLowerCase();
     return scopedClients.filter(c => {
       const matchSearch =
         !q ||
@@ -67,7 +72,7 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
       const matchSale = !canFilterAllSales || saleFilter === 'ALL' || c.sale === saleFilter;
       return matchSearch && matchStatus && matchSale;
     });
-  }, [scopedClients, searchTerm, statusFilter, saleFilter, canFilterAllSales]);
+  }, [scopedClients, debouncedSearchTerm, statusFilter, saleFilter, canFilterAllSales]);
 
   const { safePage, pageItems: pagedClients } = usePagedSlice(filteredClients, page, PAGE_SIZE);
 

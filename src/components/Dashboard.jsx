@@ -58,6 +58,11 @@ export default function Dashboard({ transactions = [], clients = [], materials =
     };
   }, [transactions]);
 
+  // Tính 1 lần ngoài vòng lặp render — trước đây Math.max(...monthlyList.map())
+  // nằm trong chính .map() vẽ từng tháng, nên mỗi tháng lại duyệt lại toàn bộ
+  // monthlyList một lần nữa (O(N²) không cần thiết dù N hiện còn nhỏ).
+  const maxRev = useMemo(() => Math.max(...monthlyList.map(m => m[1]), 0) || 1, [monthlyList]);
+
   // No `|| 4` / `|| 1891` fallbacks here: those made an empty dataset render as
   // "4 Đối tác" and "1.891 Bản ghi", i.e. plausible-looking numbers that were
   // simply invented. If nothing loaded, the honest answer is 0.
@@ -168,7 +173,6 @@ export default function Dashboard({ transactions = [], clients = [], materials =
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
             {monthlyList.map(([month, rev]) => {
-              const maxRev = Math.max(...monthlyList.map(m => m[1])) || 1;
               const percentage = Math.round((rev / maxRev) * 100);
               return (
                 <div key={month} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

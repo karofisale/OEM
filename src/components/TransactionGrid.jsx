@@ -266,6 +266,13 @@ export default function TransactionGrid({ transactions, materials, token, active
         </table>
       </div>
 
+      {filteredData.length === 0 && (
+        <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '32px 16px' }}>
+          Không tìm thấy giao dịch nào khớp với bộ lọc hiện tại
+          {searchTerm && <> (từ khóa "<strong>{searchTerm}</strong>")</>}.
+        </div>
+      )}
+
       <Pagination
         page={currentPageSafe}
         pageSize={pageSize}

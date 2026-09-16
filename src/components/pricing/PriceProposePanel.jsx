@@ -4,6 +4,7 @@ import * as api from '../../services/api';
 import Pagination, { usePagedSlice } from '../Pagination';
 import ConfirmDialog from '../ConfirmDialog';
 import { useToast } from '../ToastProvider';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 const PAGE_SIZE = 25;
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
@@ -62,14 +63,17 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
     return Array.from(set).sort();
   }, [materials]);
 
+  // Debounce ô tìm — nhất quán với ClientManagement/ProductManagement.
+  const debouncedSearchTerm = useDebouncedValue(searchTerm);
+
   const filteredMaterials = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
+    const q = debouncedSearchTerm.trim().toLowerCase();
     return materials.filter((m) => {
       if (groupFilter !== 'ALL' && m.group !== groupFilter) return false;
       if (q && !(m.name.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q) || (m.alias || '').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [materials, searchTerm, groupFilter]);
+  }, [materials, debouncedSearchTerm, groupFilter]);
 
   const { safePage, pageItems: pagedMaterials } = usePagedSlice(filteredMaterials, page, PAGE_SIZE);
 

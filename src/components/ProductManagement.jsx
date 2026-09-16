@@ -3,6 +3,7 @@ import { Package, Plus, Edit3, Search, Sparkles, Tag, Check, ArrowUpRight, Lock,
 import Pagination, { usePagedSlice } from './Pagination';
 import BomModal from './products/BomModal';
 import { laMaMay } from '../utils/bom';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 
 const fmtPrice = (v) => (v ? v.toLocaleString('vi-VN') : '-');
 const PAGE_SIZE = 25;
@@ -48,17 +49,21 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
   const [newUnit, setNewUnit] = useState('PC');
   const [newSuggestedPrice, setNewSuggestedPrice] = useState('');
 
+  // Debounce ô tìm — nhất quán với ClientManagement, dữ liệu còn nhỏ nên chưa
+  // giật nhưng gõ nhanh không nên lọc lại toàn bộ danh mục ở mỗi ký tự.
+  const debouncedSearchTerm = useDebouncedValue(searchTerm);
+
   // Memoised: this ran on every render, including every keystroke in an
   // unrelated modal input, and lowercased the search term once per material.
   const filteredMaterials = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
+    const q = debouncedSearchTerm.trim().toLowerCase();
     if (!q) return materials;
     return materials.filter(m =>
       m.name.toLowerCase().includes(q) ||
       m.sku.toLowerCase().includes(q) ||
       (m.alias && m.alias.toLowerCase().includes(q))
     );
-  }, [materials, searchTerm]);
+  }, [materials, debouncedSearchTerm]);
 
   // Every one of the 440 SKUs used to be rendered at once — ~8,000 DOM elements,
   // each row carrying one or two icon buttons.
