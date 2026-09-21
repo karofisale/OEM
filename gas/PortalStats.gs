@@ -77,7 +77,10 @@ function oemAppBuildPortalStats_(scope) {
   oemAppLoadTransactions_().forEach(function (t) {
     if (!oemAppMatchesSale_(t.sale, scope)) return;
     if (!t.month) { soDongThieuThang++; return; }
-    var tien = t.netRevenue || t.revenue || 0;
+    // Doanh thu THUẦN. `revenue` (cột R) là doanh thu GỘP chưa trừ CK thương
+    // mại/giảm giá; rơi về nó khi net = 0 thì thẻ tổng quan trên cổng to hơn
+    // báo cáo doanh thu trong app, vốn chỉ cộng netRevenue.
+    var tien = t.netRevenue || 0;
     if (t.month === thangTruoc) dtThangTruoc += tien;
     else if (t.month === thangNay) done += tien;
   });

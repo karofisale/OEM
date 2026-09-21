@@ -19,9 +19,10 @@ export function doneTheoKhach(transactions, month) {
     if (!t || t.month !== month) return;
     const code = t.clientCode;
     if (!code) return;
-    // netRevenue là doanh thu thuần; rơi về `revenue` khi thiếu, giống mọi nơi
-    // khác trong app.
-    map.set(code, (map.get(code) || 0) + (t.netRevenue || t.revenue || 0));
+    // Doanh thu THUẦN, không rơi về `revenue` (doanh thu gộp, chưa trừ CK
+    // thương mại/giảm giá): Done phải ra đúng con số mà báo cáo doanh thu hiện
+    // cho cùng khách, cùng tháng — Sale mở hai màn cạnh nhau là so ngay.
+    map.set(code, (map.get(code) || 0) + (t.netRevenue || 0));
   });
   return map;
 }

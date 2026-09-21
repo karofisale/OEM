@@ -24,6 +24,9 @@
  *      Plan_Thang, Plan KPI từ Plan2026. Ba tab này cố ý mang số KHÁC nhau
  *      trong dữ liệu mẫu, nên đọc lẫn nguồn là test đỏ ngay.
  *   4. Cột Done (G) và Plan KPI (E) của Plan_Thang KHÔNG còn được đọc nữa.
+ *   5. Doanh thu cộng cột "Doanh thu thuần VND" (W), KHÔNG rơi về "Doanh thu
+ *      VND" (R, doanh thu gộp) khi thuần bằng 0 — nếu không thẻ tổng quan sẽ
+ *      to hơn báo cáo doanh thu trong app.
  */
 
 process.env.TZ = 'Asia/Ho_Chi_Minh';
@@ -212,7 +215,11 @@ const CFG = {
     dongData({ client: 'Khách A', sale: 'Sale1', netRevenue: 500, month: THANG_NAY }),
     // Dòng thiếu tháng: TRƯỚC ĐÂY bị gán mặc định 'T08-2026' nên cộng nhầm vào
     // đúng một tháng thật. Ca này chốt việc nó không còn cộng vào đâu cả.
-    dongData({ client: 'Khách C', sale: 'Sale1', netRevenue: 9999, month: '' })
+    dongData({ client: 'Khách C', sale: 'Sale1', netRevenue: 9999, month: '' }),
+    // Dòng chiết khấu/khuyến mãi 100%: gộp 800000, thuần 0. Mọi báo cáo doanh
+    // thu trong app cộng `netRevenue || 0` nên tính là 0; thẻ tổng quan phải
+    // nói cùng một con số, không được rơi về cột gộp.
+    dongData({ client: 'Khách B', sale: 'Sale2', revenue: 800000, netRevenue: 0, month: THANG_TRUOC })
   ],
   // planKpi và done ở đây đặt giá trị BẪY: nguồn thật của hai con số đó là
   // Plan2026 và tab Data, nên nếu mã còn đọc hai cột này của Plan_Thang thì
@@ -248,6 +255,9 @@ console.log('\n2. Toàn quyền (admin) — mỗi con số đúng nguồn của 
   check('doanh thu tháng trước = 1000 + 2000', r.dtThangTruoc === 3000, r.dtThangTruoc);
   check('KHÔNG cộng dòng thiếu tháng (9999)', r.dtThangTruoc === 3000, r.dtThangTruoc);
   check('báo ra số dòng thiếu tháng', r.soDongThieuThang === 1, r.soDongThieuThang);
+  // Ra 803000 nghĩa là còn rơi về cột "Doanh thu VND" (gộp) khi thuần = 0.
+  check('dòng thuần = 0 KHÔNG rơi về doanh thu gộp (800000)',
+    r.dtThangTruoc === 3000, r.dtThangTruoc);
   // Ra 444444 nghĩa là mã còn đọc cột Done (G) của Plan_Thang.
   check('Done MTD = 500 từ tab Data, KHÔNG phải cột Done của Plan_Thang',
     r.done === 500, r.done);

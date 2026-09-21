@@ -33,8 +33,14 @@ export default function Dashboard({ transactions = [], clients = [], materials =
     const clientRevMap = new Map();
 
     transactions.forEach(t => {
+      // Doanh thu THUẦN, không rơi về `revenue` (cột R "Doanh thu VND" = doanh
+      // thu GỘP, chưa trừ CK thương mại và giảm giá). Dòng khuyến mãi/chiết khấu
+      // 100% có net = 0 mà gộp > 0, nên cách cũ đếm luôn phần gộp đó vào thẻ
+      // "Tổng Doanh Thu Thuần" — thẻ này to hơn tổng của mọi báo cáo doanh thu
+      // (DT ngày/tháng/sale đều cộng `netRevenue || 0`), và to hơn cả tổng biểu
+      // đồ tháng ngay bên dưới nó. Một nguồn duy nhất: netRevenue.
       const net = t.netRevenue || 0;
-      revenue += t.netRevenue || t.revenue || 0;
+      revenue += net;
       qty += t.qty || 0;
 
       const month = t.month || 'Chưa rõ tháng';
