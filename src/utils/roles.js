@@ -42,6 +42,23 @@ export function ownsSaleRow(activeUser, rowSale) {
 }
 
 /**
+ * Dòng này có thuộc về SALE đang được chọn trong bộ lọc không.
+ *
+ * Đây là bộ lọc XEM, không phải hàng rào phân quyền — mọi role vẫn đọc được số
+ * của mọi Sale (xem canSeeAllSales). Nó chỉ thu hẹp tầm nhìn cho dễ đọc.
+ *
+ * So BẰNG ĐÚNG sau chuẩn hoá, không dùng "chứa": danh sách chọn dựng từ chính
+ * các giá trị Sale có thật trên tab Data, nên bằng đúng mới là nghĩa người dùng
+ * mong đợi. Cách cũ mỗi màn tự viết `(t.sale||'').toLowerCase().includes(...)`
+ * — chọn một Sale tên ngắn sẽ kéo theo cả Sale khác có tên chứa nó ("Hoan" kéo
+ * theo "KH Đình Hoan"), và vì chép lại ở nhiều màn nên sửa chỗ này vẫn sót chỗ kia.
+ */
+export function khopSale(rowSale, saleFilter) {
+  if (!saleFilter || saleFilter === 'ALL') return true;
+  return chuanHoa(rowSale) === chuanHoa(saleFilter);
+}
+
+/**
  * Đơn hàng này có do người đang đăng nhập tạo không (cột PIC của tab Orders).
  *
  * PIC lưu TÊN ĐĂNG NHẬP chứ không phải saleId (xem oemAppSaveOrder_), nên so

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Filter, TrendingUp, TrendingDown } from 'lucide-react';
 import { monthsFromTransactions, priorMonthKey, shortMonthLabel, latestMonthKey } from '../../utils/period';
+import { khopSale } from '../../utils/roles';
 
 // Replaces a hardcoded if-chain that only knew T04..T08-2026 and fell through to
 // 'T07-2026' for anything else — so from September the report would silently have
@@ -25,7 +26,7 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
     const priorMonth = priorMonthKey(targetMonth);
 
     transactions.forEach(t => {
-      if (canFilterAllSales && thangFilterSale !== 'ALL' && !(t.sale || '').toLowerCase().includes(thangFilterSale.toLowerCase())) return;
+      if (canFilterAllSales && !khopSale(t.sale, thangFilterSale)) return;
 
       const clientCode = t.clientCode || 'OEM-CLIENT';
       if (!map.has(clientCode)) {

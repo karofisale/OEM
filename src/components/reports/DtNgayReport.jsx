@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Filter } from 'lucide-react';
 import { monthsFromTransactions, latestMonthKey, weeksFromTransactions } from '../../utils/period';
+import { khopSale } from '../../utils/roles';
 import Pagination, { usePagedSlice } from '../Pagination';
 
 const PAGE_SIZE = 50;
@@ -21,7 +22,7 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
     const map = new Map();
 
     transactions.forEach(t => {
-      if (canFilterAllSales && ngayFilterSale !== 'ALL' && !(t.sale || '').toLowerCase().includes(ngayFilterSale.toLowerCase())) return;
+      if (canFilterAllSales && !khopSale(t.sale, ngayFilterSale)) return;
       if (effectiveMonth !== 'ALL' && t.month !== effectiveMonth) return;
       if (ngayFilterWeek !== 'ALL' && t.week !== ngayFilterWeek) return;
 
