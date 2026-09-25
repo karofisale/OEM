@@ -70,3 +70,12 @@ function run_chanDoan_boSanPham() {
 function run_xoaCacheBootstrap() {
   return oemAppForceRefreshBootstrap_();
 }
+
+/**
+ * Liệt kê MỌI tab trong Sheet OEM + đối chiếu tab nào code có dùng, tab nào
+ * không (xem chú thích đầu hàm ở Helpers.gs). CHỈ ĐỌC, không xoá gì.
+ * Chạy xong bấm Ctrl+Enter (View > Logs) rồi copy hết dán lại cho Claude.
+ */
+function run_khaoSatSheet() {
+  return oemAppKhaoSatSheetInBaoCao_();
+}

@@ -185,3 +185,109 @@ function oemAppComputeWeekFromDate_(dateStr, rawWeekNum) {
 }
 
 // ---------- Auth ----------
+
+
+/* ==================================================================
+ * KHẢO SÁT TAB SHEET — chỉ đọc, không đụng dữ liệu (2026-09-25)
+ *
+ * Liệt kê MỌI tab đang có trong Sheet "OEM" và đối chiếu với danh sách tab mà
+ * code này thật sự đọc/ghi (theo gid ở OEMAPP_GIDS, và theo TÊN ở các lệnh
+ * getSheetByName rải trong Ai.gs/Bom.gs/Cost.gs/Debt.gs/NhipTim.gs/Orders.gs/
+ * PricePlan.gs/Products.gs/SalesData.gs/Sop.gs). Danh sách đối chiếu này chép
+ * TAY vào đây — sửa code thêm/bớt tab nào thì nhớ sửa cùng, không có cách nào
+ * để hàm tự dò ra vì code tham chiếu tab qua rất nhiều biến gián tiếp.
+ *
+ * KHÔNG xoá gì cả. Tab bị đánh dấu "không thấy code nào dùng" vẫn có thể đang
+ * được người dùng nhìn/nhập tay (ví dụ nháp, tab lưu trữ cũ) — cần người biết
+ * rõ nghiệp vụ xác nhận trước khi xoá tay trên Google Sheet.
+ * ================================================================== */
+
+var OEMAPP_KHAOSAT_GID_DA_DUNG_ = {
+  276721346: 'OEMAPP_GIDS.USERS (Auth.gs)',
+  385229237: 'OEMAPP_GIDS.CLIENTS (Clients.gs)',
+  1448176667: 'OEMAPP_GIDS.TRANSACTIONS = tab "Data" (SalesData.gs)',
+  1302921161: 'OEMAPP_GIDS.PLAN_THANG (SalesData.gs)',
+  965378295: 'OEMAPP_GIDS.SALES_REVENUE = nền doanh thu 2025 (SalesData.gs)'
+};
+
+var OEMAPP_KHAOSAT_TEN_DA_DUNG_ = {
+  'Kits': 'Ai.gs — mở rộng bộ sản phẩm khi AI đọc đơn',
+  'BOM': 'Bom.gs',
+  'Cost': 'Cost.gs',
+  'Debt': 'Debt.gs — Công nợ',
+  'Orders': 'Orders.gs',
+  'Gia_DeXuat': 'PricePlan.gs',
+  'Gia_KhachHang': 'PricePlan.gs',
+  'Products': 'Products.gs',
+  'Plan2026': 'SalesData.gs — oemAppLoadPlan2026_ (đọc theo TÊN, không theo gid)',
+  'SOP_Plan': 'Sop.gs',
+  'SOP': 'Sop.gs',
+  'JobHeartbeat': 'NhipTim.gs'
+};
+
+/**
+ * Trả về mảng object, MỖI PHẦN TỬ = 1 tab đang có thật trong Sheet, kèm:
+ *   ten, gid, an (ẩn hay không), soDongDuLieu/soCotDuLieu (getLastRow/Column —
+ *   dữ liệu thật), soDongCapPhat/soCotCapPhat (getMaxRows/Columns — ô Sheet đã
+ *   cấp phát, kể cả ô trống — cái này to hơn nhiều so với dữ liệu thật là dấu
+ *   hiệu "tab cồng kềnh" dù không phải tab thừa), dongTieuDe (50 ký tự đầu của
+ *   dòng 1, cắt bớt), daDung (chuỗi mô tả nơi code dùng, hoặc null nếu không
+ *   khớp gid lẫn tên nào ở trên).
+ */
+function oemAppKhaoSatSheet_() {
+  var ss = oemAppSS_();
+  var sheets = ss.getSheets();
+  var ketQua = [];
+
+  sheets.forEach(function (sh) {
+    var gid = sh.getSheetId();
+    var ten = sh.getName();
+    var lastRow = sh.getLastRow();
+    var lastCol = sh.getLastColumn();
+
+    var dongTieuDe = '';
+    if (lastRow > 0 && lastCol > 0) {
+      var hang1 = sh.getRange(1, 1, 1, Math.min(lastCol, 12)).getValues()[0];
+      dongTieuDe = hang1.join(' | ').slice(0, 120);
+    }
+
+    var daDung = OEMAPP_KHAOSAT_GID_DA_DUNG_[gid] || OEMAPP_KHAOSAT_TEN_DA_DUNG_[ten] || null;
+
+    ketQua.push({
+      ten: ten,
+      gid: gid,
+      an: sh.isSheetHidden(),
+      soDongDuLieu: lastRow,
+      soCotDuLieu: lastCol,
+      soDongCapPhat: sh.getMaxRows(),
+      soCotCapPhat: sh.getMaxColumns(),
+      dongTieuDe: dongTieuDe,
+      daDung: daDung
+    });
+  });
+
+  return ketQua;
+}
+
+/**
+ * Bản CHỮ, dễ đọc trong Nhật ký thực thi — gọi hàm này bằng nút Run, xong Ctrl+Enter
+ * (View > Logs) rồi copy hết dán lại cho Claude.
+ */
+function oemAppKhaoSatSheetInBaoCao_() {
+  var ds = oemAppKhaoSatSheet_();
+  var dong = ['Tổng cộng ' + ds.length + ' tab trong Sheet OEM:', ''];
+
+  ds.forEach(function (t, i) {
+    dong.push(
+      (i + 1) + '. "' + t.ten + '" (gid ' + t.gid + ')' + (t.an ? ' [ẨN]' : '') +
+      ' — dữ liệu ' + t.soDongDuLieu + 'x' + t.soCotDuLieu +
+      ', đã cấp phát ' + t.soDongCapPhat + 'x' + t.soCotCapPhat +
+      ' — ' + (t.daDung ? 'DÙNG bởi ' + t.daDung : '*** KHÔNG THẤY CODE NÀO DÙNG ***')
+    );
+    if (t.dongTieuDe) dong.push('   Dòng 1: ' + t.dongTieuDe);
+  });
+
+  var baiBao = dong.join('\n');
+  Logger.log(baiBao);
+  return baiBao;
+}
