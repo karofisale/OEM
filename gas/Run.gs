@@ -79,11 +79,3 @@ function run_xoaCacheBootstrap() {
 function run_khaoSatSheet() {
   return oemAppKhaoSatSheetInBaoCao_();
 }
-
-/**
- * Dò nghi vấn tab "Plan2026" bị 2 hàm đọc chồng 2 kiểu cấu trúc khác nhau
- * (xem chú thích đầu hàm ở Helpers.gs). CHỈ ĐỌC. Copy kết quả dán lại cho Claude.
- */
-function run_khaoSat_chiTietPlan2026() {
-  return oemAppKhaoSatPlan2026ChiTiet_();
-}

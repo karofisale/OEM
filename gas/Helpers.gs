@@ -206,8 +206,8 @@ var OEMAPP_KHAOSAT_GID_DA_DUNG_ = {
   276721346: 'OEMAPP_GIDS.USERS (Auth.gs)',
   385229237: 'OEMAPP_GIDS.CLIENTS (Clients.gs)',
   1448176667: 'OEMAPP_GIDS.TRANSACTIONS = tab "Data" (SalesData.gs)',
-  1302921161: 'OEMAPP_GIDS.PLAN_THANG (SalesData.gs)',
-  965378295: 'OEMAPP_GIDS.SALES_REVENUE = nền doanh thu 2025 (SalesData.gs)'
+  1302921161: 'OEMAPP_GIDS.PLAN_THANG (SalesData.gs)'
+  // SALES_REVENUE (965378295) đã gỡ 2026-09-25 — xem oemAppLoad2025Baselines_.
 };
 
 var OEMAPP_KHAOSAT_TEN_DA_DUNG_ = {
@@ -286,46 +286,6 @@ function oemAppKhaoSatSheetInBaoCao_() {
     );
     if (t.dongTieuDe) dong.push('   Dòng 1: ' + t.dongTieuDe);
   });
-
-  var baiBao = dong.join('\n');
-  Logger.log(baiBao);
-  return baiBao;
-}
-
-/**
- * Dò một NGHI VẤN cụ thể phát hiện từ khảo sát 25/09/2026: tab "Plan2026"
- * (gid 965378295) đang bị DÙNG CHUNG bởi 2 hàm đọc 2 kiểu cấu trúc khác nhau —
- * oemAppLoadPlan2026_ (đọc theo TÊN 'Plan2026', dữ liệu thật từ dòng 7/index 6)
- * và oemAppLoad2025Baselines_ (đọc theo GID SALES_REVENUE, bắt đầu từ dòng
- * 6/index 5 — SỚM HƠN 1 DÒNG). Nếu index 5 chỉ là dòng tiêu đề chữ (vô hại) mà
- * mọi dòng khách hàng thật từ index 6 đọc nhầm cột D ("Năm 2026", một con số
- * NĂM) thành "doanh thu nền 2025" thì mọi khách có dòng ở Plan2026 sẽ bị gán
- * doanh thu nền 2025 = 2026 — sai đến mức vô nghĩa, làm cột "% vs 2025" trên
- * báo cáo DT Tháng (chế độ "Tất cả các Tháng") phồng lên khủng khiếp.
- *
- * In ra 10 dòng đầu (dòng 1-10), cột A-D, để NHÌN THẤY THẬT chứ không suy diễn
- * từ vị trí cột. CHỈ ĐỌC.
- */
-function oemAppKhaoSatPlan2026ChiTiet_() {
-  var sheet = oemAppSS_().getSheetByName('Plan2026');
-  if (!sheet) return 'Không tìm thấy tab "Plan2026".';
-
-  var soDong = Math.min(10, sheet.getLastRow());
-  var vung = sheet.getRange(1, 1, soDong, 4).getValues(); // cột A-D
-
-  var dong = ['10 dòng đầu của tab "Plan2026", cột A-D (A=Mã KH, B=Tên, C=PIC, D=Năm 2026):', ''];
-  vung.forEach(function (r, i) {
-    dong.push(
-      'Dòng ' + (i + 1) + ' (index ' + i + '): A=' + JSON.stringify(r[0]) +
-      '  B=' + JSON.stringify(r[1]) +
-      '  C=' + JSON.stringify(r[2]) +
-      '  D=' + JSON.stringify(r[3])
-    );
-  });
-
-  dong.push('');
-  dong.push('So sánh: oemAppLoad2025Baselines_ đọc rows.slice(5) — tức bắt đầu từ Dòng 6 (index 5) ở trên.');
-  dong.push('oemAppLoadPlan2026_ (đúng theo comment đầu hàm) coi Dòng 7 (index 6) mới là dữ liệu khách hàng thật.');
 
   var baiBao = dong.join('\n');
   Logger.log(baiBao);

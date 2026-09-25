@@ -181,8 +181,28 @@ function oemAppLoadPlan2026_() {
 }
 
 
+/**
+ * Doanh thu NỀN năm 2025 của từng khách — mốc so sánh cột "% vs 2025" trên báo
+ * cáo DT Tháng khi lọc "Tất cả các Tháng" (xem DtThangReport.jsx).
+ *
+ * Tính THẲNG từ lịch sử giao dịch (tab Data), cộng netRevenue (doanh thu
+ * THUẦN — cùng quy ước với mọi báo cáo khác, xem sửa doanh thu thuần
+ * 21/09/2026) của mọi dòng có tháng kết thúc "-2025", gộp theo clientCode.
+ *
+ * TRƯỚC ĐÂY (tới 2026-09-25) hàm này đọc tab "Plan2026" qua gid
+ * OEMAPP_GIDS.SALES_REVENUE — trùng vật lý với tab đó chỉ vì lịch sử gid, và
+ * hỏng theo thiết kế: cột D "Năm 2026" của Plan2026 là chỗ Sale sẽ ghi chỉ
+ * tiêu NĂM TỚI khi tính năng "Lập kế hoạch năm" ra đời (xác nhận với người
+ * dùng), lúc đó "doanh thu nền 2025" sẽ lặng lẽ đọc nhầm thành chỉ tiêu 2026
+ * của chính khách đó. Tách hẳn khỏi Plan2026 để tab kia rảnh tay dùng cho kế
+ * hoạch mà không đụng vào con số so sánh này.
+ *
+ * 6 giá trị dưới đây là số 2025 đã biết của các khách hàng lớn (khớp đúng số
+ * đang nằm ở tab Plan2026 trước khi tách) — dùng làm SÀN, ghi đè bằng số tính
+ * được từ tab Data bất cứ khi nào tính được > 0 (ví dụ lịch sử Data chưa lùi
+ * đủ về hết 2025 cho khách nào thì khách đó vẫn có sàn để so sánh).
+ */
 function oemAppLoad2025Baselines_() {
-  var rows = oemAppGetRows_(OEMAPP_GIDS.SALES_REVENUE);
   var map = {
     TECOM: 30323700000,
     CTMAXIMVN: 23500000000,
@@ -191,13 +211,17 @@ function oemAppLoad2025Baselines_() {
     CHTUANDP: 7546800000,
     CHABACHN: 4000000000
   };
-  if (rows.length > 5) {
-    rows.slice(5).forEach(function (row) {
-      var code = row[0] || oemAppGetClientTextCode_(row[1], '', row[0]);
-      var rev2025 = oemAppParseNum_(row[3]);
-      if (code && rev2025 > 0) map[code] = rev2025;
-    });
-  }
+
+  var tong = {};
+  oemAppLoadTransactions_().forEach(function (t) {
+    if (!t.clientCode || !/-2025$/.test(t.month || '')) return;
+    tong[t.clientCode] = (tong[t.clientCode] || 0) + (t.netRevenue || 0);
+  });
+
+  Object.keys(tong).forEach(function (code) {
+    if (tong[code] > 0) map[code] = tong[code];
+  });
+
   return map;
 }
 

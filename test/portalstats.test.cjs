@@ -126,8 +126,9 @@ function nap(cfg) {
     1448176667: [new Array(63).fill('h')].concat(cfg.data || []),
     1302921161: [new Array(16).fill('title'), new Array(16).fill('label')].concat(cfg.plan || []),
     276721346: [['Name', 'PIN']],
-    385229237: [['Ma KH']],
-    965378295: [['a'], ['b'], ['c'], ['d'], ['e']]
+    385229237: [['Ma KH']]
+    // 965378295 (gid cũ của OEMAPP_GIDS.SALES_REVENUE) đã gỡ 2026-09-25 —
+    // oemAppLoad2025Baselines_ giờ tính từ tab Data, không đọc gid nào riêng.
   };
   const debtRows = cfg.debt || [];
   const debtValues = [
@@ -321,6 +322,42 @@ console.log('\n5. getPortalStats có mặt trong bảng định tuyến');
 check('apiMap có getPortalStats', typeof duAn.oemAppApiMap_.getPortalStats === 'function');
 check('và KHÔNG nằm trong danh sách hàm ghi',
   !duAn.OEMAPP_WRITE_FNS_.getPortalStats);
+
+console.log('\n6. Doanh thu nền 2025 (oemAppLoad2025Baselines_) — tính từ tab Data,');
+console.log('   KHÔNG còn đọc tab Plan2026 (gỡ 2026-09-25, xem SalesData.gs)');
+{
+  const duAn6 = nap({
+    data: [
+      // TECOM: hai dòng 2025 ở hai tháng khác nhau -> phải CỘNG DỒN, và phải
+      // GHI ĐÈ sàn mặc định (30323700000) chứ không cộng thêm vào nó.
+      dongData({ client: 'CT CP CN và môi trường Tecom', sale: 'Sale1', netRevenue: 5000000000, month: 'T03-2025' }),
+      dongData({ client: 'CT CP CN và môi trường Tecom', sale: 'Sale1', netRevenue: 3000000000, month: 'T11-2025' }),
+      // Dòng 2026 của CHÍNH khách TECOM — phải bị LOẠI, không được cộng vào
+      // doanh thu nền 2025 dù rất lớn (bẫy quên lọc năm).
+      dongData({ client: 'CT CP CN và môi trường Tecom', sale: 'Sale1', netRevenue: 999999999999, month: 'T01-2026' }),
+      // A Bắc: chiết khấu 100% (gộp 500 triệu, thuần 0) trong năm 2025 -> tổng
+      // tính được = 0, KHÔNG được ghi đè sàn mặc định (4000000000).
+      dongData({ client: 'Chi nhánh A Bắc HN', sale: 'Sale2', revenue: 500000000, netRevenue: 0, month: 'T05-2025' }),
+      // Khách thường, không khớp mã nào trong 6 mã đã biết -> vẫn phải tính
+      // được sàn MỚI từ tab Data, không bị bỏ sót.
+      dongData({ client: 'Khách Mới Toanh', sale: 'Sale1', netRevenue: 777, month: 'T01-2025' })
+      // Sơn Hà: CỐ Ý không có dòng 2025 nào -> phải giữ nguyên sàn mặc định.
+    ],
+    // Bẫy đúng lỗi cũ: nếu hàm còn lỡ đọc lại Plan2026 thì TECOM sẽ ra con số
+    // khổng lồ này thay vì 8 tỷ tính từ tab Data ở trên.
+    plan2026: [
+      dongPlan2026({ code: 'TECOM', client: 'CT CP CN và môi trường Tecom', pic: 'Sale1', nam: 999999999999 })
+    ]
+  });
+  const b = duAn6.oemAppLoad2025Baselines_();
+
+  check('TECOM: cộng dồn 2 dòng 2025, ghi đè sàn mặc định', b.TECOM === 8000000000, b.TECOM);
+  check('TECOM: KHÔNG cộng dòng 2026 vào doanh thu nền 2025', b.TECOM !== 999999999999, b.TECOM);
+  check('KHÔNG đọc lại Plan2026 (bẫy 999999999999 không lọt qua)', b.TECOM === 8000000000, b.TECOM);
+  check('CHABACHN (A Bắc): thuần = 0 không ghi đè sàn mặc định', b.CHABACHN === 4000000000, b.CHABACHN);
+  check('CTQTSONHA (Sơn Hà): không có dòng 2025 -> giữ sàn mặc định', b.CTQTSONHA === 9546500000, b.CTQTSONHA);
+  check('Khách thường mới cũng có sàn tính từ tab Data', b['OEM-CLIENT'] === 777, b['OEM-CLIENT']);
+}
 
 console.log('');
 console.log(pass + ' đạt, ' + fail + ' hỏng');

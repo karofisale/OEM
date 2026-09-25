@@ -64,8 +64,10 @@ var OEMAPP_GIDS = {
   USERS: 276721346,
   CLIENTS: 385229237,
   TRANSACTIONS: 1448176667, // = tab "Data" (UpDtOem.gs), đọc theo gid thay vì tên
-  PLAN_THANG: 1302921161,
-  SALES_REVENUE: 965378295
+  PLAN_THANG: 1302921161
+  // SALES_REVENUE (965378295) đã gỡ 2026-09-25: gid đó là tab "Plan2026", và
+  // oemAppLoad2025Baselines_ giờ tính doanh thu nền 2025 thẳng từ tab Data —
+  // xem chú thích đầu hàm ở SalesData.gs.
 };
 
 
