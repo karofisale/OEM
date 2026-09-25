@@ -308,15 +308,30 @@ console.log('\n11. Phép lọc URL trong chay.vbs — CỬA CHẶN DUY NHẤT');
       'karofi-oem://dt oem?month=2026-09',
       'karofi-oem://dt-oem?month=2026-09%00',
       'karofi-oem://DT-OEM?month=2026-09',
-      'http://x/karofi-oem://dt-oem'
+      'http://x/karofi-oem://dt-oem',
+      // Thêm 2026-09-24 cùng lúc với việc "bom": tham số `material` là capture
+      // group MỚI, cần bẫy riêng — các dòng trên chỉ thử qua `month`.
+      'karofi-oem://bom?material=1001" & shell("calc")',
+      'karofi-oem://bom?material=1001;calc',
+      'karofi-oem://bom?material=1001|calc',
+      'karofi-oem://bom?material=../../windows',
+      'karofi-oem://bom?material= 1001',
+      'karofi-oem://bom?material='
     ];
     const lot = doc.filter((u) => re.test(u));
     check('chặn hết ' + doc.length + ' chuỗi độc/lệch khuôn', lot.length === 0, lot);
 
-    // Tên việc phải là danh sách CHO PHÉP, không phải "cái gì cũng chạy".
-    // Đúng hai việc: dt-oem (cào thật) và tu-kiem (không đụng SAP, không ghi).
-    check('chỉ chấp nhận dt-oem và tu-kiem',
-      /hanhDong <> "dt-oem" And hanhDong <> "tu-kiem" Then WScript\.Quit/.test(vbs));
+    check('nhận việc bom kèm material đúng khuôn', re.test('karofi-oem://bom?material=1001030190'));
+    check('nhận việc bom kèm / thừa', re.test('karofi-oem://bom/?material=1001030190'));
+
+    // Tên việc phải là danh sách CHO PHÉP, không phải "cái gì cũng chạy". Ba
+    // việc: dt-oem (cào thật), tu-kiem (không đụng SAP, không ghi), bom (cào
+    // BOM một mã, thêm 2026-09-24 — vẫn chỉ GHI ĐÈ, không XOÁ, xem chú thích
+    // đầu file).
+    check('chỉ chấp nhận dt-oem, tu-kiem và bom',
+      /hanhDong <> "dt-oem" And hanhDong <> "tu-kiem" And hanhDong <> "bom" Then WScript\.Quit/.test(vbs));
+    check('việc bom bắt buộc phải có material',
+      /hanhDong = "bom" And Len\(material\) = 0 Then WScript\.Quit/.test(vbs));
     check('thoát ngay nếu không khớp khuôn', /If Not re\.Test\(url\) Then WScript\.Quit/.test(vbs));
     // Ghép dòng lệnh phải nằm SAU phép lọc — lọc sau khi ghép là vô nghĩa.
     check('lọc đứng trước bước ghép lệnh',
@@ -336,7 +351,12 @@ console.log('\n12. dieu-phoi.ps1 — kiểm lớp hai, khoá, và không nói d�
   // lạ lần thứ hai.
   check('không nhận URL, chỉ nhận tham số đã lọc',
     /\[string\]\$HanhDong/.test(ps) && !/\$Url/.test(ps));
-  check('kiểm lại việc cho phép', /@\('dt-oem', 'tu-kiem'\) -notcontains \$HanhDong/.test(ps));
+  check('kiểm lại việc cho phép',
+    /@\('dt-oem', 'tu-kiem', 'bom'\) -notcontains \$HanhDong/.test(ps));
+  // Lớp thứ hai riêng cho `material` — chay.vbs đã lọc, nhưng chuỗi này đi
+  // thẳng vào dòng lệnh python nên khuôn phải hẹp ở CẢ HAI nơi (xem đầu file).
+  check('kiểm lại khuôn material (lớp hai)',
+    /\$Material -notmatch '\^\[A-Za-z0-9\._-\]\{1,40\}\$'/.test(ps));
 
   // `cai-dat.ps1 -Kiem` chỉ chứng minh khoá registry tồn tại. Sáu thứ khác
   // (Windows có gọi tới đây không, python, hai thư viện, config.json, Web App)
@@ -369,8 +389,18 @@ console.log('\n12. dieu-phoi.ps1 — kiểm lớp hai, khoá, và không nói d�
 
   // Nhịp dữ liệu do replaceMonth_ ghi, ngay tại chỗ dữ liệu vào Sheet. Bộ điều
   // phối ghi thêm dòng đó là kể lại một việc nó chỉ nghe qua HTTP.
-  check("chỉ ghi dòng 'oem.doanh-thu.nut', không đụng dòng dữ liệu",
-    /\$JOB\s*=\s*'oem\.doanh-thu\.nut'/.test(ps) && !/'oem\.doanh-thu'/.test(ps));
+  //
+  // Từ khi có việc `bom` (2026-09-24): MỖI việc một dòng nhịp RIÊNG — gộp
+  // chung thì lượt cào BOM sẽ ghi đè mốc của lượt cào doanh thu, và app đang
+  // hỏi vòng dòng kia sẽ tưởng việc của MÌNH vừa xong. Nên $JOB giờ rẽ nhánh
+  // theo $HanhDong thay vì một hằng số, và cả hai job vẫn phải là dòng PHỤ
+  // (có ".nut"): "oem.doanh-thu" trơ trọi (không hậu tố) là dòng dữ liệu thật
+  // do replaceMonth_ ghi — bộ điều phối không được lặp lại nhầm chuỗi đó cho
+  // job của mình, và cùng lý do đó áp cho "oem.bom" nếu sau này có ai ghi
+  // dòng dữ liệu tương ứng cho BOM.
+  check("mỗi việc một dòng nhịp riêng, không đụng dòng dữ liệu",
+    /\$JOB\s*=\s*if\s*\(\$HanhDong\s*-eq\s*'bom'\)\s*\{\s*'oem\.bom\.nut'\s*\}\s*else\s*\{\s*'oem\.doanh-thu\.nut'\s*\}/.test(ps) &&
+    !/'oem\.doanh-thu'/.test(ps) && !/'oem\.bom'/.test(ps));
   check("dùng trạng thái 'dang-chay' làm hợp đồng với app", /'dang-chay'/.test(ps));
   check('lỗi ghi nhịp tim không làm hỏng việc chính', /không được để lỗi ở đây|khong phá|cái đo/i.test(ps) || /catch \{[\s\S]{0,120}Ghi-NhatKy/.test(ps));
   check('có nhật ký và tự giữ độ dài', /nhat-ky\.log/.test(ps) && /Select-Object -Last 400/.test(ps));

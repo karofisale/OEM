@@ -280,9 +280,17 @@ console.log('\n2. Toàn quyền (admin) — mỗi con số đúng nguồn của 
   check('phạm vi rỗng = toàn bộ', r.phamVi === '', r.phamVi);
 }
 
-console.log('\n3. PHÂN QUYỀN — sale chỉ thấy số của mình');
+console.log('\n3. PHÂN QUYỀN — thẻ tổng quan trên cổng dùng phạm vi CÁ NHÂN');
+// Từ 14/09/2026, oemAppScopeOf_ trả {all:true} cho MỌI role (Sale xem được số
+// của nhau ở các màn báo cáo) — ba ca dưới đây TỪNG dựng scope bằng chính hàm
+// đó nên vô tình đổi ý nghĩa theo, không còn kiểm được gì (mọi assert đều
+// khớp y hệt mục "2. Toàn quyền"). oemAppBuildPortalStats_ ở PortalStats.gs
+// thật ra KHÔNG dùng oemAppScopeOf_ cho thẻ này — nó cố ý gọi
+// oemAppScopeCaNhan_ (fail-closed, chỉ số của chính người đó), vì thẻ tổng
+// quan không có bộ lọc "xem của ai" như màn báo cáo, một con số duy nhất mà
+// ra số toàn công ty thì Sale nhìn vào tưởng đó là doanh số mình làm ra.
 {
-  const scope = duAn.oemAppScopeOf_({ role: 'sale', saleId: 'Sale1' });
+  const scope = duAn.oemAppScopeCaNhan_({ role: 'sale', saleId: 'Sale1' });
   const r = duAn.oemAppBuildPortalStats_(scope);
   check('doanh thu tháng trước chỉ của Sale1', r.dtThangTruoc === 1000, r.dtThangTruoc);
   check('Done chỉ của Sale1', r.done === 500, r.done);
@@ -295,8 +303,8 @@ console.log('\n3. PHÂN QUYỀN — sale chỉ thấy số của mình');
 }
 {
   // Fail closed: saleId trống KHÔNG được thành "thấy tất cả". Đó chính là lỗi
-  // mà oemAppScopeOf_ được viết để chặn (xem chú thích của nó).
-  const scope = duAn.oemAppScopeOf_({ role: 'sale', saleId: '' });
+  // mà oemAppScopeCaNhan_ được viết để chặn (xem chú thích của nó).
+  const scope = duAn.oemAppScopeCaNhan_({ role: 'sale', saleId: '' });
   const r = duAn.oemAppBuildPortalStats_(scope);
   check('sale thiếu saleId -> không cộng doanh thu nào', r.dtThangTruoc === 0, r.dtThangTruoc);
   check('sale thiếu saleId -> không cộng công nợ nào', r.congNo === 0, r.congNo);
@@ -305,10 +313,24 @@ console.log('\n3. PHÂN QUYỀN — sale chỉ thấy số của mình');
   check('sale thiếu saleId -> Done bằng 0', r.done === 0, r.done);
 }
 {
-  // Vai không phải sale (leader/account/creator) được xem tất cả — cùng một
-  // hàm oemAppScopeOf_ mà getBootstrap dùng, không phải luật riêng ở đây.
-  const r = duAn.oemAppBuildPortalStats_(duAn.oemAppScopeOf_({ role: 'leader', saleId: '' }));
+  // Vai không phải sale (leader/account/creator) vẫn xem tất cả qua phạm vi cá
+  // nhân — oemAppScopeCaNhan_ chỉ fail-closed cho riêng role 'sale'.
+  const r = duAn.oemAppBuildPortalStats_(duAn.oemAppScopeCaNhan_({ role: 'leader', saleId: '' }));
   check('leader thấy toàn bộ', r.congNo === 10000 && r.planKpi === 300, [r.congNo, r.planKpi]);
+}
+
+console.log('\n3b. oemAppScopeOf_ — luật ĐỌC 14/09/2026: mọi role thấy hết');
+// Đây là phạm vi thật của các màn báo cáo (DT Sale/Tháng/Ngày, getBootstrap) —
+// khác phạm vi cá nhân ở mục 3, và KHÔNG được fail-closed như phạm vi cá nhân:
+// một Sale thiếu saleId vẫn phải xem được báo cáo, chỉ là bộ lọc "xem của ai"
+// trên màn đó sẽ không có gì để chọn theo tên mình.
+{
+  const s1 = duAn.oemAppScopeOf_({ role: 'sale', saleId: 'Sale1' });
+  check('sale: all=true', s1.all === true, s1);
+  const s2 = duAn.oemAppScopeOf_({ role: 'sale', saleId: '' });
+  check('sale thiếu saleId: vẫn all=true (không fail-closed ở phạm vi này)', s2.all === true, s2);
+  const s3 = duAn.oemAppScopeOf_({ role: 'leader', saleId: '' });
+  check('leader: all=true', s3.all === true, s3);
 }
 
 console.log('\n4. Bảng rỗng thì trả 0, không nổ');
