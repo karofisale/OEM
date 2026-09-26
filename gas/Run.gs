@@ -79,3 +79,27 @@ function run_xoaCacheBootstrap() {
 function run_khaoSatSheet() {
   return oemAppKhaoSatSheetInBaoCao_();
 }
+
+
+/* ==================================================================
+ * CHUYỂN SANG SUPABASE (schema oem + Edge Function oem-api)
+ * Xem MigrateToSupabase.gs. Chạy theo thứ tự 1 -> 2 -> 3.
+ * ================================================================== */
+
+/** 1. Tạo secret nạp dữ liệu (chạy một lần), rồi copy sang Supabase Secrets. */
+function run_supabase_1_taoSecret() {
+  return migTaoSecret_();
+}
+
+/**
+ * 2. Xoá sạch và nạp lại MỌI bảng schema oem từ Sheet. Chạy lại bao nhiêu lần
+ * cũng được trước lúc cắt luồng — chưa ai đọc schema oem.
+ */
+function run_supabase_2_napDuLieu() {
+  return migNapDuLieu_();
+}
+
+/** 3. Đối chiếu payload app dựng từ Sheet với payload dựng từ Postgres. Chỉ đọc. */
+function run_supabase_3_doiChieu() {
+  return migDoiChieu_();
+}
