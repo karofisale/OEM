@@ -234,7 +234,7 @@ export default function App() {
       () => setMaterials(m => [newMat, ...m]),
       () => setMaterials(prev),
       () => api.addMaterial(session.token, newMat),
-      'Không ghi được sản phẩm mới lên Google Sheet'
+      'Không ghi được sản phẩm mới'
     );
   };
 
@@ -244,7 +244,7 @@ export default function App() {
       () => setMaterials(m => m.map(x => x.sku === sku ? { ...x, ...updates } : x)),
       () => setMaterials(prev),
       () => api.editMaterial(session.token, sku, updates),
-      'Không cập nhật được sản phẩm lên Google Sheet'
+      'Không cập nhật được sản phẩm'
     );
   };
 
@@ -254,7 +254,7 @@ export default function App() {
       () => setClients(c => [newClient, ...c]),
       () => setClients(prev),
       () => api.addClient(session.token, newClient),
-      'Không ghi được khách hàng mới lên Google Sheet'
+      'Không ghi được khách hàng mới'
     );
   };
 
@@ -264,7 +264,7 @@ export default function App() {
       () => setClients(c => c.map(x => x.code === updatedClient.code ? updatedClient : x)),
       () => setClients(prev),
       () => api.editClient(session.token, updatedClient),
-      'Không cập nhật được khách hàng lên Google Sheet'
+      'Không cập nhật được khách hàng'
     );
   };
 
@@ -324,7 +324,7 @@ export default function App() {
             cảnh báo với nội dung đúng theo hệ quả mới. */}
         {activeUser.role === 'sale' && !activeUser.saleId && hasLoadedOnce && (
           <div style={{ margin: '16px 32px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--warning-bg)', color: 'var(--warning-text)', fontSize: '0.85rem' }}>
-            Tài khoản của bạn chưa được gán mã Sale trong tab <strong>Users</strong> của Google Sheet.
+            Tài khoản của bạn chưa được gán <strong>mã Sale</strong>.
             Bạn vẫn xem được số liệu, nhưng chưa lập được kế hoạch kinh doanh vì hệ thống
             không biết khách nào do bạn phụ trách. Vui lòng liên hệ Admin để bổ sung.
           </div>
@@ -402,6 +402,7 @@ export default function App() {
               token={session.token}
               materials={materials}
               clients={clients}
+              kits={kits}
               activeUser={activeUser}
               onAddMaterial={handleAddMaterial}
               onEditMaterial={handleEditMaterial}

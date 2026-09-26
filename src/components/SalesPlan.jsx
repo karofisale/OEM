@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { CalendarRange, ClipboardList, ClipboardCheck } from 'lucide-react';
+import { CalendarRange, ClipboardList, ClipboardCheck, Target } from 'lucide-react';
 import KeepAliveTab from './KeepAliveTab';
 import SalesPlanViewPanel from './salesplan/SalesPlanViewPanel';
 import SalesPlanProposePanel from './salesplan/SalesPlanProposePanel';
 import SalesPlanApprovePanel from './salesplan/SalesPlanApprovePanel';
+import PlanNamPanel from './salesplan/PlanNamPanel';
 
 export default function SalesPlan({ token, plans, clients, transactions, plan2026, planDefaultMonth, activeUser, onDataChanged, onReloadPlanKpi }) {
-  const [subView, setSubView] = useState('view'); // 'view' | 'propose' | 'approve'
+  const [subView, setSubView] = useState('view'); // 'view' | 'propose' | 'approve' | 'kpi'
 
   const canPropose = ['sale', 'admin', 'creator'].includes(activeUser.role);
   const canApprove = ['admin', 'creator'].includes(activeUser.role);
@@ -35,6 +36,11 @@ export default function SalesPlan({ token, plans, clients, transactions, plan202
           {canApprove && (
             <button onClick={() => setSubView('approve')} className={`btn ${subView === 'approve' ? 'btn-primary' : 'btn-secondary'}`}>
               <ClipboardCheck size={16} /> Chờ Duyệt
+            </button>
+          )}
+          {canApprove && (
+            <button onClick={() => setSubView('kpi')} className={`btn ${subView === 'kpi' ? 'btn-primary' : 'btn-secondary'}`}>
+              <Target size={16} /> KPI Năm
             </button>
           )}
         </div>
@@ -74,6 +80,12 @@ export default function SalesPlan({ token, plans, clients, transactions, plan202
             onApproved={() => { onDataChanged(); setSubView('view'); }}
           />
         </KeepAliveTab>
+      )}
+
+      {/* Unmount khi rời đi (không KeepAlive): bảng sửa dở KPI năm mà giữ lại
+          ngầm thì lần quay lại dễ bấm Lưu đè lên số người khác vừa sửa. */}
+      {canApprove && subView === 'kpi' && (
+        <PlanNamPanel token={token} onSaved={onReloadPlanKpi} />
       )}
     </div>
   );

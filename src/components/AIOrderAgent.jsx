@@ -359,7 +359,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
       setSaved(true);
       if (onOrderSaved) onOrderSaved();
     } catch (err) {
-      toast.error('Không lưu được đơn hàng lên Google Sheet (tab Orders): ' + err.message);
+      toast.error('Không lưu được đơn hàng: ' + err.message);
     } finally {
       setIsSaving(false);
     }
@@ -712,7 +712,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
 
               <button onClick={handleSaveOrder} disabled={isSaving} className="btn btn-primary" style={{ width: '100%', padding: '12px' }}>
                 {isSaving ? <Loader2 size={18} className="animate-spin" /> : (saved ? <Check size={18} /> : <Save size={18} />)}
-                {isSaving ? 'Đang lưu...' : (saved ? 'Đã lưu vào Google Sheet!' : 'Lưu đơn về tab Orders')}
+                {isSaving ? 'Đang lưu...' : (saved ? 'Đã lưu đơn!' : 'Lưu đơn')}
               </button>
 
               <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', background: 'rgba(59, 130, 246, 0.08)', padding: '10px 14px', borderRadius: 'var(--radius-md)' }}>

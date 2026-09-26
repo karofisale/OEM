@@ -143,10 +143,10 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
           onClick={onRefreshData}
           disabled={isSyncing}
           className="btn btn-secondary btn-sm"
-          title="Tải lại dữ liệu mới nhất từ Google Sheet"
+          title="Tải lại dữ liệu mới nhất"
         >
           <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
-          <span className="hide-mobile-xs">{isSyncing ? 'Đang tải...' : 'Đồng bộ Sheet'}</span>
+          <span className="hide-mobile-xs">{isSyncing ? 'Đang tải...' : 'Tải lại'}</span>
         </button>
 
         {/* Profile Card & Switcher Button */}

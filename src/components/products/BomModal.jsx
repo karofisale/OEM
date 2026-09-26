@@ -182,7 +182,7 @@ export default function BomModal({ token, sku, materialName, canUpdate, onClose 
             </p>
           </div>
           <div style={{ display: 'flex', gap: '6px' }}>
-            <button onClick={doc} disabled={dangDoc} className="btn btn-secondary btn-sm" title="Đọc lại từ Sheet">
+            <button onClick={doc} disabled={dangDoc} className="btn btn-secondary btn-sm" title="Đọc lại BOM">
               <RefreshCw size={14} className={dangDoc ? 'animate-spin' : undefined} /> Tải lại
             </button>
             <button onClick={onClose} disabled={dangCao || dangLuu} className="btn btn-ghost btn-sm" aria-label="Đóng">

@@ -176,7 +176,7 @@ export default function CaoSapPanel({ token, activeUser, onImported }) {
         <div style={{ flex: '1', minWidth: '240px' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Cào thẳng từ SAP</h3>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Chạy bộ script trên máy có SAP: xuất ZSD450 rồi ghi vào tab Data, không phải mở terminal.
+            Chạy bộ script trên máy có SAP: xuất ZSD450 rồi ghi vào bảng doanh thu, không phải mở terminal.
             Chỉ dùng được trên <strong>máy đã cài trình chạy</strong> và <strong>đã đăng nhập SAP</strong>.
           </p>
         </div>
@@ -203,7 +203,7 @@ export default function CaoSapPanel({ token, activeUser, onImported }) {
 
       {pha === 'dangChay' && (
         <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-          Trình chạy đã nhận. Đang xuất ZSD450 từ SAP rồi ghi lên Sheet — việc này thường mất khoảng một phút.
+          Trình chạy đã nhận. Đang xuất ZSD450 từ SAP rồi ghi vào bảng doanh thu — việc này thường mất khoảng một phút.
         </div>
       )}
 

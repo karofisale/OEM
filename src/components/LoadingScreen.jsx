@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 // we CAN fix is how boring/broken that wait feels: an indeterminate progress
 // bar + rotating tips instead of a blank screen or a static spinner.
 const DEFAULT_TIPS = [
-  'Đang kết nối tới Google Sheet...',
+  'Đang kết nối tới máy chủ...',
   'Máy chủ Google Apps Script đôi khi cần vài giây để "khởi động" — vui lòng chờ chút.',
   'Mẹo: ở AI Order Agent, bạn có thể dán ảnh chụp đơn hàng thẳng vào ô nhập lệnh bằng Ctrl+V.',
   'Mẹo: gõ tự do vào ô Mã VT hoặc Mã KH để tìm theo bất kỳ từ khóa nào, không cần đúng thứ tự.',

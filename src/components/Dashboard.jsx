@@ -124,7 +124,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
         <FileText size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
         <div style={{ fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>Chưa có số liệu để hiển thị</div>
         <div style={{ fontSize: '0.85rem' }}>
-          Dữ liệu chưa tải được từ Google Sheet. Bấm "Đồng bộ Sheet" trên thanh trên cùng để thử lại.
+          Dữ liệu chưa tải được. Bấm "Tải lại" trên thanh trên cùng để thử lại.
         </div>
       </div>
     );
@@ -221,7 +221,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>
               {totalTransactionsCount.toLocaleString('vi-VN')} Bản ghi
             </div>
-            <span style={{ fontSize: '0.7rem', color: 'var(--accent-amber)', fontWeight: 600 }}>Google Sheet Sync</span>
+            <span style={{ fontSize: '0.7rem', color: 'var(--accent-amber)', fontWeight: 600 }}>Doanh thu từ SAP</span>
           </div>
         </div>
 

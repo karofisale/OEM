@@ -1,13 +1,19 @@
 // Client for the OEM App Apps Script backend (see gas/Code.gs + gas/SETUP.md).
 // Replaces the old direct-to-public-Sheet fetching in sheetService.js.
 
-// Standalone Apps Script Web App (2026-08-19) — separated from the shared
-// up-dt-oem/cong-no-oem project (D:\Operation\Claude\Scripts\up-dt-oem\) after
-// a controlled latency test showed the container-bound-to-a-huge-Sheet setup
-// there was consistently ~5-10x slower per call. Source: gas/Code.gs (+
-// Helpers/Auth/Clients/Products/SalesData/Orders.gs in this folder). See
-// gas/SETUP.md for deploy steps.
-export const API_URL = 'https://script.google.com/macros/s/AKfycbwKe1b7gUOnp9gPF_q6jlzTFIrD3DOtkFM8oMQf41D1iXGrEwmYElWZeupCNG-Szy7DfQ/exec';
+// Backend = Supabase Edge Function `oem-api` (Karofi-ID/supabase/functions/
+// oem-api), dữ liệu ở Postgres schema `oem`. Giao thức giữ NGUYÊN như Web App
+// Apps Script cũ ({fn, args} -> {result}|{error}), nên phần còn lại của file
+// này không đổi gì.
+//
+// LÙI LẠI: đổi dòng dưới về URL Apps Script cũ rồi push —
+//   https://script.google.com/macros/s/AKfycbwKe1b7gUOnp9gPF_q6jlzTFIrD3DOtkFM8oMQf41D1iXGrEwmYElWZeupCNG-Szy7DfQ/exec
+// NHƯNG Sheet đã đóng băng từ mốc cắt: mọi thứ ghi vào Postgres sau mốc đó
+// sẽ không có ở bản cũ.
+//
+// VITE_OEM_API (client/.env.local, không commit) trỏ tạm sang backend khác khi thử.
+export const API_URL = import.meta.env?.VITE_OEM_API ||
+  'https://zzbnxyvjpiuhxauagbgh.supabase.co/functions/v1/oem-api';
 
 import { sharedSessionForOEM, clearSharedSession } from './karofiSession';
 
@@ -376,6 +382,22 @@ export async function calculateSuggestedPrice(token, sku, targetMarginPct) {
 
 export async function importCostExcel(token, monthLabel, rows) {
   return callApi('importCostExcel', [token, monthLabel, rows]);
+}
+
+// KPI năm theo khách (thay tab Plan2026 sửa tay trên Sheet) và công thức Bộ sản
+// phẩm (thay tab Kits) — màn Admin. Hai hàm lưu đều THAY TOÀN BỘ bằng bảng gửi
+// lên, nên gửi lại cùng payload cho ra đúng cùng kết quả: cố ý KHÔNG nằm trong
+// NON_IDEMPOTENT_FNS, mạng chập thì tự thử lại được.
+export async function getPlanNam(token, nam) {
+  return callApi('getPlanNam', [token, nam]);
+}
+
+export async function savePlanNam(token, nam, rows) {
+  return callApi('savePlanNam', [token, nam, rows]);
+}
+
+export async function saveKits(token, rows) {
+  return callApi('saveKits', [token, rows]);
 }
 
 // Doc don dat hang bang Gemini — xem gas/Ai.gs.

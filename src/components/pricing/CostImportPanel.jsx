@@ -164,7 +164,7 @@ export default function CostImportPanel({ token, activeUser, onImported }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Xem trước ({rows.length.toLocaleString('vi-VN')} mã) — Tháng {monthLabel}</h3>
             <button onClick={() => setConfirming(true)} className="btn btn-emerald">
-              <ArrowRight size={16} /> Đồng Bộ Lên Google Sheet
+              <ArrowRight size={16} /> Lưu Giá Vốn
             </button>
           </div>
 

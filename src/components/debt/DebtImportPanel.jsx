@@ -135,7 +135,7 @@ export default function DebtImportPanel({ token, activeUser, clients, onImported
     try {
       const payload = rows.map((r) => ({ code: r.code, oldCode: r.oldCode, name: r.name, pic: r.pic, creditLimit: r.creditLimit, balance: r.balance }));
       const result = await api.importDebtExcel(token, payload);
-      toast.success(`Đã cập nhật ${result.updatedCount} khách hàng, thêm mới ${result.addedCount} khách hàng vào tab Debt.`);
+      toast.success(`Đã cập nhật ${result.updatedCount} khách hàng, thêm mới ${result.addedCount} khách hàng vào bảng công nợ.`);
       setConfirming(false);
       setRows([]);
       setFileName('');
@@ -180,7 +180,7 @@ export default function DebtImportPanel({ token, activeUser, clients, onImported
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Xem trước ({rows.length.toLocaleString('vi-VN')} khách hàng)</h3>
             <button onClick={() => setConfirming(true)} className="btn btn-emerald">
-              <ArrowRight size={16} /> Đồng Bộ Lên Google Sheet
+              <ArrowRight size={16} /> Lưu Công Nợ
             </button>
           </div>
 
@@ -212,16 +212,16 @@ export default function DebtImportPanel({ token, activeUser, clients, onImported
           </div>
 
           <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
-            Cột "Vượt hạn mức" trong tab Debt do Sheet tự tính (Số dư − Hạn mức) — giá trị trong file chỉ để đối chiếu, không được ghi đè.
+            Cột "Vượt hạn mức" do hệ thống tự tính (Số dư − Hạn mức) — giá trị trong file chỉ để đối chiếu, không được ghi đè.
           </p>
         </div>
       )}
 
       {confirming && (
         <ConfirmDialog
-          title="Đồng bộ công nợ lên Google Sheet?"
-          message={`Sẽ cập nhật/thêm mới ${rows.length} khách hàng vào tab "Debt" — ghi đè Hạn mức và Số dư công nợ theo file vừa tải lên. Tab này cũng được cập nhật bởi quy trình đối chiếu công nợ riêng (skill cong-no-oem); hãy chắc chắn dữ liệu trong file là bản mới nhất trước khi đồng bộ.`}
-          confirmLabel={isImporting ? 'Đang đồng bộ...' : 'Đồng bộ'}
+          title="Lưu công nợ?"
+          message={`Sẽ cập nhật/thêm mới ${rows.length} khách hàng vào bảng công nợ — ghi đè Hạn mức và Số dư công nợ theo file vừa tải lên. Bảng này cũng được cập nhật bởi quy trình đối chiếu công nợ riêng (skill cong-no-oem); hãy chắc chắn dữ liệu trong file là bản mới nhất trước khi lưu.`}
+          confirmLabel={isImporting ? 'Đang lưu...' : 'Lưu'}
           onConfirm={handleImport}
           onCancel={() => setConfirming(false)}
         />

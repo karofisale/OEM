@@ -146,7 +146,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
   const handleDeleteRow = (row) => setConfirming({
     kind: 'row',
     title: 'Xóa dòng này?',
-    message: `Dòng "${row.sku || '(chưa có mã)'} — ${row.name || ''}" sẽ bị xóa khỏi tab Orders.`,
+    message: `Dòng "${row.sku || '(chưa có mã)'} — ${row.name || ''}" sẽ bị xóa khỏi danh sách đơn.`,
     confirmLabel: 'Xóa dòng',
     run: () => deleteRowConfirmed(row)
   });
@@ -167,7 +167,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
   const handleDeleteOrder = (orderNo) => setConfirming({
     kind: 'order',
     title: `Xóa toàn bộ đơn ${orderNo}?`,
-    message: 'Tất cả các dòng của đơn này sẽ bị xóa khỏi tab Orders. Thao tác này không thể hoàn tác.',
+    message: 'Tất cả các dòng của đơn này sẽ bị xóa khỏi danh sách đơn. Thao tác này không thể hoàn tác.',
     confirmLabel: 'Xóa cả đơn',
     run: () => deleteOrderConfirmed(orderNo)
   });
@@ -252,7 +252,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
       <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ClipboardList size={24} color="var(--karofi-cyan)" /> Đơn Hàng Chờ Duyệt (tab Orders)
+            <ClipboardList size={24} color="var(--karofi-cyan)" /> Đơn Hàng Chờ Duyệt
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
             Rà soát các đơn AI Agent đã tạo, chỉnh sửa nếu cần, rồi copy mã dán vào SAP.
@@ -289,7 +289,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
 
       {!isLoading && !loadError && groups.length === 0 && (
         <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '32px 16px' }}>
-          Chưa có đơn hàng nào được lưu vào tab Orders.
+          Chưa có đơn hàng nào được lưu.
         </div>
       )}
 

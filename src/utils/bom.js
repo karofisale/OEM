@@ -17,7 +17,7 @@ const chuanHoaODuLieu = (s) => String(s === null || s === undefined ? '' : s).tr
 
 // "1.234,5" (vi) và "1,234.5" (en) đều phải ra đúng một số. SAP xuất theo cấu
 // hình vùng của máy nên không đoán trước được kiểu nào.
-function doSo(text) {
+export function doSo(text) {
   const s = chuanHoaODuLieu(text).replace(/\s/g, '');
   if (!s) return 0;
   let t = s;

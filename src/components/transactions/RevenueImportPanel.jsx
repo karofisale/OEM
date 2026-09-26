@@ -64,7 +64,7 @@ export default function RevenueImportPanel({ token, activeUser, onImported }) {
         setKq(r);
 
         if (r.thieuCot.length) {
-          toast.error(`File thiếu ${r.thieuCot.length} cột so với tab Data — SAP có thể đã đổi layout.`);
+          toast.error(`File thiếu ${r.thieuCot.length} cột so với bảng doanh thu — SAP có thể đã đổi layout.`);
         } else if (r.nhieuThang.length) {
           toast.error(`File chứa ${r.nhieuThang.length} tháng — chỉ nhận file của đúng một tháng.`);
         } else if (!r.rows.length) {
@@ -84,7 +84,7 @@ export default function RevenueImportPanel({ token, activeUser, onImported }) {
     try {
       const r = await api.importRevenueExcel(token, kq.thang, kq.rows);
       toast.success(
-        `Tháng ${kq.thang}: xoá ${fmt(r.rowsRemoved)} dòng cũ, ghi ${fmt(r.rowsAdded)} dòng mới vào tab Data.`
+        `Tháng ${kq.thang}: xoá ${fmt(r.rowsRemoved)} dòng cũ, ghi ${fmt(r.rowsAdded)} dòng mới vào bảng doanh thu.`
       );
       (r.warnings || []).forEach((w) => toast.error(w));
       setConfirming(false);
@@ -127,7 +127,7 @@ export default function RevenueImportPanel({ token, activeUser, onImported }) {
         <div className="glass-card" style={{ display: 'flex', gap: '10px', color: 'var(--critical-text, #DC2626)' }}>
           <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
           <div style={{ fontSize: '0.85rem' }}>
-            <strong>Thiếu {kq.thieuCot.length} cột so với tab Data</strong> — SAP có thể đã đổi layout của ZSD450.
+            <strong>Thiếu {kq.thieuCot.length} cột so với bảng doanh thu</strong> — SAP có thể đã đổi layout của ZSD450.
             <div style={{ marginTop: '6px', color: 'var(--text-muted)' }}>{kq.thieuCot.join(' · ')}</div>
           </div>
         </div>
@@ -160,7 +160,7 @@ export default function RevenueImportPanel({ token, activeUser, onImported }) {
               </p>
             </div>
             <button onClick={() => setConfirming(true)} className="btn btn-emerald">
-              <ArrowRight size={16} /> Ghi vào tab Data
+              <ArrowRight size={16} /> Ghi vào bảng doanh thu
             </button>
           </div>
 

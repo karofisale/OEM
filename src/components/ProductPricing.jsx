@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
-import { Package, DollarSign, ClipboardCheck, Calculator, Upload } from 'lucide-react';
+import { Package, DollarSign, ClipboardCheck, Calculator, Upload, Boxes } from 'lucide-react';
 import KeepAliveTab from './KeepAliveTab';
 import ProductManagement from './ProductManagement';
 import PriceProposePanel from './pricing/PriceProposePanel';
 import PriceApprovePanel from './pricing/PriceApprovePanel';
 import PriceCalculatorPanel from './pricing/PriceCalculatorPanel';
 import CostImportPanel from './pricing/CostImportPanel';
+import KitsPanel from './pricing/KitsPanel';
 
 // "Sản phẩm & Bảng giá" — sub-tab giống khuôn Kế hoạch SOP: Danh mục (đọc,
 // đã có từ trước), Đề xuất giá (Sale gửi hàng loạt giá lẻ/KM), Chờ duyệt
 // (Admin/Creator duyệt, ghi thẳng vào Products hoặc Gia_KhachHang), Tính Giá
 // (Admin/Creator, công cụ gợi ý giá theo % LNG — không lộ giá vốn thật), Giá
 // Vốn (chỉ Creator, nhập Excel giá vốn hàng tháng).
-export default function ProductPricing({ token, materials, clients, activeUser, onAddMaterial, onEditMaterial, onDataChanged }) {
-  const [subView, setSubView] = useState('catalog'); // catalog | propose | approve | calculator | cost
+export default function ProductPricing({ token, materials, clients, kits, activeUser, onAddMaterial, onEditMaterial, onDataChanged }) {
+  const [subView, setSubView] = useState('catalog'); // catalog | propose | approve | calculator | cost | kits
 
   // Perf (2026-08-27): sub-tab giờ giữ nguyên (KeepAliveTab) thay vì unmount
   // khi chuyển — mỗi lần unmount là mất luôn dữ liệu đã tải, và mở lại phải
@@ -53,6 +54,11 @@ export default function ProductPricing({ token, materials, clients, activeUser, 
         {canImportCost && (
           <button onClick={() => setSubView('cost')} className={`btn ${subView === 'cost' ? 'btn-primary' : 'btn-secondary'}`}>
             <Upload size={16} /> Giá Vốn
+          </button>
+        )}
+        {canApprove && (
+          <button onClick={() => setSubView('kits')} className={`btn ${subView === 'kits' ? 'btn-primary' : 'btn-secondary'}`}>
+            <Boxes size={16} /> Bộ SP
           </button>
         )}
       </div>
@@ -106,6 +112,12 @@ export default function ProductPricing({ token, materials, clients, activeUser, 
           activeUser={activeUser}
           onImported={() => { bumpRefresh(); setSubView('catalog'); }}
         />
+      )}
+
+      {canApprove && (
+        <KeepAliveTab isActive={subView === 'kits'}>
+          <KitsPanel token={token} kits={kits} materials={materials} onSaved={onDataChanged} />
+        </KeepAliveTab>
       )}
     </div>
   );
