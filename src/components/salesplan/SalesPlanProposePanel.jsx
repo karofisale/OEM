@@ -574,7 +574,7 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
                   <td style={{ textAlign: 'right', fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{sum.toLocaleString('vi-VN')}</td>
                   <td
                     style={{ textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}
-                    title={done.tuGiaoDich ? 'Tính từ doanh thu thực tế (tab Data) — khách này chưa có dòng kế hoạch tháng này' : 'Cột Done của dòng kế hoạch'}
+                    title={done.tuGiaoDich ? 'Tính thẳng từ doanh thu thực tế tháng này (nguồn chính)' : 'Chưa có doanh thu nào trong tháng — số cũ lưu từ trước, có thể đã cũ'}
                   >
                     {done.value.toLocaleString('vi-VN')}
                   </td>
