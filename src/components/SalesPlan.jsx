@@ -52,7 +52,7 @@ export default function SalesPlan({ token, plans, clients, transactions, plan202
           khách/tuần trên cả danh sách) cùng bộ lọc tháng/sale và trang đang xem
           — trước đây mất hết mỗi lần bấm sang tab khác rồi quay lại. */}
       <KeepAliveTab isActive={subView === 'view'}>
-        <SalesPlanViewPanel plans={plans} activeUser={activeUser} />
+        <SalesPlanViewPanel plans={plans} transactions={transactions} activeUser={activeUser} />
       </KeepAliveTab>
 
       {canPropose && (

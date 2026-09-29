@@ -6,7 +6,7 @@ import Pagination, { usePagedSlice } from '../Pagination';
 import { useToast } from '../ToastProvider';
 import { parseMonthKey, formatMonthKey } from '../../utils/period';
 import { canSeeAllSales, ownsSaleRow } from '../../utils/roles';
-import { doneTheoKhach, doneCuaDong } from '../../utils/salesPlan';
+import { doneTheoKhach, doneDong } from '../../utils/salesPlan';
 
 const PAGE_SIZE = 25;
 
@@ -77,11 +77,10 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
 
   const kpiLoaded = useMemo(() => Object.keys(plan2026 || {}).length > 0, [plan2026]);
 
-  // Doanh thu đã thực hiện của đúng tháng đang lập. Ưu tiên cột Done của dòng
-  // Plan_Thang (để khớp màn "Xem Kế Hoạch"), rơi về tab Data cho khách chưa có
-  // dòng kế hoạch nào — xem doneCuaDong().
+  // Doanh thu đã thực hiện của đúng tháng đang lập, tính từ tab Data (cùng cách
+  // với màn "Xem Kế Hoạch") — xem doneDong().
   const doneByCode = useMemo(() => doneTheoKhach(transactions, month), [transactions, month]);
-  const doneCua = (r) => doneCuaDong(r.plan, doneByCode.get(r.codeSearch));
+  const doneCua = (r) => doneDong(r.plan, r.codeSearch, doneByCode);
 
   // Existing plan row for (month, client), if any — used to pre-fill, to show
   // the current approval status, and to decide when a saved draft can be

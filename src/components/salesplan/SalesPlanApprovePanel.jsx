@@ -4,7 +4,7 @@ import * as api from '../../services/api';
 import ConfirmDialog from '../ConfirmDialog';
 import { useToast } from '../ToastProvider';
 import { monthSortValue } from '../../utils/period';
-import { doneTheoKhach, doneCuaDong } from '../../utils/salesPlan';
+import { doneTheoKhach, doneDong } from '../../utils/salesPlan';
 
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
 
@@ -35,7 +35,7 @@ export default function SalesPlanApprovePanel({ token, plans, transactions, onAp
     acc.planKpi += p.planKpi || 0;
     acc.planUpdate += p.planUpdate || 0;
     acc.w1 += p.w1 || 0; acc.w2 += p.w2 || 0; acc.w3 += p.w3 || 0; acc.w4 += p.w4 || 0; acc.w5 += p.w5 || 0;
-    acc.done += doneCuaDong(p, doneByCode.get(p.searchCode)).value;
+    acc.done += doneDong(p, p.searchCode, doneByCode).value;
     return acc;
   }, { planKpi: 0, planUpdate: 0, w1: 0, w2: 0, w3: 0, w4: 0, w5: 0, done: 0 }), [pendingRows, doneByCode]);
 
@@ -117,7 +117,7 @@ export default function SalesPlanApprovePanel({ token, plans, transactions, onAp
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(p.w4)}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(p.w5)}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(p.planUpdate)}</td>
-                <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(doneCuaDong(p, doneByCode.get(p.searchCode)).value)}</td>
+                <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(doneDong(p, p.searchCode, doneByCode).value)}</td>
                 <td style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>{p.note || '-'}</td>
               </tr>
             ))}

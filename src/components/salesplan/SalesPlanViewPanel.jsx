@@ -3,6 +3,7 @@ import { Filter, User, Clock, CheckCircle2 } from 'lucide-react';
 import Pagination, { usePagedSlice } from '../Pagination';
 import { monthSortValue } from '../../utils/period';
 import { canSeeAllSales } from '../../utils/roles';
+import { doneMoiThang, dtCuaThang, doneDong } from '../../utils/salesPlan';
 
 const PAGE_SIZE = 25;
 
@@ -20,12 +21,17 @@ function StatusBadge({ status }) {
 
 // Read-only table over whatever tab Plan_Thang currently holds — filterable by
 // month (now a real per-row field) and, for Admin/Creator/Leader, by Sale.
-export default function SalesPlanViewPanel({ plans, activeUser }) {
+export default function SalesPlanViewPanel({ plans, transactions, activeUser }) {
   const canFilterAllSales = canSeeAllSales(activeUser.role);
   const monthsList = useMemo(() => {
     const set = new Set(plans.map(p => p.month).filter(Boolean));
     return Array.from(set).sort((a, b) => monthSortValue(b) - monthSortValue(a));
   }, [plans]);
+
+  // Done tính từ tab Data (oem.transactions) theo từng tháng — KHÔNG đọc cột "done" của Plan_Thang (ảnh chụp
+  // đông cứng từ đêm cắt sang Postgres 26/09/2026). Xem doneDong(). Sửa 30/09/2026.
+  const doneBang = useMemo(() => doneMoiThang(transactions, monthsList), [transactions, monthsList]);
+  const doneCua = (p) => doneDong(p, p.searchCode, dtCuaThang(doneBang, p.month)).value;
 
   const [selectedMonth, setSelectedMonth] = useState('ALL');
   const [selectedSale, setSelectedSale] = useState('ALL');
@@ -53,12 +59,13 @@ export default function SalesPlanViewPanel({ plans, activeUser }) {
   const { safePage, pageItems: pagedPlans } = usePagedSlice(filteredPlans, page, PAGE_SIZE);
 
   const totals = useMemo(() => filteredPlans.reduce((acc, p) => {
+    const done = doneCua(p);
     acc.planKpi += p.planKpi || 0;
     acc.planUpdate += p.planUpdate || 0;
-    acc.done += p.done || 0;
-    acc.chenh += (p.done || 0) - (p.planUpdate || 0);
+    acc.done += done;
+    acc.chenh += done - (p.planUpdate || 0);
     return acc;
-  }, { planKpi: 0, planUpdate: 0, done: 0, chenh: 0 }), [filteredPlans]);
+  }, { planKpi: 0, planUpdate: 0, done: 0, chenh: 0 }), [filteredPlans, doneBang]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -110,7 +117,8 @@ export default function SalesPlanViewPanel({ plans, activeUser }) {
               <td />
             </tr>
             {pagedPlans.map((plan, idx) => {
-              const chenh = (plan.done || 0) - (plan.planUpdate || 0);
+              const done = doneCua(plan);
+              const chenh = done - (plan.planUpdate || 0);
               return (
                 <tr key={`${plan.month}_${plan.searchCode}_${idx}`} style={{ height: '42px' }}>
                   <td style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--karofi-cyan)' }}>{plan.month || '—'}</td>
@@ -119,7 +127,7 @@ export default function SalesPlanViewPanel({ plans, activeUser }) {
                   <td style={{ fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>{plan.sale}</td>
                   <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-muted)', fontSize: '0.8rem' }}>{fmt(plan.planKpi)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(plan.planUpdate)}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(plan.done)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(done)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 800, color: chenh >= 0 ? 'var(--accent-emerald-text)' : 'var(--accent-rose)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(chenh)}</td>
                   <td style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>{plan.note || '-'}</td>
                   <td><StatusBadge status={plan.status} /></td>
