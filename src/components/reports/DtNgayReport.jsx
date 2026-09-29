@@ -27,13 +27,15 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
       if (ngayFilterWeek !== 'ALL' && t.week !== ngayFilterWeek) return;
 
       const dateStr = t.date || 'Chưa ngày';
-      const key = `${dateStr}_${t.clientCode}`;
+      // Gộp theo Search Code (mã chữ, không phân biệt hoa/thường), tên hiện = Alias đại diện của mã chữ (30/09/2026).
+      const code = String(t.clientCode || '').trim().toUpperCase();
+      const key = `${dateStr}_${code}`;
 
       if (!map.has(key)) {
         map.set(key, {
           date: dateStr,
-          clientCode: t.clientCode,
-          clientName: t.clientName,
+          clientCode: code,
+          clientName: t.clientAlias || t.clientName,
           sale: t.sale,
           month: t.month,
           week: t.week,

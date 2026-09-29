@@ -1,14 +1,14 @@
 /**
- * sales-plan-done.test.cjs — cột "Done" ở Kế hoạch Kinh doanh (doneCuaDong).
+ * sales-plan-done.test.cjs — cột "Done" ở Kế hoạch Kinh doanh (src/utils/salesPlan.js).
  *
  *   node test/sales-plan-done.test.cjs
  *
- * Chốt bug 28/09/2026: Done hiện thấp hơn doanh thu thực tế. Nguyên nhân: sau
- * khi cắt sang Postgres (26/09/2026), cột "done" ở oem.plan_thang chỉ còn là
- * ảnh chụp một lần từ đêm migrate (trước đó là công thức SUMIFS sống trong
- * Sheet) — không nơi nào còn ghi lại nó, kể cả lúc nhập doanh thu SAP mới. Bản
- * cũ vẫn ưu tiên cột đó nên Done ngày càng lùi xa doanh thu thật. Xem chú
- * thích đầu doneCuaDong() trong src/utils/salesPlan.js.
+ * Sau khi cắt sang Postgres (26/09/2026), cột "done" của oem.plan_thang chỉ là ảnh chụp đông cứng từ đêm migrate
+ * (trước đó là SUMIFS sống trong Sheet). Done phải tính từ oem.transactions:
+ *  - 28/09/2026: ưu tiên số từ giao dịch thay vì cột đông cứng.
+ *  - 30/09/2026: tháng ĐÃ có dòng Data thì luôn lấy số từ Data (khách chưa mua = 0, không rơi về số đông cứng); chỉ
+ *    tháng chưa có dòng Data nào mới dùng cột cũ. Khớp mã không phân biệt hoa/thường, khoảng trắng; ô tháng trống
+ *    thì lấy tháng theo ngày.
  */
 
 const path = require('path');
@@ -23,55 +23,44 @@ function check(ten, dk, them) {
 (async () => {
   const m = await import(pathToFileURL(path.join(__dirname, '..', 'src', 'utils', 'salesPlan.js')).href);
 
-  console.log('doneTheoKhach — cộng netRevenue theo clientCode, đúng tháng');
+  const tx = [
+    { clientCode: 'TECOM', month: 'T09-2026', netRevenue: 1000, revenue: 999999 },
+    { clientCode: ' tecom ', month: 'T9-2026', netRevenue: 2000 },
+    { clientCode: 'TECOM', month: '', date: '15/09/2026', netRevenue: 400 },       // ô tháng trống -> theo ngày
+    { clientCode: 'TECOM', month: 'T08-2026', netRevenue: 999999 },                 // tháng khác -> loại
+    { clientCode: 'KHAC', month: 'T09-2026', netRevenue: 500 }
+  ];
+
+  console.log('doneTheoKhach — cộng netRevenue theo mã chữ, đúng tháng');
   {
-    const tx = [
-      { clientCode: 'TECOM', month: 'T09-2026', netRevenue: 1000, revenue: 999999 },
-      { clientCode: 'TECOM', month: 'T09-2026', netRevenue: 2000 },
-      { clientCode: 'TECOM', month: 'T08-2026', netRevenue: 999999 }, // tháng khác -> loại
-      { clientCode: 'KHAC', month: 'T09-2026', netRevenue: 500 }
-    ];
-    const map = m.doneTheoKhach(tx, 'T09-2026');
-    check('cộng dồn đúng khách, đúng tháng', map.get('TECOM') === 3000, map.get('TECOM'));
-    check('không cộng dòng tháng khác', map.get('TECOM') !== 999999 + 3000);
-    check('dùng netRevenue, không rơi về revenue gộp', map.get('TECOM') === 3000);
-    check('tháng ALL/rỗng -> map rỗng (không đoán bừa)',
-      m.doneTheoKhach(tx, 'ALL').size === 0 && m.doneTheoKhach(tx, '').size === 0);
+    const dt = m.doneTheoKhach(tx, 'T09-2026');
+    check('cộng dồn đúng khách/tháng, không phân biệt hoa-thường/khoảng trắng, ô tháng trống theo ngày',
+      dt.theoMa.get('TECOM') === 3400, dt.theoMa.get('TECOM'));
+    check('dùng netRevenue, không rơi về revenue gộp', dt.theoMa.get('TECOM') !== 999999 + 3400);
+    check('tháng có dòng Data -> coGiaoDich', dt.coGiaoDich === true);
+    const rong = m.doneTheoKhach(tx, 'T10-2026');
+    check('tháng chưa có Data -> coGiaoDich = false', rong.coGiaoDich === false && rong.theoMa.size === 0);
   }
 
-  console.log('\ndoneCuaDong — BUG CHÍNH: ưu tiên giao dịch thật, không ưu tiên cột done đông cứng');
+  console.log('\ndoneDong — chọn số hiển thị');
   {
-    // Đây là ca lỗi thật: cột done cũ (đông cứng từ đêm migrate) NHỎ hơn
-    // doanh thu thật đã tính được từ oem.transactions. Bản cũ trả về đúng số
-    // đông cứng bé hơn — chính là bug user báo. Bản mới phải trả số LỚN hơn,
-    // tính từ giao dịch.
-    const plan = { done: 5000000 };
-    const doneThat = 82000000; // doanh thu thật đổ vào sau đêm migrate
-    const r = m.doneCuaDong(plan, doneThat);
-    check('ưu tiên số tính từ giao dịch (82tr), KHÔNG phải cột done cũ (5tr)',
-      r.value === doneThat, r);
-    check('gắn cờ tuGiaoDich = true khi dùng số sống', r.tuGiaoDich === true);
+    const dt = m.doneTheoKhach(tx, 'T09-2026');
+    const r = m.doneDong({ done: 5000000 }, 'tecom', dt);
+    check('tháng có Data: lấy số từ Data (3.400), KHÔNG lấy cột done đông cứng (5tr)', r.value === 3400 && r.tuGiaoDich === true, r);
+    const r0 = m.doneDong({ done: 5000000 }, 'CHUAMUA', dt);
+    check('tháng có Data mà khách chưa mua -> 0, không rơi về số đông cứng', r0.value === 0 && r0.tuGiaoDich === true, r0);
+    const rc = m.doneDong({ done: 5000000 }, 'TECOM', m.doneTheoKhach(tx, 'T10-2026'));
+    check('tháng chưa có Data -> dùng cột done cũ', rc.value === 5000000 && rc.tuGiaoDich === false, rc);
+    check('không kế hoạch, không Data -> 0', m.doneDong(null, 'X', null).value === 0 && m.doneDong(undefined, 'X', undefined).value === 0);
   }
+
+  console.log('\ndoneMoiThang / dtCuaThang — một lượt quét cho nhiều tháng');
   {
-    // Khách/tháng chưa có giao dịch nào trong oem.transactions -> rơi về cột
-    // done cũ (còn hơn hiện thẳng 0).
-    const plan = { done: 5000000 };
-    const r = m.doneCuaDong(plan, 0);
-    check('không có giao dịch -> rơi về cột done cũ', r.value === 5000000, r);
-    check('gắn cờ tuGiaoDich = false khi rơi về cột cũ', r.tuGiaoDich === false);
-  }
-  {
-    // Không có kế hoạch (dòng mới, plan = null/undefined) và cũng không có
-    // giao dịch -> 0, không NaN/undefined.
-    const r1 = m.doneCuaDong(null, 0);
-    const r2 = m.doneCuaDong(undefined, undefined);
-    check('không kế hoạch, không giao dịch -> 0', r1.value === 0 && r2.value === 0, [r1, r2]);
-  }
-  {
-    // Dòng plan mới tạo (submitSalesPlan luôn INSERT done=0) NHƯNG khách đã có
-    // doanh thu thật trong tháng -> phải thấy đúng doanh thu, không phải 0.
-    const r = m.doneCuaDong({ done: 0 }, 15000000);
-    check('dòng kế hoạch mới (done=0) vẫn hiện đúng doanh thu thật', r.value === 15000000, r);
+    const bang = m.doneMoiThang(tx, ['T09-2026', 'T08-2026', 'T10-2026']);
+    check('tháng 9 = 3.400, tháng 8 = 999.999', m.dtCuaThang(bang, 'T9-2026').theoMa.get('TECOM') === 3400 &&
+      m.dtCuaThang(bang, 'T08-2026').theoMa.get('TECOM') === 999999);
+    const t10 = m.dtCuaThang(bang, 'T10-2026');
+    check('tháng không có Data -> không coGiaoDich', !t10 || !t10.coGiaoDich, t10);
   }
 
   console.log('\n' + pass + ' đạt, ' + fail + ' lỗi');

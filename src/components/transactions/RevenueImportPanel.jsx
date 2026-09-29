@@ -86,6 +86,12 @@ export default function RevenueImportPanel({ token, activeUser, onImported }) {
       toast.success(
         `Tháng ${kq.thang}: xoá ${fmt(r.rowsRemoved)} dòng cũ, ghi ${fmt(r.rowsAdded)} dòng mới vào bảng doanh thu.`
       );
+      // Server tự thêm mã vật tư / mã khách chưa có vào danh mục (30/09/2026) — báo để admin bổ sung Search Code / nhóm.
+      const spMoi = (r.productsAdded || []).length, khMoi = (r.clientsAdded || []).length;
+      if (spMoi || khMoi) {
+        toast.success(`Đã thêm vào danh mục: ${spMoi} sản phẩm mới, ${khMoi} khách mới` +
+          (khMoi ? ` (${r.clientsAdded.slice(0, 5).join(', ')}${khMoi > 5 ? '…' : ''}) — vào Danh bạ khách hàng điền Search Code / Alias.` : '.'));
+      }
       (r.warnings || []).forEach((w) => toast.error(w));
       setConfirming(false);
       setKq(null);

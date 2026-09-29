@@ -1,4 +1,4 @@
-import { parseMonthKey, formatMonthKey } from './period';
+import { parseMonthKey, formatMonthKey } from './period.js';
 
 /**
  * Khoá tháng chuẩn 'Txx-yyyy' của một giao dịch. Ưu tiên cột Tháng_Năm (t.month);

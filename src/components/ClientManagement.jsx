@@ -12,11 +12,6 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
   const [viewMode, setViewMode] = useState('table');
   const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
-  const [editName, setEditName] = useState('');
-  const [editAlias, setEditAlias] = useState('');
-  const [editSale, setEditSale] = useState('');
-  const [editAddress, setEditAddress] = useState('');
-  const [editStatus, setEditStatus] = useState('Active');
   // withOptimistic cập nhật bảng ngay rồi mới gọi backend nền — trước đây modal
   // đóng NGAY sau khi bấm Lưu nên không có gì chặn việc mở lại và Lưu lần nữa
   // cho ĐÚNG khách đó trước khi lượt ghi đầu về, gửi hai lệnh chồng nhau. Giữ
@@ -37,12 +32,10 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
   const canEditExisting = ['creator', 'admin'].includes(activeUser.role);
   const canFilterAllSales = canSeeAllSales(activeUser.role);
 
-  // Form state
-  const [codeSearch, setCodeSearch] = useState('');
-  const [name, setName] = useState('');
-  const [alias, setAlias] = useState('');
-  const [sale, setSale] = useState(activeUser.saleId || 'KH Đình Hoan');
-  const [address, setAddress] = useState('');
+  // Form thêm / sửa (30/09/2026): đủ mọi cột của danh bạ, sửa được cả Code + Search Code.
+  const [form, setForm] = useState(null);
+  const setF = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+  const lockSale = activeUser.role === 'sale';
 
   // 14/09/2026: mọi role thấy toàn bộ danh bạ; muốn xem của riêng ai thì dùng
   // bộ lọc SALE. Quyền SỬA không đổi — canEditExisting vẫn chỉ Creator/Admin.
@@ -50,6 +43,18 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
 
   const salesList = useMemo(() => {
     const set = new Set(clients.map(c => c.sale).filter(Boolean));
+    return Array.from(set);
+  }, [clients]);
+
+  // Ô "Sale phụ trách" là danh sách sổ xuống: mọi Sale đang có trong danh bạ + Sale của người đang đăng nhập.
+  const saleOptions = useMemo(() => {
+    const set = new Set(clients.map(c => String(c.sale || '').trim()).filter(Boolean));
+    if (activeUser.saleId) set.add(activeUser.saleId);
+    return Array.from(set).sort((x, y) => x.localeCompare(y, 'vi'));
+  }, [clients, activeUser.saleId]);
+  const typeOptions = useMemo(() => {
+    const set = new Set(['Doanh nghiệp', 'Cá nhân']);
+    clients.forEach(c => { if (String(c.type || '').trim()) set.add(String(c.type).trim()); });
     return Array.from(set);
   }, [clients]);
 
@@ -76,60 +81,54 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
 
   const { safePage, pageItems: pagedClients } = usePagedSlice(filteredClients, page, PAGE_SIZE);
 
-  const handleSaveClient = async (e) => {
-    e.preventDefault();
-    if (!codeSearch || !name || savingAdd) return;
-
-    const newClient = {
-      code: 'CLI-' + Math.floor(1000 + Math.random() * 9000),
-      codeSearch: codeSearch.toUpperCase(),
-      name,
-      alias,
-      type: 'Doanh nghiệp',
-      sale,
-      address: address || 'Hà Nội',
-      status: 'Active'
-    };
-
-    setSavingAdd(true);
-    try {
-      await onAddClient(newClient);
-      setShowModal(false);
-      setCodeSearch('');
-      setName('');
-    } finally {
-      setSavingAdd(false);
-    }
+  const openAddModal = () => {
+    setEditingClient(null);
+    setForm({ code: '', codeSearch: '', name: '', alias: '', type: 'Doanh nghiệp', sale: activeUser.saleId || '',
+      address: '', status: 'Active', reconciliationAcct: '' });
+    setShowModal(true);
   };
 
   const openEditModal = (client) => {
     setEditingClient(client);
-    setEditName(client.name);
-    setEditAlias(client.alias || '');
-    setEditSale(client.sale);
-    setEditAddress(client.address || '');
-    setEditStatus(client.status || 'Active');
+    setForm({ code: client.rawCode != null ? client.rawCode : (client.code || ''), codeSearch: client.codeSearch || '',
+      name: client.name || '', alias: client.alias || '', type: client.type || 'Doanh nghiệp', sale: client.sale || '',
+      address: client.address || '', status: client.status || 'Active', reconciliationAcct: client.reconciliationAcct || '' });
+    setShowModal(true);
   };
 
-  const handleUpdateClient = async (e) => {
-    e.preventDefault();
-    if (!editingClient || !editName || savingEdit) return;
+  const closeModal = () => { setShowModal(false); setEditingClient(null); setForm(null); };
 
-    setSavingEdit(true);
-    try {
-      await onEditClient({
-        ...editingClient,
-        name: editName,
-        alias: editAlias,
-        sale: editSale,
-        address: editAddress,
-        status: editStatus
-      });
-      setEditingClient(null);
-    } finally {
-      setSavingEdit(false);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const f = form;
+    if (!f || !f.codeSearch.trim() || !f.name.trim() || savingAdd || savingEdit) return;
+    const data = {
+      code: f.code.trim(), codeSearch: f.codeSearch.trim().toUpperCase(), name: f.name.trim(), alias: f.alias.trim(),
+      type: f.type, sale: f.sale.trim(), address: f.address.trim(), status: f.status, reconciliationAcct: f.reconciliationAcct.trim()
+    };
+    if (editingClient) {
+      setSavingEdit(true);
+      try {
+        await onEditClient({ ...editingClient, ...data, rawCode: data.code, code: data.code || editingClient.code });
+        closeModal();
+      } finally {
+        setSavingEdit(false);
+      }
+    } else {
+      // Chưa có mã SAP thì cấp mã tạm CLI-xxxx như trước (khoá dòng trên màn); có mã thì server chặn trùng.
+      const code = data.code || ('CLI-' + Math.floor(1000 + Math.random() * 9000));
+      setSavingAdd(true);
+      try {
+        await onAddClient({ ...data, code, rawCode: code, address: data.address || 'Hà Nội' });
+        closeModal();
+      } finally {
+        setSavingAdd(false);
+      }
     }
   };
+
+  const doiMaChu = !!(editingClient && form && form.codeSearch.trim().toUpperCase() !== String(editingClient.codeSearch || '').toUpperCase());
+  const saving = savingAdd || savingEdit;
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -146,7 +145,7 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
         </div>
 
         {canAdd && (
-          <button onClick={() => setShowModal(true)} className="btn btn-primary">
+          <button onClick={openAddModal} className="btn btn-primary">
             <Plus size={16} /> Thêm Khách Hàng Mới
           </button>
         )}
@@ -298,71 +297,74 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
         itemLabel="khách hàng"
       />
 
-      {/* Modal */}
-      {showModal && (
+      {/* Modal thêm / sửa — cùng một form đủ trường (30/09/2026) */}
+      {showModal && form && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(6px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
         }}>
-          <div className="glass-card animate-fade-in" style={{ width: '460px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Thêm Khách Hàng OEM Mới</h3>
+          <div className="glass-card animate-fade-in" style={{ width: '620px', maxWidth: '94vw', maxHeight: '92vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>
+              {editingClient ? <>Chỉnh Sửa Khách Hàng — {editingClient.codeSearch}</> : 'Thêm Khách Hàng OEM Mới'}
+            </h3>
 
-            <form onSubmit={handleSaveClient} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Mã Tìm Kiếm (Code Search / Viết Tắt):</label>
-                <input type="text" required className="input-field" placeholder="VD: TECOM, MAKXIM" value={codeSearch} onChange={(e) => setCodeSearch(e.target.value)} />
+                <label className="form-label">Code (Mã KH số trên SAP):</label>
+                <input type="text" className="input-field" placeholder="VD: 1000700 — trống nếu chưa có mã SAP" value={form.code} onChange={setF('code')} />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Tên Công Ty / Khách Hàng:</label>
-                <input type="text" required className="input-field" placeholder="VD: Công ty CP ABC" value={name} onChange={(e) => setName(e.target.value)} />
+                <label className="form-label">Search Code (Mã chữ / Viết tắt): *</label>
+                <input type="text" required className="input-field" placeholder="VD: TECOM, MAKXIM" value={form.codeSearch} onChange={setF('codeSearch')} style={{ textTransform: 'uppercase' }} />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary" disabled={savingAdd}>Hủy</button>
-                <button type="submit" className="btn btn-primary" disabled={savingAdd}>{savingAdd ? 'Đang lưu...' : 'Lưu Khách Hàng'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal */}
-      {editingClient && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(6px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div className="glass-card animate-fade-in" style={{ width: '460px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Chỉnh Sửa Khách Hàng — {editingClient.codeSearch}</h3>
-
-            <form onSubmit={handleUpdateClient} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Tên Công Ty / Khách Hàng:</label>
-                <input type="text" required className="input-field" value={editName} onChange={(e) => setEditName(e.target.value)} />
+              <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
+                <label className="form-label">Tên Công Ty / Khách Hàng: *</label>
+                <input type="text" required className="input-field" placeholder="VD: Công ty CP ABC" value={form.name} onChange={setF('name')} />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Alias / Tên viết tắt:</label>
-                <input type="text" className="input-field" value={editAlias} onChange={(e) => setEditAlias(e.target.value)} />
+                <label className="form-label">Alias / Tên viết tắt (tên hiện trên báo cáo):</label>
+                <input type="text" className="input-field" placeholder="VD: Tecom" value={form.alias} onChange={setF('alias')} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Loại khách:</label>
+                <select className="input-field" value={form.type} onChange={setF('type')}>
+                  {typeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
               </div>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Sale phụ trách:</label>
-                <input type="text" className="input-field" value={editSale} onChange={(e) => setEditSale(e.target.value)} />
-              </div>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Địa chỉ:</label>
-                <input type="text" className="input-field" value={editAddress} onChange={(e) => setEditAddress(e.target.value)} />
+                <select className="input-field" value={form.sale} onChange={setF('sale')} disabled={lockSale && !editingClient}>
+                  <option value="">— Chọn Sale —</option>
+                  {saleOptions.map(x => <option key={x} value={x}>{x}</option>)}
+                  {form.sale && !saleOptions.includes(form.sale) && <option value={form.sale}>{form.sale}</option>}
+                </select>
               </div>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Trạng thái:</label>
-                <select className="input-field" value={editStatus} onChange={(e) => setEditStatus(e.target.value)}>
+                <select className="input-field" value={form.status} onChange={setF('status')}>
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                 </select>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setEditingClient(null)} className="btn btn-secondary" disabled={savingEdit}>Hủy</button>
-                <button type="submit" className="btn btn-primary" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu Thay Đổi'}</button>
+              <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
+                <label className="form-label">Địa chỉ:</label>
+                <input type="text" className="input-field" value={form.address} onChange={setF('address')} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Reconciliation acct (TK đối chiếu):</label>
+                <input type="text" className="input-field" placeholder="VD: 131" value={form.reconciliationAcct} onChange={setF('reconciliationAcct')} />
+              </div>
+              {doiMaChu && (
+                <div style={{ gridColumn: '1 / -1', fontSize: '0.8rem', color: 'var(--warning-text)', background: 'var(--bg-input)', padding: '8px 10px', borderRadius: 'var(--radius-md)' }}>
+                  ⚠ Đổi Search Code: kế hoạch kinh doanh / giá / công nợ đã lưu theo mã chữ cũ "{editingClient.codeSearch}" KHÔNG tự đổi theo.
+                </div>
+              )}
+              <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '4px' }}>
+                <button type="button" onClick={closeModal} className="btn btn-secondary" disabled={saving}>Hủy</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saving ? 'Đang lưu...' : editingClient ? 'Lưu Thay Đổi' : 'Lưu Khách Hàng'}
+                </button>
               </div>
             </form>
           </div>

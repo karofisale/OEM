@@ -263,7 +263,8 @@ export default function App() {
   const handleEditClient = async (updatedClient) => {
     const prev = clients;
     await withOptimistic(
-      () => setClients(c => c.map(x => x.code === updatedClient.code ? updatedClient : x)),
+      // Theo id (30/09/2026): form Sửa đổi được cả Code, khớp theo Code mới sẽ không thấy dòng cũ.
+      () => setClients(c => c.map(x => (updatedClient.id != null ? x.id === updatedClient.id : x.code === updatedClient.code) ? updatedClient : x)),
       () => setClients(prev),
       () => api.editClient(session.token, updatedClient),
       'Không cập nhật được khách hàng'

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { monthSortValue } from '../utils/period';
+import { monthSortValue, yearsFromTransactions } from '../utils/period';
+import { thangGiaoDich } from '../utils/salesPlan';
 import { khopSale } from '../utils/roles';
 import {
   TrendingUp, 
@@ -30,6 +31,14 @@ export default function Dashboard({ transactions = [], clients = [], materials =
   // được số của mọi Sale (utils/roles.js), nên ô chọn này hiện cho tất cả mọi
   // người và mặc định là "Tất cả SALE" — nó chỉ để thu hẹp tầm nhìn cho dễ đọc.
   const [saleFilter, setSaleFilter] = useState('ALL');
+  // Bộ lọc NĂM (30/09/2026): trước đây mọi thẻ cộng TOÀN BỘ bảng doanh thu (mọi năm). Mặc định năm hiện tại.
+  const namHienTai = String(new Date().getFullYear());
+  const [yearFilter, setYearFilter] = useState(namHienTai);
+  const yearsList = useMemo(() => {
+    const ys = yearsFromTransactions(transactions);
+    if (!ys.includes(namHienTai)) ys.unshift(namHienTai);
+    return ys.sort((a, b) => Number(b) - Number(a));
+  }, [transactions, namHienTai]);
 
   // Dựng từ chính giá trị Sale có thật trên tab Data, giống hệt cách
   // RevenueReports dựng danh sách của nó — hai màn luôn có cùng bộ lựa chọn.
@@ -40,9 +49,12 @@ export default function Dashboard({ transactions = [], clients = [], materials =
 
   // Lọc MỘT LẦN rồi dùng chung cho cả 4 thẻ KPI, biểu đồ tháng và bảng top
   // khách — để không màn nào trong cùng một trang nói về một tập dòng khác.
+  // Năm của dòng = năm trong Tháng_Năm, ô tháng trống thì lấy theo ngày (thangGiaoDich).
   const rows = useMemo(
-    () => (saleFilter === 'ALL' ? transactions : transactions.filter(t => khopSale(t.sale, saleFilter))),
-    [transactions, saleFilter]
+    () => transactions.filter(t =>
+      (yearFilter === 'ALL' || thangGiaoDich(t).endsWith('-' + yearFilter)) &&
+      (saleFilter === 'ALL' || khopSale(t.sale, saleFilter))),
+    [transactions, saleFilter, yearFilter]
   );
 
   // Perf (2026-08-27): tất cả các phép tổng hợp dưới đây đều quét TRỌN mảng
@@ -81,8 +93,11 @@ export default function Dashboard({ transactions = [], clients = [], materials =
       const month = t.month || 'Chưa rõ tháng';
       monthlyRevenueMap.set(month, (monthlyRevenueMap.get(month) || 0) + net);
 
-      const name = t.clientCode || t.clientName || 'N/A';
-      clientRevMap.set(name, (clientRevMap.get(name) || 0) + net);
+      // Gộp theo Search Code, hiện kèm Alias đại diện (30/09/2026).
+      const name = String(t.clientCode || '').trim().toUpperCase() || t.clientName || 'N/A';
+      const cur = clientRevMap.get(name) || { rev: 0, alias: t.clientAlias || t.clientName || '' };
+      cur.rev += net;
+      clientRevMap.set(name, cur);
     });
 
     return {
@@ -94,6 +109,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
       monthlyList: Array.from(monthlyRevenueMap.entries())
         .sort((a, b) => monthSortValue(a[0]) - monthSortValue(b[0])),
       topClients: Array.from(clientRevMap.entries())
+        .map(([code, v]) => [code, v.rev, v.alias])
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5)
     };
@@ -136,7 +152,18 @@ export default function Dashboard({ transactions = [], clients = [], materials =
       {/* Bộ lọc SALE */}
       <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', padding: '14px 20px' }}>
         <Filter size={15} color="var(--karofi-cyan)" />
-        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Lọc Theo SALE:</span>
+        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Năm:</span>
+        <select
+          className="input-field"
+          style={{ width: '130px' }}
+          value={yearFilter}
+          onChange={(e) => setYearFilter(e.target.value)}
+          aria-label="Lọc theo năm"
+        >
+          {yearsList.map(y => <option key={y} value={y}>Năm {y}</option>)}
+          <option value="ALL">Tất cả năm</option>
+        </select>
+        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', marginLeft: '8px' }}>Lọc Theo SALE:</span>
         <select
           className="input-field"
           style={{ width: '200px' }}
@@ -166,7 +193,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
             <TrendingUp size={24} color="var(--karofi-cyan)" />
           </div>
           <div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Tổng Doanh Thu Thuần</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Tổng Doanh Thu Thuần {yearFilter === 'ALL' ? '(mọi năm)' : yearFilter}</span>
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--karofi-navy)' }}>
               {dinhDangTien(totalRevenue)}
             </div>
@@ -273,7 +300,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
             {topClients.length === 0 && (
               <div style={{ fontSize: '0.82rem', color: 'var(--text-dim)' }}>Chưa có khách hàng nào trong phạm vi đang lọc.</div>
             )}
-            {topClients.map(([clientCode, rev], idx) => (
+            {topClients.map(([clientCode, rev, alias], idx) => (
               <div key={clientCode} style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -294,6 +321,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
                   </div>
                   <div>
                     <div style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--karofi-cyan)' }} className="code-font">{clientCode}</div>
+                    {alias && alias !== clientCode && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>{alias}</div>}
                   </div>
                 </div>
                 <div style={{ fontWeight: 800, color: 'var(--accent-emerald)', fontSize: '0.9rem' }}>

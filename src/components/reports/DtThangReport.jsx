@@ -28,11 +28,12 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
     transactions.forEach(t => {
       if (canFilterAllSales && !khopSale(t.sale, thangFilterSale)) return;
 
-      const clientCode = t.clientCode || 'OEM-CLIENT';
+      // Gộp theo Search Code (mã chữ, không phân biệt hoa/thường), tên hiện = Alias đại diện của mã chữ (30/09/2026).
+      const clientCode = String(t.clientCode || '').trim().toUpperCase() || 'OEM-CLIENT';
       if (!map.has(clientCode)) {
         map.set(clientCode, {
           clientCode: clientCode,
-          clientName: t.clientName,
+          clientName: t.clientAlias || t.clientName,
           sale: t.sale,
           totalRevenue: 0,
           currentSelectedMonthRevenue: 0,
