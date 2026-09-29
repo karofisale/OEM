@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, RefreshCw, Filter } from 'lucide-react';
+import { Search, RefreshCw, Filter, Clock } from 'lucide-react';
 import * as api from '../../services/api';
 import Pagination, { usePagedSlice } from '../Pagination';
 import LoadingScreen from '../LoadingScreen';
@@ -12,6 +12,8 @@ const fmt = (v) => (v || 0).toLocaleString('vi-VN');
 // their own clients' debt while Admin/Creator/Leader see everyone.
 export default function DebtViewPanel({ token, refreshTick }) {
   const [rows, setRows] = useState([]);
+  // Ngày giờ lần tải công nợ gần nhất (backend đóng dấu mỗi lần nhập Excel / skill cong-no-oem, 29/09/2026)
+  const [lastUpdated, setLastUpdated] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -27,6 +29,7 @@ export default function DebtViewPanel({ token, refreshTick }) {
     try {
       const data = await api.getDebtView(token, forceRefresh === true);
       setRows(data.rows || []);
+      setLastUpdated(data.lastUpdated || '');
     } catch (err) {
       setLoadError(err.message || String(err));
     } finally {
@@ -79,6 +82,9 @@ export default function DebtViewPanel({ token, refreshTick }) {
         <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '4px' }}>
           <Filter size={12} /> {filteredRows.length.toLocaleString('vi-VN')} khách hàng khớp
         </span>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }} title="Lần tải số dư công nợ gần nhất">
+          <Clock size={12} /> Cập nhật lần cuối: <b style={{ color: 'var(--karofi-navy)' }}>{lastUpdated || 'chưa có'}</b>
+        </span>
         <button onClick={() => fetchView(true)} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
       </div>
 
@@ -92,6 +98,7 @@ export default function DebtViewPanel({ token, refreshTick }) {
               <th style={{ textAlign: 'right', width: '160px' }}>Hạn mức</th>
               <th style={{ textAlign: 'right', width: '160px' }}>Vượt hạn mức</th>
               <th style={{ textAlign: 'right', width: '160px' }}>Số dư công nợ</th>
+              <th style={{ width: '130px' }}>Ngày cập nhật</th>
             </tr>
           </thead>
           <tbody>
@@ -100,6 +107,7 @@ export default function DebtViewPanel({ token, refreshTick }) {
               <td style={{ textAlign: 'right', color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.creditLimit)}</td>
               <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900, color: totals.overLimit > 0 ? 'var(--danger)' : 'var(--accent-emerald-text)' }}>{fmt(totals.overLimit)}</td>
               <td style={{ textAlign: 'right', color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.balance)}</td>
+              <td></td>
             </tr>
             {pagedRows.map((r) => (
               <tr key={r.code}>
@@ -109,6 +117,7 @@ export default function DebtViewPanel({ token, refreshTick }) {
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(r.creditLimit)}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', fontWeight: 700, color: r.overLimit > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{fmt(r.overLimit)}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', fontWeight: 700 }}>{fmt(r.balance)}</td>
+                <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace" }}>{r.updatedAt || '—'}</td>
               </tr>
             ))}
           </tbody>
