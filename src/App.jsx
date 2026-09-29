@@ -145,8 +145,10 @@ export default function App() {
     } catch (err) {
       console.error('Error fetching backend data:', err);
       setBootstrapError(err.message || String(err));
-      // Token likely expired server-side — force re-login.
-      if (/hết hạn|token|unauthor/i.test(err.message || '')) {
+      // CHỈ lỗi xác thực thật (khớp thông báo của oem-api/auth.js) mới đăng xuất. Mẫu cũ /hết hạn|token|unauthor/
+      // bắt nhầm cả "hết hạn mức Gemini", "Unexpected token" (máy chủ trả HTML)… -> đá người dùng khỏi CẢ BA app
+      // (clearSession xoá luôn phiên dùng chung) dù token còn hạn. Lỗi mạng/máy chủ: giữ phiên, hiện lỗi.
+      if (/Phiên đăng nhập|chưa được cấp quyền|unauthor/i.test(err.message || '')) {
         api.clearSession();
         setSession(null);
       }
