@@ -19,6 +19,9 @@ function StatusBadge({ status }) {
   return <span className="badge" style={{ background: 'var(--bg-input)', color: 'var(--text-dim)' }}>—</span>;
 }
 
+// Các cột Tuần 1-5 = số Sale đã GỬI (w1..w5, giống màn Chờ duyệt / Đề xuất); Plan_Update là tổng 5 tuần đó.
+const TUAN = ['w1', 'w2', 'w3', 'w4', 'w5'];
+
 // Read-only table over whatever tab Plan_Thang currently holds — filterable by
 // month (now a real per-row field) and, for Admin/Creator/Leader, by Sale.
 export default function SalesPlanViewPanel({ plans, transactions, activeUser }) {
@@ -61,11 +64,12 @@ export default function SalesPlanViewPanel({ plans, transactions, activeUser }) 
   const totals = useMemo(() => filteredPlans.reduce((acc, p) => {
     const done = doneCua(p);
     acc.planKpi += p.planKpi || 0;
+    acc.w1 += p.w1 || 0; acc.w2 += p.w2 || 0; acc.w3 += p.w3 || 0; acc.w4 += p.w4 || 0; acc.w5 += p.w5 || 0;
     acc.planUpdate += p.planUpdate || 0;
     acc.done += done;
     acc.chenh += done - (p.planUpdate || 0);
     return acc;
-  }, { planKpi: 0, planUpdate: 0, done: 0, chenh: 0 }), [filteredPlans, doneBang]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, { planKpi: 0, w1: 0, w2: 0, w3: 0, w4: 0, w5: 0, planUpdate: 0, done: 0, chenh: 0 }), [filteredPlans, doneBang]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -99,6 +103,7 @@ export default function SalesPlanViewPanel({ plans, transactions, activeUser }) 
               <th>Khách hàng</th>
               <th style={{ width: '130px' }}>SALE</th>
               <th style={{ textAlign: 'right', width: '120px' }}>Plan KPI</th>
+              {TUAN.map((k, i) => <th key={k} style={{ textAlign: 'right', width: '110px' }}>Tuần {i + 1}</th>)}
               <th style={{ textAlign: 'right', width: '130px' }}>Plan_Update</th>
               <th style={{ textAlign: 'right', width: '120px' }}>Done</th>
               <th style={{ textAlign: 'right', width: '120px' }}>Chênh</th>
@@ -110,6 +115,7 @@ export default function SalesPlanViewPanel({ plans, transactions, activeUser }) 
             <tr className="top-summary-row">
               <td colSpan={4} style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>Σ TỔNG CỘNG</td>
               <td style={{ textAlign: 'right', color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.planKpi)}</td>
+              {TUAN.map((k) => <td key={k} style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals[k])}</td>)}
               <td style={{ textAlign: 'right', color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.planUpdate)}</td>
               <td style={{ textAlign: 'right', color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.done)}</td>
               <td style={{ textAlign: 'right', color: totals.chenh >= 0 ? 'var(--accent-emerald-text)' : 'var(--danger)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.chenh)}</td>
@@ -126,6 +132,7 @@ export default function SalesPlanViewPanel({ plans, transactions, activeUser }) 
                   <td style={{ fontWeight: 600 }}>{plan.clientName}</td>
                   <td style={{ fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>{plan.sale}</td>
                   <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-muted)', fontSize: '0.8rem' }}>{fmt(plan.planKpi)}</td>
+                  {TUAN.map((k) => <td key={k} style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-muted)', fontSize: '0.8rem' }}>{fmt(plan[k])}</td>)}
                   <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(plan.planUpdate)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(done)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 800, color: chenh >= 0 ? 'var(--accent-emerald-text)' : 'var(--accent-rose)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(chenh)}</td>
