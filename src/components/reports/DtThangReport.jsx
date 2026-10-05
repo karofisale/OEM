@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Filter, TrendingUp, TrendingDown } from 'lucide-react';
-import { monthsFromTransactions, priorMonthKey, shortMonthLabel, latestMonthKey } from '../../utils/period';
+import { priorMonthKey, shortMonthLabel, resolvePeriod, inPeriod, parseMonthKey } from '../../utils/period';
 import { khopSale } from '../../utils/roles';
 
 // Replaces a hardcoded if-chain that only knew T04..T08-2026 and fell through to
@@ -9,16 +9,16 @@ import { khopSale } from '../../utils/roles';
 
 export default function DtThangReport({ transactions, salesList, canFilterAllSales, viewMode, baselines2025 }) {
   const [thangFilterSale, setThangFilterSale] = useState('ALL');
-  // null = người dùng CHƯA chọn gì, để giá trị hiệu lực tự rơi về tháng mới
-  // nhất có dữ liệu. Mặc định cũ là 'ALL' — cộng gộp MỌI tháng của MỌI năm rồi
-  // so với nền 2025, tức mở báo cáo ra là thấy số luỹ kế chứ không phải kỳ đang
-  // chạy. Không đặt cứng "tháng theo đồng hồ máy": mùng 1-3 hàng tháng đợt đổ
-  // dữ liệu SAP chưa về thì báo cáo sẽ rỗng — đúng cái bẫy mà ghi chú đầu file
-  // này đã kể. "Tháng mới nhất CÓ DỮ LIỆU" là quy ước chung của cả app.
+  // null = người dùng CHƯA chọn gì: năm rơi về năm mới nhất có dữ liệu, tháng rơi về tháng mới nhất CỦA NĂM đó. Không đặt
+  // cứng "tháng theo đồng hồ máy": mùng 1-3 hàng tháng đợt đổ dữ liệu SAP chưa về thì báo cáo sẽ rỗng — đúng cái bẫy mà ghi
+  // chú đầu file này đã kể. "Tất cả các tháng" CHỈ cộng trong năm đang chọn (trước đây cộng gộp mọi tháng của mọi năm rồi
+  // so với nền 2025) và so với CẢ NĂM TRƯỚC (02/10/2026).
+  const [thangFilterYear, setThangFilterYear] = useState(null);
   const [thangFilterMonth, setThangFilterMonth] = useState(null);
 
-  const monthsList = useMemo(() => monthsFromTransactions(transactions), [transactions]);
-  const effectiveMonth = thangFilterMonth ?? latestMonthKey(transactions) ?? 'ALL';
+  const { years: yearsList, year: effectiveYear, months: monthsList, month: effectiveMonth } =
+    useMemo(() => resolvePeriod(transactions, thangFilterYear, thangFilterMonth), [transactions, thangFilterYear, thangFilterMonth]);
+  const prevYear = effectiveYear ? String(Number(effectiveYear) - 1) : '';
 
   const dtThangData = useMemo(() => {
     const map = new Map();
@@ -37,13 +37,19 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
           sale: t.sale,
           totalRevenue: 0,
           currentSelectedMonthRevenue: 0,
-          priorMonthRevenue: 0
+          priorMonthRevenue: 0,
+          prevYearRevenue: 0
         });
       }
       const item = map.get(clientCode);
 
       if (effectiveMonth === 'ALL') {
-        item.totalRevenue += t.netRevenue || 0;
+        // Cả năm đang chọn; năm liền trước chỉ để làm mốc so sánh, không cộng vào tổng.
+        if (inPeriod(t, effectiveYear, 'ALL')) item.totalRevenue += t.netRevenue || 0;
+        else {
+          const pm = parseMonthKey(t.month);
+          if (pm && String(pm.year) === prevYear) item.prevYearRevenue += t.netRevenue || 0;
+        }
       } else {
         if (t.month === targetMonth) {
           item.totalRevenue += t.netRevenue || 0;
@@ -56,7 +62,7 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
     });
 
     return Array.from(map.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
-  }, [transactions, thangFilterSale, effectiveMonth, canFilterAllSales]);
+  }, [transactions, thangFilterSale, effectiveYear, effectiveMonth, prevYear, canFilterAllSales]);
 
   const dtThangTotals = useMemo(() => {
     return dtThangData.reduce((acc, i) => {
@@ -81,15 +87,28 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Lọc Theo Tháng:</span>
+          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Lọc Năm:</span>
           <select
             className="input-field"
-            style={{ width: '180px' }}
+            style={{ width: '110px' }}
+            value={effectiveYear}
+            onChange={(e) => { setThangFilterYear(e.target.value); setThangFilterMonth(null); }}
+            aria-label="Lọc theo năm"
+          >
+            {yearsList.map(y => <option key={y} value={y}>Năm {y}</option>)}
+          </select>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>➔ Lọc Theo Tháng:</span>
+          <select
+            className="input-field"
+            style={{ width: '250px' }}
             value={effectiveMonth}
             onChange={(e) => setThangFilterMonth(e.target.value)}
             aria-label="Lọc theo tháng"
           >
-            <option value="ALL">Tất cả các Tháng (So với 2025)</option>
+            <option value="ALL">Tất cả tháng năm {effectiveYear} (So với {prevYear})</option>
             {monthsList.map(m => (
               <option key={m} value={m}>{m} (So với {shortMonthLabel(priorMonthKey(m))})</option>
             ))}
@@ -131,9 +150,12 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
                 let compareLabel = '';
 
                 if (effectiveMonth === 'ALL') {
-                  const b2025 = baselines2025.get(row.clientCode);
-                  baseline = b2025 > 0 ? b2025 : null;
-                  compareLabel = 'vs 2025';
+                  // Mốc = cả năm trước tính từ giao dịch; năm trước chưa có giao dịch nào trong app thì (chỉ với 2025)
+                  // dùng bảng nền 2025.
+                  const coNamTruoc = yearsList.includes(prevYear);
+                  const b = coNamTruoc ? row.prevYearRevenue : (prevYear === '2025' ? baselines2025.get(row.clientCode) : 0);
+                  baseline = b > 0 ? b : null;
+                  compareLabel = `vs ${prevYear}`;
                 } else {
                   baseline = row.priorMonthRevenue > 0 ? row.priorMonthRevenue : null;
                   compareLabel = `vs ${priorMonthKey(effectiveMonth) || 'kỳ trước'}`;

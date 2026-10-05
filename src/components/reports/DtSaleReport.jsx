@@ -1,44 +1,24 @@
 import React, { useMemo, useState } from 'react';
 import { Filter, Table, LayoutGrid } from 'lucide-react';
-import { monthsFromTransactions, yearsFromTransactions, weeksFromTransactions, latestMonthKey } from '../../utils/period';
+import { weeksFromTransactions, resolvePeriod, inPeriod } from '../../utils/period';
 
 export default function DtSaleReport({ transactions, viewMode }) {
-  // null = not chosen yet; resolves to the newest year present once data loads.
-  // Was hardcoded '2026' with a single <option>Năm 2026</option>.
+  // null = chưa chọn: năm rơi về năm mới nhất có dữ liệu, tháng rơi về tháng mới nhất CỦA NĂM đó (không phải tháng theo
+  // đồng hồ máy: mùng 1-3 đợt đổ dữ liệu SAP chưa về thì màn sẽ rỗng). "Tất cả tháng" chỉ cộng trong năm đang chọn —
+  // không còn mục "Tất cả năm" trộn các năm vào một số (02/10/2026).
   const [saleFilterYear, setSaleFilterYear] = useState(null);
-  // null = chưa chọn, rơi về tháng mới nhất có dữ liệu (xem effectiveMonth).
-  // Mặc định cũ 'ALL' nghĩa là mở màn ra thấy số cộng gộp cả năm chứ không
-  // phải kỳ đang chạy.
   const [saleFilterMonth, setSaleFilterMonth] = useState(null);
   const [saleFilterWeek, setSaleFilterWeek] = useState('ALL');
 
-  const yearsList = useMemo(() => yearsFromTransactions(transactions), [transactions]);
   const weeksList = useMemo(() => weeksFromTransactions(transactions), [transactions]);
-  const effectiveYear = saleFilterYear ?? yearsList[0] ?? 'ALL';
-
-  // Months are scoped to the chosen year, so the cascade can't offer a month
-  // that yields nothing.
-  const monthsList = useMemo(() => {
-    const all = monthsFromTransactions(transactions);
-    return effectiveYear === 'ALL' ? all : all.filter(m => m.endsWith(`-${effectiveYear}`));
-  }, [transactions, effectiveYear]);
-
-  // Chưa chọn -> tháng mới nhất CÓ DỮ LIỆU (không phải tháng theo đồng hồ máy:
-  // mùng 1-3 đợt đổ dữ liệu SAP chưa về thì màn sẽ rỗng). Đã chọn 'ALL' thì tôn
-  // trọng. Chọn một tháng rồi đổi năm làm tháng đó biến mất khỏi danh sách ->
-  // lùi về 'ALL' như cũ, chứ không lặng lẽ nhảy sang một tháng khác.
-  const effectiveMonth = useMemo(() => {
-    const mong = saleFilterMonth ?? latestMonthKey(transactions) ?? 'ALL';
-    if (mong === 'ALL') return 'ALL';
-    return monthsList.includes(mong) ? mong : 'ALL';
-  }, [saleFilterMonth, transactions, monthsList]);
+  const { years: yearsList, year: effectiveYear, months: monthsList, month: effectiveMonth } =
+    useMemo(() => resolvePeriod(transactions, saleFilterYear, saleFilterMonth), [transactions, saleFilterYear, saleFilterMonth]);
 
   const dtSaleData = useMemo(() => {
     const map = new Map();
 
     transactions.forEach(t => {
-      if (effectiveYear !== 'ALL' && !String(t.month || '').endsWith(`-${effectiveYear}`)) return;
-      if (effectiveMonth !== 'ALL' && t.month !== effectiveMonth) return;
+      if (!inPeriod(t, effectiveYear, effectiveMonth)) return;
       if (saleFilterWeek !== 'ALL' && t.week !== saleFilterWeek) return;
 
       const saleName = t.sale || 'Khác';
@@ -70,16 +50,15 @@ export default function DtSaleReport({ transactions, viewMode }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Filter size={15} color="var(--karofi-cyan)" />
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Lọc Năm:</span>
-          <select className="input-field" style={{ width: '110px' }} value={effectiveYear} onChange={(e) => setSaleFilterYear(e.target.value)} aria-label="Lọc theo năm">
-            <option value="ALL">Tất cả Năm</option>
+          <select className="input-field" style={{ width: '110px' }} value={effectiveYear} onChange={(e) => { setSaleFilterYear(e.target.value); setSaleFilterMonth(null); }} aria-label="Lọc theo năm">
             {yearsList.map(y => <option key={y} value={y}>Năm {y}</option>)}
           </select>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>➔ Lọc Tháng:</span>
-          <select className="input-field" style={{ width: '130px' }} value={effectiveMonth} onChange={(e) => setSaleFilterMonth(e.target.value)} aria-label="Lọc theo tháng">
-            <option value="ALL">Tất cả Tháng</option>
+          <select className="input-field" style={{ width: '190px' }} value={effectiveMonth} onChange={(e) => setSaleFilterMonth(e.target.value)} aria-label="Lọc theo tháng">
+            <option value="ALL">Tất cả tháng năm {effectiveYear}</option>
             {monthsList.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>

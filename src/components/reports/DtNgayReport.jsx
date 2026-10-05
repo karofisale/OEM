@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Filter } from 'lucide-react';
-import { monthsFromTransactions, latestMonthKey, weeksFromTransactions } from '../../utils/period';
+import { weeksFromTransactions, resolvePeriod, inPeriod } from '../../utils/period';
 import { khopSale } from '../../utils/roles';
 import Pagination, { usePagedSlice } from '../Pagination';
 
@@ -8,22 +8,22 @@ const PAGE_SIZE = 50;
 
 export default function DtNgayReport({ transactions, salesList, canFilterAllSales, viewMode }) {
   const [ngayFilterSale, setNgayFilterSale] = useState('ALL');
-  // null = not chosen yet -> newest month with data. Was hardcoded 'T08-2026',
-  // with an option literally labelled "Tháng hiện tại (T08)".
+  // null = chưa chọn -> năm / tháng mới nhất có dữ liệu. "Tất cả tháng" chỉ cộng trong năm đang chọn (02/10/2026).
+  const [ngayFilterYear, setNgayFilterYear] = useState(null);
   const [ngayFilterMonth, setNgayFilterMonth] = useState(null);
   const [ngayFilterWeek, setNgayFilterWeek] = useState('ALL');
   const [page, setPage] = useState(1);
 
-  const monthsList = useMemo(() => monthsFromTransactions(transactions), [transactions]);
   const weeksList = useMemo(() => weeksFromTransactions(transactions), [transactions]);
-  const effectiveMonth = ngayFilterMonth ?? latestMonthKey(transactions) ?? 'ALL';
+  const { years: yearsList, year: effectiveYear, months: monthsList, month: effectiveMonth } =
+    useMemo(() => resolvePeriod(transactions, ngayFilterYear, ngayFilterMonth), [transactions, ngayFilterYear, ngayFilterMonth]);
 
   const dtNgayData = useMemo(() => {
     const map = new Map();
 
     transactions.forEach(t => {
       if (canFilterAllSales && !khopSale(t.sale, ngayFilterSale)) return;
-      if (effectiveMonth !== 'ALL' && t.month !== effectiveMonth) return;
+      if (!inPeriod(t, effectiveYear, effectiveMonth)) return;
       if (ngayFilterWeek !== 'ALL' && t.week !== ngayFilterWeek) return;
 
       const dateStr = t.date || 'Chưa ngày';
@@ -47,7 +47,7 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
     });
 
     return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
-  }, [transactions, ngayFilterSale, effectiveMonth, ngayFilterWeek, canFilterAllSales]);
+  }, [transactions, ngayFilterSale, effectiveYear, effectiveMonth, ngayFilterWeek, canFilterAllSales]);
 
   // The table used to render dtNgayData.slice(0, 50) and the grid .slice(0, 30),
   // with no count and no pager — a sale checking yesterday's revenue could simply
@@ -78,9 +78,16 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Lọc Tháng:</span>
-          <select className="input-field" style={{ width: '140px' }} value={effectiveMonth} onChange={(e) => setNgayFilterMonth(e.target.value)} aria-label="Lọc theo tháng">
-            <option value="ALL">Tất cả Tháng</option>
+          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Lọc Năm:</span>
+          <select className="input-field" style={{ width: '110px' }} value={effectiveYear} onChange={(e) => { setNgayFilterYear(e.target.value); setNgayFilterMonth(null); setPage(1); }} aria-label="Lọc theo năm">
+            {yearsList.map(y => <option key={y} value={y}>Năm {y}</option>)}
+          </select>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>➔ Lọc Tháng:</span>
+          <select className="input-field" style={{ width: '190px' }} value={effectiveMonth} onChange={(e) => setNgayFilterMonth(e.target.value)} aria-label="Lọc theo tháng">
+            <option value="ALL">Tất cả tháng năm {effectiveYear}</option>
             {monthsList.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>

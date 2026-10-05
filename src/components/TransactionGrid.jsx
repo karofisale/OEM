@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Filter, Calendar, User, FileText, Layers, Upload, ChevronUp } from 'lucide-react';
-import { monthsFromTransactions, latestMonthKey } from '../utils/period';
+import { resolvePeriod, inPeriod } from '../utils/period';
 import CaoSapPanel from './transactions/CaoSapPanel';
 import RevenueImportPanel from './transactions/RevenueImportPanel';
 import NhipDoanhThu from './transactions/NhipDoanhThu';
@@ -20,6 +20,7 @@ export default function TransactionGrid({ transactions, materials, token, active
   // once, while `transactions` is still empty. The old code sidestepped this by
   // hardcoding 'T08-2026', which meant the tab opened on an empty table from
   // September onwards.
+  const [selectedYear, setSelectedYear] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 25;
@@ -41,10 +42,10 @@ export default function TransactionGrid({ transactions, materials, token, active
     return Array.from(set);
   }, [transactions]);
 
-  const monthsList = useMemo(() => monthsFromTransactions(transactions), [transactions]);
-
-  // Newest month with data, until the user picks something themselves.
-  const effectiveMonth = selectedMonth ?? latestMonthKey(transactions) ?? 'ALL';
+  // Năm -> Tháng: chưa chọn thì năm/tháng mới nhất có dữ liệu; "Tất cả tháng" chỉ cộng trong năm đang chọn, không trộn
+  // các năm vào một số (02/10/2026).
+  const { years: yearsList, year: effectiveYear, months: monthsList, month: effectiveMonth } =
+    useMemo(() => resolvePeriod(transactions, selectedYear, selectedMonth), [transactions, selectedYear, selectedMonth]);
 
   const filteredData = useMemo(() => {
     // Hạ chuỗi tìm kiếm 1 lần, không phải 5 lần mỗi dòng mỗi phím gõ — giống
@@ -61,11 +62,11 @@ export default function TransactionGrid({ transactions, materials, token, active
 
       const matchSale = selectedSale === 'ALL' || t.sale === selectedSale;
       const matchGroup = selectedGroup === 'ALL' || t.group === selectedGroup;
-      const matchMonth = effectiveMonth === 'ALL' || t.month === effectiveMonth;
+      const matchMonth = inPeriod(t, effectiveYear, effectiveMonth);
 
       return matchSearch && matchSale && matchGroup && matchMonth;
     });
-  }, [transactions, searchTerm, selectedSale, selectedGroup, effectiveMonth]);
+  }, [transactions, searchTerm, selectedSale, selectedGroup, effectiveYear, effectiveMonth]);
 
   // usePagedSlice tự lùi trang khi bộ lọc làm filteredData ngắn lại, không chỉ
   // dựa vào setCurrentPage(1) gắn thủ công ở từng ô lọc — trước đây bảng này tự
@@ -184,17 +185,26 @@ export default function TransactionGrid({ transactions, materials, token, active
           </select>
         </div>
 
-        {/* Month Filter */}
+        {/* Year -> Month Filter */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Calendar size={15} color="var(--text-muted)" />
-          <select 
-            className="input-field" 
-            style={{ width: '140px' }}
+          <select
+            className="input-field"
+            style={{ width: '110px' }}
+            value={effectiveYear}
+            onChange={(e) => { setSelectedYear(e.target.value); setSelectedMonth(null); setCurrentPage(1); }}
+            aria-label="Lọc theo năm"
+          >
+            {yearsList.map(y => <option key={y} value={y}>Năm {y}</option>)}
+          </select>
+          <select
+            className="input-field"
+            style={{ width: '190px' }}
             value={effectiveMonth}
             onChange={(e) => { setSelectedMonth(e.target.value); setCurrentPage(1); }}
             aria-label="Lọc theo tháng"
           >
-            <option value="ALL">Tất cả Tháng</option>
+            <option value="ALL">Tất cả tháng năm {effectiveYear}</option>
             {monthsList.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>

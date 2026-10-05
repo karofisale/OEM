@@ -78,3 +78,41 @@ export function weeksFromTransactions(transactions) {
   (transactions || []).forEach(t => { if (t && t.week) set.add(t.week); });
   return Array.from(set).sort();
 }
+
+// ---------------------------------------------------------------------------
+// Bộ lọc Năm -> Tháng dùng chung cho Báo cáo doanh thu (3 tab) và Lịch sử doanh thu.
+//
+// Trước đây ô tháng có mục "Tất cả tháng" cộng gộp MỌI tháng của MỌI năm vào 1 số
+// (T08-2025 + T08-2026 cùng nằm trong "Tất cả"). Giờ luôn có 1 NĂM cụ thể: năm
+// chưa chọn thì rơi về năm mới nhất có dữ liệu, và "Tất cả tháng" chỉ cộng các
+// tháng CỦA NĂM ĐÓ — muốn xem năm khác thì đổi ô Năm, không bao giờ trộn năm.
+// ---------------------------------------------------------------------------
+
+/**
+ * Giá trị hiệu lực của bộ lọc.
+ *  year  — năm người dùng chọn (null = chưa chọn); không còn trong dữ liệu thì rơi về năm mới nhất.
+ *  month — tháng người dùng chọn ('ALL' = cả năm; null = chưa chọn -> tháng mới nhất của năm đang xem);
+ *          tháng không thuộc năm đang xem thì rơi về tháng mới nhất của năm đó.
+ * Trả { years, year, months (tháng của năm đang xem, mới nhất trước), month }.
+ */
+export function resolvePeriod(transactions, year, month) {
+  const years = yearsFromTransactions(transactions);
+  const y = year && years.includes(String(year)) ? String(year) : (years[0] || '');
+  const months = monthsFromTransactions(transactions).filter(m => {
+    const p = parseMonthKey(m);
+    return p && String(p.year) === y;
+  });
+  let m;
+  if (month === 'ALL') m = 'ALL';
+  else if (month && months.includes(month)) m = month;
+  else m = months[0] || 'ALL';
+  return { years, year: y, months, month: m };
+}
+
+/** Giao dịch `t` có nằm trong kỳ (năm cụ thể, tháng cụ thể hoặc 'ALL' = cả năm đó) không. */
+export function inPeriod(t, year, month) {
+  const p = parseMonthKey(t && t.month);
+  if (!p) return false;
+  if (year && String(p.year) !== String(year)) return false;
+  return month === 'ALL' || !month || t.month === month;
+}
