@@ -113,6 +113,7 @@ export default function SopApprovePanel({ token, refreshTick, onApproved }) {
   }, [data, saleFilter]);
 
   const handleApprove = async () => {
+    if (isApproving) return;  // chặn gửi trùng khi lượt đầu chưa về
     setIsApproving(true);
     try {
       const overrideRows = data.rows.map((r) => {
@@ -274,7 +275,9 @@ export default function SopApprovePanel({ token, refreshTick, onApproved }) {
         <ConfirmDialog
           title="Duyệt toàn bộ kế hoạch SOP kỳ này?"
           message={`Sẽ ghi đè tab "SOP" bằng ${publishCount} mã SKU có số lượng > 0${publishCount !== data.rows.length ? ` (bỏ qua ${data.rows.length - publishCount} mã toàn số 0)` : ''}, và đánh dấu Đã duyệt cho toàn bộ ${data.pendingCount} dòng kế hoạch chờ duyệt của kỳ ${data.monthLabels[0]} → ${data.monthLabels[data.monthLabels.length - 1]}. Không thể duyệt lại từng dòng riêng sau khi xác nhận.`}
-          confirmLabel={isApproving ? 'Đang duyệt...' : 'Duyệt'}
+          confirmLabel="Duyệt"
+          busy={isApproving}
+          busyLabel="Đang duyệt..."
           onConfirm={handleApprove}
           onCancel={() => setConfirming(false)}
         />

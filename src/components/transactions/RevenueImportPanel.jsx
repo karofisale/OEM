@@ -80,6 +80,7 @@ export default function RevenueImportPanel({ token, activeUser, onImported }) {
   };
 
   const nhap = async () => {
+    if (isImporting) return;  // chặn gửi trùng khi lượt đầu chưa về
     setIsImporting(true);
     try {
       const r = await api.importRevenueExcel(token, kq.thang, kq.rows);
@@ -217,7 +218,9 @@ export default function RevenueImportPanel({ token, activeUser, onImported }) {
             `Chạy lại cùng file cho ra đúng cùng kết quả, nên nếu không chắc thì cứ chạy lại — ` +
             `nhưng hãy chắc file là bản xuất mới nhất từ SAP cho tháng này.`
           }
-          confirmLabel={isImporting ? 'Đang ghi...' : 'Xoá và ghi lại tháng ' + kq.thang}
+          confirmLabel={'Xoá và ghi lại tháng ' + kq.thang}
+          busy={isImporting}
+          busyLabel="Đang ghi..."
           destructive
           onConfirm={nhap}
           onCancel={() => setConfirming(false)}

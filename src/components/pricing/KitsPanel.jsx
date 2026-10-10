@@ -59,6 +59,7 @@ export default function KitsPanel({ token, kits, materials, onSaved }) {
   };
 
   const luu = async () => {
+    if (dangLuu) return;  // chặn gửi trùng khi lượt đầu chưa về
     setDangLuu(true);
     try {
       const kq = await api.saveKits(token, rows);
@@ -166,7 +167,9 @@ export default function KitsPanel({ token, kits, materials, onSaved }) {
           title="Lưu công thức bộ sản phẩm?"
           message={`Sẽ THAY TOÀN BỘ công thức bằng ${rows.length - thieu} dòng đang có trên màn hình` +
                    (thieu ? ` (${thieu} dòng thiếu Tên bộ hoặc Mã SKU sẽ bị bỏ).` : '.')}
-          confirmLabel={dangLuu ? 'Đang lưu...' : 'Lưu'}
+          confirmLabel="Lưu"
+          busy={dangLuu}
+          busyLabel="Đang lưu..."
           onConfirm={luu}
           onCancel={() => setXacNhan(false)}
         />

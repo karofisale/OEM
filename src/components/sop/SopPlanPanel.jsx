@@ -120,7 +120,7 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
   }, [draftMap]);
 
   const handleSubmit = async () => {
-    if (!submissionRows.length) return;
+    if (isSaving || !submissionRows.length) return; // chặn gửi trùng khi lượt đầu chưa về
     setIsSaving(true);
     try {
       const result = await api.submitSopDraft(token, context.anchor, submissionRows);
@@ -295,7 +295,9 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
         <ConfirmDialog
           title="Đã kiểm tra kỹ chưa?"
           message={`Sẽ gửi kế hoạch SOP kỳ ${context.monthLabels[0]} → ${context.monthLabels[context.monthLabels.length - 1]} cho ${submissionRows.length.toLocaleString('vi-VN')} mã SKU có số lượng > 0. Nếu kỳ này đã từng gửi trước đó, bản cũ sẽ bị THAY THẾ HOÀN TOÀN bằng bản này — mã SKU nào không còn số lượng trong lần gửi này sẽ bị xoá khỏi kế hoạch. Hãy chắc chắn đã kiểm tra kỹ số lượng trước khi xác nhận.`}
-          confirmLabel={isSaving ? 'Đang gửi...' : 'Đã kiểm tra kỹ, Gửi'}
+          confirmLabel="Đã kiểm tra kỹ, Gửi"
+          busy={isSaving}
+          busyLabel="Đang gửi..."
           onConfirm={handleSubmit}
           onCancel={() => setConfirmingSubmit(false)}
         />

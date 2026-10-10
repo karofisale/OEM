@@ -8,24 +8,34 @@ import { AlertTriangle } from 'lucide-react';
 // Closes on Escape and on backdrop click, moves focus to the confirm button on
 // open, and restores it to whatever was focused before — none of which the eight
 // hand-rolled overlays elsewhere in the app do.
+//
+// `busy` (09/10/2026): đang gửi lệnh thì khoá CẢ HAI nút và bỏ qua Esc / bấm nền.
+// Trước đây hộp vẫn bấm được trong lúc chờ server -> bấm Xác nhận lần hai là gửi
+// trùng lệnh ghi (đề xuất giá, duyệt kế hoạch, gửi SOP...). Bên gọi vẫn phải tự
+// chặn `if (busy) return` trong handler — prop này chỉ là nửa giao diện.
 export default function ConfirmDialog({
   title,
   message,
   confirmLabel = 'Xác nhận',
   cancelLabel = 'Hủy',
   destructive = false,
+  busy = false,
+  busyLabel = 'Đang xử lý...',
   onConfirm,
   onCancel
 }) {
   const confirmRef = useRef(null);
   const previouslyFocused = useRef(null);
+  // Đọc qua ref để listener Esc (gắn một lần) luôn thấy giá trị busy mới nhất.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
 
   useEffect(() => {
     previouslyFocused.current = document.activeElement;
     if (confirmRef.current) confirmRef.current.focus();
 
     const onKey = (e) => {
-      if (e.key === 'Escape') { e.stopPropagation(); onCancel(); }
+      if (e.key === 'Escape') { e.stopPropagation(); if (!busyRef.current) onCancel(); }
     };
     document.addEventListener('keydown', onKey);
     return () => {
@@ -38,7 +48,7 @@ export default function ConfirmDialog({
 
   return (
     <div
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onCancel(); }}
       style={{
         position: 'fixed', inset: 0,
         background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(6px)',
@@ -49,6 +59,7 @@ export default function ConfirmDialog({
         role="alertdialog"
         aria-modal="true"
         aria-label={title}
+        aria-busy={busy || undefined}
         className="glass-card animate-fade-in"
         style={{ width: '420px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '14px' }}
       >
@@ -63,15 +74,16 @@ export default function ConfirmDialog({
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-          <button type="button" onClick={onCancel} className="btn btn-secondary">{cancelLabel}</button>
+          <button type="button" onClick={onCancel} className="btn btn-secondary" disabled={busy}>{cancelLabel}</button>
           <button
             ref={confirmRef}
             type="button"
-            onClick={onConfirm}
+            onClick={() => { if (!busy) onConfirm(); }}
             className="btn btn-primary"
+            disabled={busy}
             style={destructive ? { background: 'var(--danger)', borderColor: 'var(--danger)' } : undefined}
           >
-            {confirmLabel}
+            {busy ? busyLabel : confirmLabel}
           </button>
         </div>
       </div>

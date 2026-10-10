@@ -19,6 +19,8 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
   // chặn thao tác khác, không cần khoá cả màn hình.
   const [savingAdd, setSavingAdd] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  // Lỗi lượt Lưu gần nhất (09/10/2026): lưu hỏng thì GIỮ modal + chữ đã gõ, hiện lỗi ngay trong form.
+  const [saveError, setSaveError] = useState('');
 
   // Default to Active only — most day-to-day lookups don't want inactive
   // clients cluttering the list; "Tất cả" is one click away.
@@ -85,6 +87,7 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
     setEditingClient(null);
     setForm({ code: '', codeSearch: '', name: '', alias: '', type: 'Doanh nghiệp', sale: activeUser.saleId || '',
       address: '', status: 'Active', reconciliationAcct: '' });
+    setSaveError('');
     setShowModal(true);
   };
 
@@ -93,10 +96,11 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
     setForm({ code: client.rawCode != null ? client.rawCode : (client.code || ''), codeSearch: client.codeSearch || '',
       name: client.name || '', alias: client.alias || '', type: client.type || 'Doanh nghiệp', sale: client.sale || '',
       address: client.address || '', status: client.status || 'Active', reconciliationAcct: client.reconciliationAcct || '' });
+    setSaveError('');
     setShowModal(true);
   };
 
-  const closeModal = () => { setShowModal(false); setEditingClient(null); setForm(null); };
+  const closeModal = () => { setShowModal(false); setEditingClient(null); setForm(null); setSaveError(''); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -106,11 +110,14 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
       code: f.code.trim(), codeSearch: f.codeSearch.trim().toUpperCase(), name: f.name.trim(), alias: f.alias.trim(),
       type: f.type, sale: f.sale.trim(), address: f.address.trim(), status: f.status, reconciliationAcct: f.reconciliationAcct.trim()
     };
+    setSaveError('');
+    // onEditClient/onAddClient trả { ok, error } (withOptimistic ở App.jsx) — chỉ đóng modal khi đã lưu thật.
     if (editingClient) {
       setSavingEdit(true);
       try {
-        await onEditClient({ ...editingClient, ...data, rawCode: data.code, code: data.code || editingClient.code });
-        closeModal();
+        const kq = await onEditClient({ ...editingClient, ...data, rawCode: data.code, code: data.code || editingClient.code });
+        if (kq && kq.ok === false) setSaveError(kq.error || 'Không lưu được, thử lại.');
+        else closeModal();
       } finally {
         setSavingEdit(false);
       }
@@ -119,8 +126,9 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
       const code = data.code || ('CLI-' + Math.floor(1000 + Math.random() * 9000));
       setSavingAdd(true);
       try {
-        await onAddClient({ ...data, code, rawCode: code, address: data.address || 'Hà Nội' });
-        closeModal();
+        const kq = await onAddClient({ ...data, code, rawCode: code, address: data.address || 'Hà Nội' });
+        if (kq && kq.ok === false) setSaveError(kq.error || 'Không lưu được, thử lại.');
+        else closeModal();
       } finally {
         setSavingAdd(false);
       }
@@ -358,6 +366,11 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
               {doiMaChu && (
                 <div style={{ gridColumn: '1 / -1', fontSize: '0.8rem', color: 'var(--warning-text)', background: 'var(--bg-input)', padding: '8px 10px', borderRadius: 'var(--radius-md)' }}>
                   ⚠ Đổi Search Code: kế hoạch kinh doanh / giá / công nợ đã lưu theo mã chữ cũ "{editingClient.codeSearch}" KHÔNG tự đổi theo.
+                </div>
+              )}
+              {saveError && (
+                <div role="alert" style={{ gridColumn: '1 / -1', fontSize: '0.8rem', color: 'var(--danger)', background: 'var(--danger-bg)', padding: '8px 10px', borderRadius: 'var(--radius-md)' }}>
+                  {saveError}
                 </div>
               )}
               <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '4px' }}>

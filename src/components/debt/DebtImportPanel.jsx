@@ -131,6 +131,7 @@ export default function DebtImportPanel({ token, activeUser, clients, onImported
   };
 
   const handleImport = async () => {
+    if (isImporting) return;  // chặn gửi trùng khi lượt đầu chưa về
     setIsImporting(true);
     try {
       const payload = rows.map((r) => ({ code: r.code, oldCode: r.oldCode, name: r.name, pic: r.pic, creditLimit: r.creditLimit, balance: r.balance }));
@@ -221,7 +222,9 @@ export default function DebtImportPanel({ token, activeUser, clients, onImported
         <ConfirmDialog
           title="Lưu công nợ?"
           message={`Sẽ cập nhật/thêm mới ${rows.length} khách hàng vào bảng công nợ — ghi đè Hạn mức và Số dư công nợ theo file vừa tải lên. Bảng này cũng được cập nhật bởi quy trình đối chiếu công nợ riêng (skill cong-no-oem); hãy chắc chắn dữ liệu trong file là bản mới nhất trước khi lưu.`}
-          confirmLabel={isImporting ? 'Đang lưu...' : 'Lưu'}
+          confirmLabel="Lưu"
+          busy={isImporting}
+          busyLabel="Đang lưu..."
           onConfirm={handleImport}
           onCancel={() => setConfirming(false)}
         />

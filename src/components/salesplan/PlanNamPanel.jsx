@@ -120,6 +120,7 @@ export default function PlanNamPanel({ token, onSaved }) {
   };
 
   const luu = async () => {
+    if (dangLuu) return;  // chặn gửi trùng khi lượt đầu chưa về
     setDangLuu(true);
     try {
       const kq = await api.savePlanNam(token, nam, rows);
@@ -286,7 +287,9 @@ export default function PlanNamPanel({ token, onSaved }) {
         <ConfirmDialog
           title={`Lưu KPI năm ${nam}?`}
           message={`Sẽ THAY TOÀN BỘ KPI năm ${nam} bằng ${rows.filter((r) => r.code.trim()).length} khách đang có trên màn hình. Khách đã xoá khỏi bảng sẽ bị xoá thật.`}
-          confirmLabel={dangLuu ? 'Đang lưu...' : 'Lưu'}
+          confirmLabel="Lưu"
+          busy={dangLuu}
+          busyLabel="Đang lưu..."
           onConfirm={luu}
           onCancel={() => setXacNhan(false)}
         />

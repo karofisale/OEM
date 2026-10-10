@@ -5,6 +5,7 @@ import Pagination, { usePagedSlice } from '../Pagination';
 import ConfirmDialog from '../ConfirmDialog';
 import { useToast } from '../ToastProvider';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { dongDeXuat, soMaCoNhap, boNhapDaGui } from '../../utils/priceDraft';
 
 const PAGE_SIZE = 25;
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
@@ -31,6 +32,8 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
   const [page, setPage] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  // Khách đang chờ xác nhận đổi sang (null = không chờ) — đổi khách khi còn giá nháp thì hỏi trước.
+  const [pendingClientCode, setPendingClientCode] = useState(null);
 
   // Perf (2026-08-27): nhớ lại giá riêng của từng khách đã tra trong phiên này.
   // Trước đây mỗi lần đổi ô chọn khách là một lượt gọi backend mới, nên xem qua
@@ -100,15 +103,38 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
     return ((Number(d.retail) - current.retail) / current.retail) * 100;
   };
 
-  const touchedRows = useMemo(() => {
-    return filteredMaterials.filter((m) => {
-      const d = draftMap[m.sku];
-      return d && d.retail !== '' && d.retail != null;
-    });
-  }, [filteredMaterials, draftMap]);
+  // Dòng sẽ gửi: đọc thẳng từ draftMap trên TOÀN BỘ danh mục, KHÔNG qua bộ lọc
+  // (09/10/2026, cùng cách SalesPlanProposePanel.handleSubmit). Bản trước lấy
+  // filteredMaterials, rồi gửi xong lại setDraftMap({}) — giá đã gõ cho SKU đang
+  // bị ô tìm / Nhóm SP ẩn đi vừa không được gửi vừa bị xoá, im lặng.
+  // Giá lẻ > 0: gõ số rồi xoá trắng ô thì parseDigits trả 0 — không được coi là đề xuất giá 0đ.
+  const touchedRows = useMemo(() => dongDeXuat(materials, draftMap), [materials, draftMap]);
+
+  const hiddenTouchedCount = useMemo(() => {
+    const visible = new Set(filteredMaterials.map((m) => m.sku));
+    return touchedRows.filter((m) => !visible.has(m.sku)).length;
+  }, [touchedRows, filteredMaterials]);
+
+  // Có ô nháp nào đang có số không (kể cả SL KM / Giá KM chưa kèm Giá lẻ).
+  const draftCount = useMemo(() => soMaCoNhap(draftMap), [draftMap]);
+
+  // Giá nháp gắn với khách ĐANG CHỌN (giá riêng hay giá chung) — đổi khách mà
+  // giữ nháp là gửi nhầm giá của khách A thành giá của khách B. Còn nháp thì hỏi
+  // trước, đồng ý thì bỏ nháp rồi mới đổi.
+  const requestClientChange = (code) => {
+    if (code === clientCode) return;
+    if (draftCount > 0) { setPendingClientCode(code); return; }
+    setClientCode(code);
+  };
+
+  const confirmClientChange = () => {
+    setDraftMap({});
+    setClientCode(pendingClientCode || '');
+    setPendingClientCode(null);
+  };
 
   const handleSubmit = async () => {
-    if (!touchedRows.length) return;
+    if (isSaving || !touchedRows.length) return;
     setIsSaving(true);
     try {
       const rows = touchedRows.map((m) => {
@@ -123,7 +149,9 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
       });
       const result = await api.submitPriceProposal(token, rows);
       toast.success(`Đã gửi đề xuất giá cho ${result.savedCount} mã SKU (đợt ${result.batchId}), chờ Admin duyệt.`);
-      setDraftMap({});
+      // Chỉ bỏ nháp của các SKU VỪA gửi; nháp chưa đủ Giá lẻ (không được gửi) giữ nguyên.
+      const daGui = rows.map((r) => r.sku);
+      setDraftMap((prev) => boNhapDaGui(prev, daGui));
       setConfirming(false);
       if (onSubmitted) onSubmitted();
     } catch (err) {
@@ -153,7 +181,7 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Users size={15} color="var(--text-muted)" />
-          <select className="input-field" style={{ width: '220px' }} value={clientCode} onChange={(e) => setClientCode(e.target.value)}>
+          <select className="input-field" style={{ width: '220px' }} value={clientCode} disabled={isSaving} onChange={(e) => requestClientChange(e.target.value)}>
             <option value="">Áp dụng chung (mọi khách hàng)</option>
             {clients.map((c) => <option key={c.codeSearch} value={c.codeSearch}>{c.name}</option>)}
           </select>
@@ -237,17 +265,31 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
 
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button onClick={() => setConfirming(true)} disabled={isSaving || !touchedRows.length} className="btn btn-emerald">
-          <Save size={16} /> Gửi Đề Xuất ({touchedRows.length.toLocaleString('vi-VN')} SKU)
+          <Save size={16} /> Gửi Đề Xuất ({touchedRows.length.toLocaleString('vi-VN')} SKU{hiddenTouchedCount ? `, ${hiddenTouchedCount.toLocaleString('vi-VN')} đang bị lọc ẩn` : ''})
         </button>
       </div>
 
       {confirming && (
         <ConfirmDialog
           title="Gửi đề xuất giá bán?"
-          message={`Sẽ tạo 1 đợt đề xuất mới cho ${touchedRows.length.toLocaleString('vi-VN')} mã SKU${clientCode ? ' (áp dụng RIÊNG cho khách hàng đã chọn)' : ' (áp dụng chung)'}, chờ Admin/Creator duyệt.`}
-          confirmLabel={isSaving ? 'Đang gửi...' : 'Gửi Duyệt'}
+          message={`Sẽ tạo 1 đợt đề xuất mới cho ${touchedRows.length.toLocaleString('vi-VN')} mã SKU${hiddenTouchedCount ? ` (trong đó ${hiddenTouchedCount.toLocaleString('vi-VN')} mã đang bị bộ lọc ẩn)` : ''}${clientCode ? ' (áp dụng RIÊNG cho khách hàng đã chọn)' : ' (áp dụng chung)'}, chờ Admin/Creator duyệt.`}
+          confirmLabel="Gửi Duyệt"
+          busy={isSaving}
+          busyLabel="Đang gửi..."
           onConfirm={handleSubmit}
           onCancel={() => setConfirming(false)}
+        />
+      )}
+
+      {pendingClientCode !== null && (
+        <ConfirmDialog
+          title="Đổi khách hàng?"
+          message={`Đang có giá nháp cho ${draftCount.toLocaleString('vi-VN')} mã SKU của ${clientCode ? 'khách đang chọn' : 'giá chung'}. Đổi khách sẽ BỎ các giá nháp này (chưa gửi) để không gửi nhầm sang khách khác.`}
+          confirmLabel="Bỏ nháp và đổi khách"
+          cancelLabel="Ở lại"
+          destructive
+          onConfirm={confirmClientChange}
+          onCancel={() => setPendingClientCode(null)}
         />
       )}
     </div>

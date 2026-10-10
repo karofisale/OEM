@@ -28,6 +28,9 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
   // chặn thao tác khác, không cần khoá cả màn hình.
   const [savingAdd, setSavingAdd] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  // Lỗi lượt Lưu gần nhất của từng modal (09/10/2026): lưu hỏng thì GIỮ modal + chữ đã gõ, hiện lỗi trong form.
+  const [addError, setAddError] = useState('');
+  const [editError, setEditError] = useState('');
 
   // Permission flags
   const isLeader = activeUser.role === 'leader';
@@ -87,8 +90,11 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
     };
 
     setSavingAdd(true);
+    setAddError('');
     try {
-      await onAddMaterial(mat);
+      // onAddMaterial trả { ok, error } (withOptimistic ở App.jsx) — chỉ đóng + xoá form khi đã lưu thật.
+      const kq = await onAddMaterial(mat);
+      if (kq && kq.ok === false) { setAddError(kq.error || 'Không lưu được, thử lại.'); return; }
       setShowAddModal(false);
       setNewSku('');
       setNewName('');
@@ -104,18 +110,21 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
     setEditAlias(mat.alias || '');
     setEditGroup(mat.group || '');
     setEditSuggestedPrice(mat.suggestedPrice || '');
+    setEditError('');
   };
 
   const handleSaveEditMaterial = async (e) => {
     e.preventDefault();
     if (!editingMat || savingEdit) return;
     setSavingEdit(true);
+    setEditError('');
     try {
-      await onEditMaterial(editingMat.sku, {
+      const kq = await onEditMaterial(editingMat.sku, {
         alias: editAlias,
         group: editGroup,
         suggestedPrice: parseFloat(editSuggestedPrice) || 0
       });
+      if (kq && kq.ok === false) { setEditError(kq.error || 'Không lưu được, thử lại.'); return; }
       setEditingMat(null);
     } finally {
       setSavingEdit(false);
@@ -330,6 +339,11 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
                 <input type="number" className="input-field" value={editSuggestedPrice} onChange={(e) => setEditSuggestedPrice(e.target.value)} />
               </div>
 
+              {editError && (
+                <div role="alert" style={{ fontSize: '0.8rem', color: 'var(--danger)', background: 'var(--danger-bg)', padding: '8px 10px', borderRadius: 'var(--radius-md)' }}>
+                  {editError}
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
                 <button type="button" onClick={() => setEditingMat(null)} className="btn btn-secondary" disabled={savingEdit}>Hủy</button>
                 <button type="submit" className="btn btn-primary" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu Thay Đổi'}</button>
@@ -375,8 +389,13 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
                 <input type="number" className="input-field" value={newSuggestedPrice} onChange={(e) => setNewSuggestedPrice(e.target.value)} />
               </div>
 
+              {addError && (
+                <div role="alert" style={{ fontSize: '0.8rem', color: 'var(--danger)', background: 'var(--danger-bg)', padding: '8px 10px', borderRadius: 'var(--radius-md)' }}>
+                  {addError}
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setShowAddModal(false)} className="btn btn-secondary" disabled={savingAdd}>Hủy</button>
+                <button type="button" onClick={() => { setShowAddModal(false); setAddError(''); }} className="btn btn-secondary" disabled={savingAdd}>Hủy</button>
                 <button type="submit" className="btn btn-primary" disabled={savingAdd}>{savingAdd ? 'Đang lưu...' : 'Lưu Sản Phẩm'}</button>
               </div>
             </form>

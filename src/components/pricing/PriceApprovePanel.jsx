@@ -104,7 +104,7 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
   };
 
   const handleApprove = async () => {
-    if (!currentBatch) return;
+    if (!currentBatch || isSubmitting) return; // chặn gửi trùng khi lượt đầu chưa về
     setIsSubmitting(true);
     try {
       const overrideRows = currentBatch.rows.map((r) => ({ sku: r.sku, ...editedRows[r.sku] }));
@@ -122,7 +122,7 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
   };
 
   const handleReject = async () => {
-    if (!currentBatch) return;
+    if (!currentBatch || isSubmitting) return;
     setIsSubmitting(true);
     try {
       await api.rejectPriceBatch(token, currentBatch.batchId, '');
@@ -254,7 +254,9 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
         <ConfirmDialog
           title="Duyệt và áp dụng đợt giá này?"
           message={`Sẽ ghi ngay ${currentBatch.rows.length} mã SKU vào ${currentBatch.clientCode ? `giá riêng của khách "${currentBatch.clientCode}"` : 'giá chung trên Products'}, với Ngày hiệu lực ${effectiveDate}. Không thể hoàn tác qua app.`}
-          confirmLabel={isSubmitting ? 'Đang duyệt...' : 'Duyệt & Áp Dụng'}
+          confirmLabel="Duyệt & Áp Dụng"
+          busy={isSubmitting}
+          busyLabel="Đang duyệt..."
           onConfirm={handleApprove}
           onCancel={() => setConfirmAction(null)}
         />
@@ -263,7 +265,9 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
         <ConfirmDialog
           title="Từ chối đợt đề xuất này?"
           message={`Toàn bộ ${currentBatch.rows.length} mã SKU trong đợt sẽ chuyển sang "Từ chối" — Sale cần gửi đợt mới nếu muốn đề xuất lại.`}
-          confirmLabel={isSubmitting ? 'Đang từ chối...' : 'Từ Chối'}
+          confirmLabel="Từ Chối"
+          busy={isSubmitting}
+          busyLabel="Đang từ chối..."
           destructive
           onConfirm={handleReject}
           onCancel={() => setConfirmAction(null)}

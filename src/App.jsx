@@ -38,6 +38,7 @@ import * as api from './services/api';
 import { veCongSauDangXuat } from './services/karofiSession';
 import { readBootstrapCache, writeBootstrapCache, clearBootstrapCache } from './services/dataCache';
 import { useToast } from './components/ToastProvider';
+import { chayLacQuan } from './utils/optimistic';
 
 export default function App() {
   const toast = useToast();
@@ -220,19 +221,16 @@ export default function App() {
   // in the list, so the user saw their new product listed AND a message saying it
   // had not been saved. Each one now restores the previous state on failure, so
   // what is on screen always matches what is in the Sheet.
-  const withOptimistic = async (apply, revert, call, failMessage) => {
-    apply();
-    try {
-      await call();
-    } catch (err) {
-      revert();
-      toast.error(`${failMessage}: ${err.message}`);
-    }
-  };
+  //
+  // Trả { ok: true } hoặc { ok: false, error } (09/10/2026, xem utils/optimistic.js).
+  // Trước đây lỗi bị nuốt ở đây nên modal Thêm/Sửa khách hàng + sản phẩm tưởng là
+  // lưu xong, tự đóng và mất hết chữ đã gõ. Giờ modal xem kết quả: lỗi thì giữ form.
+  const withOptimistic = (apply, revert, call, failMessage) =>
+    chayLacQuan(apply, revert, call, failMessage, (msg) => toast.error(msg));
 
   const handleAddMaterial = async (newMat) => {
     const prev = materials;
-    await withOptimistic(
+    return withOptimistic(
       () => setMaterials(m => [newMat, ...m]),
       () => setMaterials(prev),
       () => api.addMaterial(session.token, newMat),
@@ -242,7 +240,7 @@ export default function App() {
 
   const handleEditMaterial = async (sku, updates) => {
     const prev = materials;
-    await withOptimistic(
+    return withOptimistic(
       () => setMaterials(m => m.map(x => x.sku === sku ? { ...x, ...updates } : x)),
       () => setMaterials(prev),
       () => api.editMaterial(session.token, sku, updates),
@@ -252,7 +250,7 @@ export default function App() {
 
   const handleAddClient = async (newClient) => {
     const prev = clients;
-    await withOptimistic(
+    return withOptimistic(
       () => setClients(c => [newClient, ...c]),
       () => setClients(prev),
       () => api.addClient(session.token, newClient),
@@ -262,7 +260,7 @@ export default function App() {
 
   const handleEditClient = async (updatedClient) => {
     const prev = clients;
-    await withOptimistic(
+    return withOptimistic(
       // Theo id (30/09/2026): form Sửa đổi được cả Code, khớp theo Code mới sẽ không thấy dòng cũ.
       () => setClients(c => c.map(x => (updatedClient.id != null ? x.id === updatedClient.id : x.code === updatedClient.code) ? updatedClient : x)),
       () => setClients(prev),

@@ -116,6 +116,9 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
   const [trangThai, setTrangThai] = useState('');
   const [copied, setCopied] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  // true = đơn ĐANG HIỆN đã lưu xong. Từ 09/10/2026 chỉ handleGenerateOrder (bóc đơn MỚI) mới hạ cờ này:
+  // trước đây sửa một ô / đổi khách / thêm file là cờ về false và nút Lưu bấm lại được — lưu lần hai là
+  // saveOrder ghi thêm NGUYÊN đơn nữa (đơn trùng). Sửa đơn đã lưu thì làm ở mục "Đơn hàng chờ duyệt".
   const [saved, setSaved] = useState(false);
   const [hienDocText, setHienDocText] = useState(false);
   const [bangLui, setBangLui] = useState('');
@@ -134,7 +137,6 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
       if (loi.length) loi.forEach((m) => toast.error(m));
       if (!files.length && !tables.length) return;
       setDinhKem((cu) => ({ files: [...cu.files, ...files], tables: [...cu.tables, ...tables] }));
-      setSaved(false);
     } finally {
       setTrangThai('');
     }
@@ -211,7 +213,6 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
     }
 
     setIsProcessing(true);
-    setSaved(false);
     setBangLui('');
     setTrangThai(dinhKem.files.length ? 'AI đang đọc ảnh/PDF rồi ghép mã hàng...' : 'AI đang bóc tách đơn hàng...');
 
@@ -245,6 +246,9 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
         nguon: 'ai',
         catalogSize: kq.catalogSize
       });
+      // Hạ cờ "đã lưu" CHỈ khi đã có đơn mới thay vào — bóc hỏng mà hạ trước thì đơn cũ (đã lưu) đang hiện
+      // lại bấm Lưu được lần nữa.
+      setSaved(false);
     } catch (err) {
       // Đường lùi: hết hạn mức Gemini / chưa cấu hình khoá / mạng chập. Sale
       // vẫn lên được đơn từ phần chữ đã gõ + bảng Excel đã đọc, chỉ kém chính
@@ -273,6 +277,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
         docText: chuLui,
         nguon: 'cuc-bo'
       });
+      setSaved(false);
     } finally {
       setIsProcessing(false);
       setTrangThai('');
@@ -283,7 +288,6 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
 
   const capNhatItems = (updatedItems) => {
     setOrderResult((cu) => ({ ...cu, items: updatedItems, grandTotal: tinhTong(updatedItems) }));
-    setSaved(false);
   };
 
   const handleUpdateItem = (id, field, value) => {
@@ -305,7 +309,6 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
       return { ...item, price, total: item.qty * price * VAT_RATE };
     });
     setOrderResult((cu) => ({ ...cu, client, items: updatedItems, grandTotal: tinhTong(updatedItems) }));
-    setSaved(false);
   };
 
   // Sửa mã tay cũng là tín hiệu học: cụm chữ gốc (item.sourceQuery) được gắn
@@ -348,7 +351,8 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
   };
 
   const handleSaveOrder = async () => {
-    if (!orderResult || !orderResult.items.length || isSaving) return;
+    // `saved`: đơn này đã lưu rồi — lưu nữa là thêm một đơn trùng (saveOrder không lặp lại được, xem api.js).
+    if (!orderResult || !orderResult.items.length || isSaving || saved) return;
     if (!orderResult.client || !orderResult.client.code) {
       toast.error('Chưa xác định khách hàng — chọn Mã KH trước khi lưu.');
       return;
@@ -710,10 +714,15 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
                 </span>
               </div>
 
-              <button onClick={handleSaveOrder} disabled={isSaving} className="btn btn-primary" style={{ width: '100%', padding: '12px' }}>
+              <button onClick={handleSaveOrder} disabled={isSaving || saved} className="btn btn-primary" style={{ width: '100%', padding: '12px' }}>
                 {isSaving ? <Loader2 size={18} className="animate-spin" /> : (saved ? <Check size={18} /> : <Save size={18} />)}
                 {isSaving ? 'Đang lưu...' : (saved ? 'Đã lưu đơn!' : 'Lưu đơn')}
               </button>
+              {saved && (
+                <div style={{ fontSize: '0.75rem', color: 'var(--accent-emerald-text)', textAlign: 'center' }}>
+                  Đơn này đã lưu. Muốn sửa thì vào mục "Đơn hàng chờ duyệt"; bấm "Phân tích đơn" để lên đơn khác.
+                </div>
+              )}
 
               <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', background: 'rgba(59, 130, 246, 0.08)', padding: '10px 14px', borderRadius: 'var(--radius-md)' }}>
                 💡 <strong>Dán vào SAP:</strong> bấm <strong>"Copy dán về SAP"</strong>, mở màn hình tạo Sales Order trong SAP GUI (VA01),

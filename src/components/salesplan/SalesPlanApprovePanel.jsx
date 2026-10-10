@@ -40,6 +40,7 @@ export default function SalesPlanApprovePanel({ token, plans, transactions, onAp
   }, { planKpi: 0, planUpdate: 0, w1: 0, w2: 0, w3: 0, w4: 0, w5: 0, done: 0 }), [pendingRows, doneByCode]);
 
   const handleApprove = async () => {
+    if (isApproving) return; // chặn bấm Duyệt lần hai khi lượt đầu chưa về
     setIsApproving(true);
     try {
       const result = await api.approveSalesPlan(token, month);
@@ -129,7 +130,9 @@ export default function SalesPlanApprovePanel({ token, plans, transactions, onAp
         <ConfirmDialog
           title={`Duyệt toàn bộ kế hoạch tháng ${month}?`}
           message={`Sẽ đánh dấu Đã duyệt cho toàn bộ ${pendingRows.length} khách hàng đang chờ duyệt của tháng ${month}. Không thể duyệt lại từng dòng riêng sau khi xác nhận.`}
-          confirmLabel={isApproving ? 'Đang duyệt...' : 'Duyệt'}
+          confirmLabel="Duyệt"
+          busy={isApproving}
+          busyLabel="Đang duyệt..."
           onConfirm={handleApprove}
           onCancel={() => setConfirming(false)}
         />

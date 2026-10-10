@@ -114,6 +114,7 @@ export default function CostImportPanel({ token, activeUser, onImported }) {
   };
 
   const handleImport = async () => {
+    if (isImporting) return;  // chặn gửi trùng khi lượt đầu chưa về
     setIsImporting(true);
     try {
       const result = await api.importCostExcel(token, monthLabel, rows);
@@ -195,7 +196,9 @@ export default function CostImportPanel({ token, activeUser, onImported }) {
         <ConfirmDialog
           title={`Đồng bộ giá vốn tháng ${monthLabel}?`}
           message={`Sẽ cập nhật/thêm mới ${rows.length} mã vào tab "Cost" cho tháng ${monthLabel}. Nếu mã nào đã có dữ liệu đúng tháng này thì bị ghi đè; các tháng khác không đổi.`}
-          confirmLabel={isImporting ? 'Đang đồng bộ...' : 'Đồng bộ'}
+          confirmLabel="Đồng bộ"
+          busy={isImporting}
+          busyLabel="Đang đồng bộ..."
           onConfirm={handleImport}
           onCancel={() => setConfirming(false)}
         />

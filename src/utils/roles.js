@@ -23,11 +23,16 @@ export function canSeeAllSales(_role) {
 // là NFC — nhìn giống hệt nhau nhưng so bằng === thì không bao giờ khớp.
 const chuanHoa = (s) => String(s || '').normalize('NFC').trim().toLowerCase();
 
+// Bỏ tiền tố "KH " + gộp khoảng trắng: cột Sale ghi "KH Đình Hoan" còn saleId là "Đình Hoan".
+const chuanHoaChu = (s) => chuanHoa(s).replace(/\s+/g, ' ').replace(/^kh /, '');
+
 /**
  * Dòng dữ liệu (khách hàng / kế hoạch) này có thuộc về người đang đăng nhập không.
  *
- * So theo kiểu "chứa" chứ không phải bằng đúng, vì cột Sale trên Sheet hay ghi
- * dài hơn saleId (ví dụ saleId "Đình Hoan" nằm trong "KH Đình Hoan").
+ * So BẰNG ĐÚNG sau khi bỏ tiền tố "KH " (09/10/2026) — y hệt laSaleCuaMinh ở
+ * oem-api/util.js, chốt thật bên server. Trước đây so kiểu "chứa", nên saleId
+ * "Hoan" sửa được dòng của "KH Đình Hoan"; server đã siết lại thì giao diện
+ * cũng phải siết theo, không thì mở ô cho sửa rồi server từ chối lúc lưu.
  *
  * Fail CLOSED khi saleId trống: `includes('')` đúng với MỌI dòng, tức một Sale
  * thiếu saleId sẽ sửa được của tất cả mọi người. Giống hệt lý do backend fail
@@ -36,9 +41,11 @@ const chuanHoa = (s) => String(s || '').normalize('NFC').trim().toLowerCase();
 export function ownsSaleRow(activeUser, rowSale) {
   const role = String(activeUser?.role || '').toLowerCase();
   if (role !== 'sale') return role === 'admin' || role === 'creator';
-  const saleId = chuanHoa(activeUser?.saleId);
+  const saleId = chuanHoaChu(activeUser?.saleId);
   if (!saleId) return false;
-  return chuanHoa(rowSale).includes(saleId);
+  const row = chuanHoaChu(rowSale);
+  // Cùng phép so với server (oem-api util.js laSaleCuaMinh): bằng đúng hoặc saleId là trọn các chữ cuối của tên.
+  return row === saleId || row.endsWith(' ' + saleId);
 }
 
 /**
