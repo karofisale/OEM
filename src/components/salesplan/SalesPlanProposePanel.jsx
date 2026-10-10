@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Filter, CheckCircle2, Save, ShieldCheck, User, UserPlus, Plus, RefreshCw, AlertTriangle, Check, Lock } from 'lucide-react';
+import { Search, Filter, CheckCircle2, Save, ShieldCheck, User, UserPlus, Plus, RefreshCw, AlertTriangle, Check, Lock, CalendarRange } from 'lucide-react';
 import * as api from '../../services/api';
 import Combobox from '../Combobox';
+import ConfirmDialog from '../ConfirmDialog';
 import Pagination, { usePagedSlice } from '../Pagination';
 import SortableTh from '../SortableTh';
 import TableState from '../TableState';
@@ -68,6 +69,8 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
   // Backend chưa trả tháng mặc định thì tự tính theo giờ Việt Nam (1-24: tháng này, 25-31: tháng sau).
   const [month, setMonth] = useState(planDefaultMonth || vnPlanMonthKey());
   const [periodConfirmed, setPeriodConfirmed] = useState(false);
+  // Đổi tháng sau khi đã xác nhận (Đợt 3): còn nháp chưa lưu thì hỏi trước vì nháp gắn với THÁNG đang lập.
+  const [hoiDoiThang, setHoiDoiThang] = useState(false);
   // Sale mở màn này là để lập kế hoạch cho khách CỦA MÌNH, nên mặc định lọc
   // sẵn về mình — xem của người khác thì đổi sang "Tất cả SALE". Nếu vào thẳng
   // danh sách toàn công ty thì khách của chính mình lẫn trong hàng trăm dòng.
@@ -387,6 +390,22 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
     }
   };
 
+  // Nháp gắn theo mã khách của THÁNG đang lập (draftMap khoá theo searchCode, không theo tháng) — giữ lại khi sang
+  // tháng khác là ghi số của tháng này vào tháng kia. Nên đổi tháng = bỏ nháp (đã hỏi nếu còn dòng chưa lưu) và
+  // quay về bước chọn tháng; dữ liệu ĐÃ lưu nằm trên server nên không mất gì.
+  const doiThang = () => {
+    setDraftMap({});
+    setSavedMap({});
+    setExtraCodes([]);
+    setPickedClient(null);
+    setPickerKey(k => k + 1);
+    setSearchTerm('');
+    setPage(1);
+    setHoiDoiThang(false);
+    setPeriodConfirmed(false);
+  };
+  const yeuCauDoiThang = () => { if (pendingCodes.length) setHoiDoiThang(true); else doiThang(); };
+
   const handleReloadKpi = async () => {
     if (!onReloadPlanKpi) return;
     setIsReloadingKpi(true);
@@ -468,6 +487,10 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
         <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '4px' }}>
           <Filter size={12} /> {filteredRows.length.toLocaleString('vi-VN')} khách hàng
         </span>
+
+        <button type="button" onClick={yeuCauDoiThang} className="btn btn-secondary btn-sm" title="Chọn lại tháng lập kế hoạch">
+          <CalendarRange size={14} /> Tháng {month} · Đổi tháng
+        </button>
       </div>
 
       {/* Bổ sung khách chưa có trong bảng — tra trong tab Clients. */}
@@ -523,7 +546,7 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
               <th style={{ textAlign: 'right', width: '140px' }}>Tuần 3</th>
               <th style={{ textAlign: 'right', width: '140px' }}>Tuần 4</th>
               <th style={{ textAlign: 'right', width: '140px' }}>Tuần 5</th>
-              <th style={{ textAlign: 'right', width: '150px' }}>Plan_Update</th>
+              <th style={{ textAlign: 'right', width: '150px' }}>Plan update</th>
               <SortableTh col="done" sort={sort} onSort={onSort} align="right" style={{ width: '150px' }}>Doanh thu done</SortableTh>
               <th style={{ minWidth: '150px' }}>Note</th>
             </tr>
@@ -637,6 +660,18 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
           <Save size={16} /> {isSaving ? 'Đang lưu...' : `Lưu Kế Hoạch ${month}, Gửi Duyệt${pendingCodes.length ? ` (${pendingCodes.length})` : ''}`}
         </button>
       </div>
+
+      {hoiDoiThang && (
+        <ConfirmDialog
+          title={`Đổi khỏi tháng ${month}?`}
+          message={`Còn ${pendingCodes.length.toLocaleString('vi-VN')} khách đã nhập nhưng CHƯA lưu. Đổi tháng sẽ bỏ các số này (số đã lưu trước đó vẫn còn nguyên). Bấm "Ở lại" để lưu trước.`}
+          confirmLabel="Bỏ nháp và đổi tháng"
+          cancelLabel="Ở lại"
+          destructive
+          onConfirm={doiThang}
+          onCancel={() => setHoiDoiThang(false)}
+        />
+      )}
     </div>
   );
 }

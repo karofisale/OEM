@@ -111,7 +111,7 @@ export default function SalesPlanViewPanel({ plans, transactions, activeUser }) 
               <SortableTh col="clientName" sort={sort} onSort={onSort}>Khách hàng</SortableTh>
               <SortableTh col="sale" sort={sort} onSort={onSort} style={{ width: '130px' }}>SALE</SortableTh>
               <SortableTh col="planKpi" sort={sort} onSort={onSort} align="right" style={{ width: '120px' }}>Plan KPI</SortableTh>
-              <SortableTh col="planUpdate" sort={sort} onSort={onSort} align="right" style={{ width: '130px' }}>Plan_Update</SortableTh>
+              <SortableTh col="planUpdate" sort={sort} onSort={onSort} align="right" style={{ width: '130px' }}>Plan update</SortableTh>
               <SortableTh col="done" sort={sort} onSort={onSort} align="right" style={{ width: '120px' }}>Done</SortableTh>
               <SortableTh col="chenh" sort={sort} onSort={onSort} align="right" style={{ width: '120px' }}>Chênh</SortableTh>
               {TUAN.map((k, i) => <SortableTh key={k} col={k} sort={sort} onSort={onSort} align="right" style={{ width: '110px' }}>Tuần {i + 1}</SortableTh>)}

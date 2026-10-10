@@ -7,6 +7,7 @@ import StatusBadge from './StatusBadge';
 import TableState from './TableState';
 import ViewModeToggle from './ViewModeToggle';
 import { canSeeAllSales } from '../utils/roles';
+import { catKhoangTrang, timMaTrung } from '../utils/formClean';
 import { NHAN_CHI_XEM } from '../utils/glossary';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { useTableSort } from '../hooks/useTableSort';
@@ -129,11 +130,17 @@ export default function ClientManagement({ clients, activeUser, onAddClient, onE
   const handleSubmit = async (e) => {
     e.preventDefault();
     const f = form;
-    if (!f || !f.codeSearch.trim() || !f.name.trim() || savingAdd || savingEdit) return;
+    if (!f || savingAdd || savingEdit) return;
+    // Cắt khoảng trắng đầu-cuối (kể cả NBSP dán từ Excel) TRƯỚC khi so trùng và lưu (Đợt 3).
     const data = {
-      code: f.code.trim(), codeSearch: f.codeSearch.trim().toUpperCase(), name: f.name.trim(), alias: f.alias.trim(),
-      type: f.type, sale: f.sale.trim(), address: f.address.trim(), status: f.status, reconciliationAcct: f.reconciliationAcct.trim()
+      code: catKhoangTrang(f.code), codeSearch: catKhoangTrang(f.codeSearch).toUpperCase(), name: catKhoangTrang(f.name), alias: catKhoangTrang(f.alias),
+      type: f.type, sale: catKhoangTrang(f.sale), address: catKhoangTrang(f.address), status: f.status, reconciliationAcct: catKhoangTrang(f.reconciliationAcct)
     };
+    if (!data.codeSearch || !data.name) { setSaveError('Nhập đủ Search Code và Tên khách hàng (khoảng trắng đơn thuần không tính).'); return; }
+    // Mã KH (Code SAP) trùng khách khác: chặn sớm cho khỏi chờ server. Server cũng chặn, nhưng báo lỗi sau một lượt gọi.
+    // Không chặn Search Code trùng: một khách thật có thể có nhiều dòng danh bạ (khác địa chỉ/liên hệ).
+    const trung = timMaTrung(clients, (c) => (c.rawCode != null ? c.rawCode : c.code), data.code, (c) => !!editingClient && (c === editingClient || (c.id != null ? c.id === editingClient.id : c.code === editingClient.code)));
+    if (trung) { setSaveError(`Mã KH ${data.code} đã có trong danh bạ (${trung.codeSearch} — ${trung.name}). ${editingClient ? 'Mỗi khách chỉ có một Code.' : 'Dùng nút Sửa của khách đó nếu cần cập nhật.'}`); return; }
     setSaveError('');
     // onEditClient/onAddClient trả { ok, error } (withOptimistic ở App.jsx) — chỉ đóng modal khi đã lưu thật.
     if (editingClient) {

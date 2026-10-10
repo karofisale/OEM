@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { CheckCircle2, XCircle, RefreshCw, Users, Clock } from 'lucide-react';
 import * as api from '../../services/api';
 import ConfirmDialog from '../ConfirmDialog';
+import ReasonDialog from '../ReasonDialog';
 import SortableTh from '../SortableTh';
 import TableState from '../TableState';
 import { useToast } from '../ToastProvider';
@@ -112,7 +113,8 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
   useUnsavedGuard(!!currentBatch && !!editedInit && JSON.stringify(editedRows) !== editedInit, 'Duyệt giá');
 
   const setCell = (sku, field, value) => {
-    setEditedRows((prev) => ({ ...prev, [sku]: { ...prev[sku], [field]: value === '' ? 0 : (parseFloat(value) || 0) } }));
+    // Số âm không có nghĩa với giá/SL: kẹp về 0 (ô cũng có min=0).
+    setEditedRows((prev) => ({ ...prev, [sku]: { ...prev[sku], [field]: value === '' ? 0 : Math.max(0, parseFloat(value) || 0) } }));
   };
 
   // LNG % = (Giá đề xuất - Giá vốn+VAT) / Giá đề xuất — cả 2 vế đều sau VAT
@@ -142,11 +144,14 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
     }
   };
 
-  const handleReject = async () => {
+  // Lý do từ chối bắt buộc (Đợt 3), gửi kèm làm tham số `note` của rejectPriceBatch — server đã nhận và lưu
+  // vào cột note của đợt (oem.price_proposals.note). Sale chưa xem lại được lý do trên màn hình: chưa có endpoint
+  // trả đợt đã từ chối (xem báo cáo Đợt 3).
+  const handleReject = async (lyDo) => {
     if (!currentBatch || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      await api.rejectPriceBatch(token, currentBatch.batchId, '');
+      await api.rejectPriceBatch(token, currentBatch.batchId, String(lyDo || '').trim());
       toast.success('Đã từ chối đợt đề xuất này.');
       setConfirmAction(null);
       setSelectedBatch('');
@@ -240,13 +245,13 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
                     <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(r.currentRetail)}</td>
                     <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', color: 'var(--text-dim)' }}>{r.currentPromo ? fmt(r.currentPromo) : '-'}</td>
                     <td>
-                      <input type="number" className="input-field" style={{ textAlign: 'right', padding: '6px 8px' }} value={e.retail ?? ''} onChange={(ev) => setCell(r.sku, 'retail', ev.target.value)} />
+                      <input type="number" min="0" className="input-field" style={{ textAlign: 'right', padding: '6px 8px' }} value={e.retail ?? ''} onChange={(ev) => setCell(r.sku, 'retail', ev.target.value)} />
                     </td>
                     <td>
-                      <input type="number" className="input-field" style={{ textAlign: 'right', padding: '6px 8px' }} value={e.promoQty ?? ''} onChange={(ev) => setCell(r.sku, 'promoQty', ev.target.value)} />
+                      <input type="number" min="0" className="input-field" style={{ textAlign: 'right', padding: '6px 8px' }} value={e.promoQty ?? ''} onChange={(ev) => setCell(r.sku, 'promoQty', ev.target.value)} />
                     </td>
                     <td>
-                      <input type="number" className="input-field" style={{ textAlign: 'right', padding: '6px 8px' }} value={e.promoPrice ?? ''} onChange={(ev) => setCell(r.sku, 'promoPrice', ev.target.value)} />
+                      <input type="number" min="0" className="input-field" style={{ textAlign: 'right', padding: '6px 8px' }} value={e.promoPrice ?? ''} onChange={(ev) => setCell(r.sku, 'promoPrice', ev.target.value)} />
                     </td>
                     <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', fontWeight: 700 }}>{fmtPct(r.pctChange)}</td>
                     {isCreator && (
@@ -270,7 +275,7 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
       {confirmAction === 'approve' && (
         <ConfirmDialog
           title="Duyệt và áp dụng đợt giá này?"
-          message={`Sẽ ghi ngay ${currentBatch.rows.length} mã SKU vào ${currentBatch.clientCode ? `giá riêng của khách "${currentBatch.clientCode}"` : 'giá chung trên Products'}, với Ngày hiệu lực ${effectiveDate}. Không thể hoàn tác qua app.`}
+          message={`Sẽ ghi ngay ${currentBatch.rows.length} mã SKU vào ${currentBatch.clientCode ? `giá riêng của khách "${currentBatch.clientCode}"` : 'giá chung của danh mục sản phẩm'}, với Ngày hiệu lực ${effectiveDate}. Không thể hoàn tác qua app.`}
           confirmLabel="Duyệt & Áp Dụng"
           busy={isSubmitting}
           busyLabel="Đang duyệt..."
@@ -279,13 +284,15 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
         />
       )}
       {confirmAction === 'reject' && (
-        <ConfirmDialog
+        <ReasonDialog
           title="Từ chối đợt đề xuất này?"
           message={`Toàn bộ ${currentBatch.rows.length} mã SKU trong đợt sẽ chuyển sang "Từ chối" — Sale cần gửi đợt mới nếu muốn đề xuất lại.`}
+          reasonLabel="Lý do từ chối"
+          placeholder="VD: Giá lẻ thấp hơn giá vốn, đề nghị Sale xem lại…"
           confirmLabel="Từ Chối"
           busy={isSubmitting}
           busyLabel="Đang từ chối..."
-          destructive
+          danger
           onConfirm={handleReject}
           onCancel={() => setConfirmAction(null)}
         />

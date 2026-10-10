@@ -2,27 +2,44 @@
 
 Kho `karofisale/OEM`. Chạy tại `https://karofisale.github.io/OEM/`.
 
-`src/` (React 18 + Vite) và `gas/` (backend Apps Script). **Hai nửa deploy bằng
+`src/` (React 18 + Vite) là app chạy thật. `gas/` là **backend Apps Script CŨ**, đã đóng băng
+từ lúc cắt luồng sang Supabase (26/09/2026) — xem "Backend" bên dưới. **Hai nửa deploy bằng
 hai đường khác nhau.**
 
 ## Deploy
 
-**Client** — push lên `main`, GitHub Actions tự build và đẩy `dist`. Không build
-tay, không commit `dist` (đã gitignore).
+**Client** — push lên `main` của `karofisale/OEM`, GitHub Actions
+(`.github/workflows/`) tự `npm ci` + `npm run build` rồi đẩy `dist` lên GitHub Pages. Không
+build tay, không commit `dist` (đã gitignore). Trước khi push: `npm test` và `npm run build`
+phải sạch.
 
 > **`npm run deploy` trong `package.json` là script CŨ, đừng chạy.** Nó gọi
 > `gh-pages -d dist`, tức đẩy lên nhánh `gh-pages` — trong khi Actions deploy từ
 > `main`. Chạy nó là tạo ra hai nguồn tranh nhau phục vụ cùng một trang.
 
-**Backend** — `clasp push` CHƯA ĐỦ, phải redeploy đúng deployment thật:
+**Backend** — Supabase Edge Function `oem-api`, dữ liệu ở Postgres schema `oem`. Mã nguồn
+KHÔNG nằm trong kho này mà ở kho `karofisale/karofi-id`
+(`supabase/functions/oem-api`, schema ở `supabase/schema-oem.sql`):
 
 ```bash
-cd "D:/Antigravity/OEM App/gas" && clasp push -f && clasp redeploy AKfycbwKe1b7gUOnp9gPF_q6jlzTFIrD3DOtkFM8oMQf41D1iXGrEwmYElWZeupCNG-Szy7DfQ -d "mô tả"
+cd "D:/Operation/Claude/Projects/Karofi-ID" && npx supabase functions deploy oem-api
 ```
 
-Dự án có nhiều deployment; id ở trên là **bản thật** mà `src/services/api.js`
-đang gọi. `clasp list-deployments` để đối chiếu, và số `@n` tăng là bằng chứng
-đã tới người dùng.
+Cờ `verify_jwt = false` đã khai trong `supabase/config.toml` (app tự xác thực bằng PIN/token
+HMAC của Karofi ID, không dùng JWT của Supabase) nên không cần `--no-verify-jwt`. Đổi cấu
+trúc bảng thì chạy file `.sql` tương ứng trong Supabase trước, deploy hàm sau. Test của hàm:
+`Karofi-ID/test/oem-api.test.mjs` (Postgres thật bằng PGlite). Lỗi phía máy chủ thì xem log
+của hàm `oem-api` trên Supabase.
+
+Client gọi backend qua `API_URL` trong `src/services/api.js`; `VITE_OEM_API`
+(`.env.local`, không commit) trỏ tạm sang backend khác khi thử.
+
+**`gas/` + `clasp` — KHÔNG còn là đường deploy.** Dự án Apps Script cũ và Sheet OEM đã đóng
+băng từ mốc cắt luồng: `clasp push` / `clasp redeploy` không làm gì tới người dùng, còn ghi
+vào Sheet thì không bao giờ tới Postgres. Quay lại backend cũ là việc khẩn, đổi `API_URL` về
+URL Apps Script (ghi sẵn trong chú thích đầu `src/services/api.js`) và **mất mọi thứ đã ghi
+vào Postgres sau mốc cắt**. Các mục "Chạy tay", "Quy ước không được phá" và phần Cổng VHKD
+bên dưới mô tả mã `gas/` cũ — đọc như tài liệu lịch sử, đừng làm theo khi sửa app.
 
 ## Chạy tay: chỉ mở Run.gs
 

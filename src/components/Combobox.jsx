@@ -38,7 +38,12 @@ export default function Combobox({
   inputClassName = 'input-field',
   inputStyle,
   maxOptions = 30,
-  minListWidth = 280
+  minListWidth = 280,
+  // Đợt 3: `restoreText` (chuỗi) = chữ phải hiện khi rời ô — dùng khi ô này là BỘ CHỌN một giá trị đang có (vd khách
+  // của đề xuất giá): gõ dở rồi bấm ra ngoài thì trả về lựa chọn thật, không để ô hiện chữ gõ dở trong khi giá trị
+  // đang chọn là cái khác. Không truyền thì giữ cách cũ (ô tự do). `disabled` khoá ô.
+  restoreText,
+  disabled = false
 }) {
   const [query, setQuery] = useState(initialText);
   const [open, setOpen] = useState(false);
@@ -126,9 +131,10 @@ export default function Combobox({
         aria-autocomplete="list"
         aria-activedescendant={showList && activeIndex >= 0 ? `${listboxId}-opt-${activeIndex}` : undefined}
         autoComplete="off"
+        disabled={disabled}
         onChange={(e) => { setQuery(e.target.value); setOpen(true); setActiveIndex(-1); }}
         onFocus={(e) => { e.target.select(); setOpen(true); }}
-        onBlur={() => { setOpen(false); setActiveIndex(-1); }}
+        onBlur={() => { setOpen(false); setActiveIndex(-1); if (restoreText !== undefined) setQuery(restoreText); }}
         onKeyDown={handleKeyDown}
       />
 

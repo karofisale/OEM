@@ -203,7 +203,7 @@ export default function RevenueImportPanel({ token, activeUser, onImported }) {
           <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
             Hiện {Math.min(50, kq.rows.length)} dòng đầu. Bảy cột <strong>Tuần</strong>, <strong>DT thuần sau VAT</strong>,
             {' '}<strong>Mã KH chữ</strong>, <strong>Sale</strong>, <strong>Nhóm hàng hoá</strong>, <strong>Quý</strong>, <strong>PK</strong>
-            {' '}do chính Sheet tính hoặc điền tay — lượt nhập này không đụng vào.
+            {' '}do hệ thống tự tính hoặc điền tay — lượt nhập này không đụng vào.
           </p>
         </div>
       )}

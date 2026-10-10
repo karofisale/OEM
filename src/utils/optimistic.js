@@ -6,6 +6,8 @@
  * nuốt lỗi, nên modal Thêm/Sửa khách hàng + sản phẩm tưởng đã lưu xong, tự
  * đóng và mất hết chữ đã gõ. Giờ bên gọi đọc kết quả: lỗi thì giữ modal.
  */
+import { lamSachLoi } from './errorText.js';
+
 export async function chayLacQuan(apply, revert, call, failMessage, baoLoi) {
   apply();
   try {
@@ -13,7 +15,8 @@ export async function chayLacQuan(apply, revert, call, failMessage, baoLoi) {
     return { ok: true };
   } catch (err) {
     revert();
-    const error = `${failMessage}: ${err && err.message ? err.message : String(err)}`;
+    // lamSachLoi (Đợt 3): lỗi Postgres/server thô -> câu tiếng Việt + mã tham chiếu; câu tiếng Việt giữ nguyên.
+    const error = `${failMessage}: ${lamSachLoi(err && err.message ? err.message : String(err))}`;
     if (baoLoi) baoLoi(error);
     return { ok: false, error };
   }

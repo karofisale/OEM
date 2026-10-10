@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Sparkles,
   ChevronLeft,
   ChevronRight,
   ChevronDown
 } from 'lucide-react';
 import { NAV, ACCOUNT_TAB_IDS, iconOf } from '../utils/navMeta';
+import { nhanVaiTro } from '../utils/glossary';
+import { version as APP_VERSION } from '../../package.json';
 
 // Vai trò "account" (kế toán) chỉ cần Sản phẩm & Bảng giá, Khách hàng, Công
 // nợ — không liên quan tới đặt hàng/doanh thu/kế hoạch kinh doanh nội bộ Sale
@@ -195,15 +196,14 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
         );
       })}
 
+      {/* Chân menu (Đợt 3): thay thẻ quảng cáo (tên engine, không có thông tin) bằng đúng hai thông tin hữu ích — mình đang đăng
+          nhập với vai trò gì và đang chạy bản nào (báo lỗi cho admin thì cần số bản). */}
       {!effectiveCollapsed && (
-        <div style={{ marginTop: 'auto', padding: '12px 10px', background: 'var(--bg-main)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-            <Sparkles size={14} color="var(--karofi-cyan)" />
-            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--karofi-navy)' }}>Karofi AI Engine</span>
-          </div>
-          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>
-            Tự động hóa đơn SAP & Phân quyền Creator, Admin, Leader, Sale.
-          </p>
+        <div style={{ marginTop: 'auto', padding: '8px 10px', borderTop: '1px solid var(--border-color)', fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+          {activeUser && activeUser.role && (
+            <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{nhanVaiTro(activeUser.role, activeUser.saleId).text}</div>
+          )}
+          <div>OEM Portal · v{APP_VERSION}</div>
         </div>
       )}
     </aside>

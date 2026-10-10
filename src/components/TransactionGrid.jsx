@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, Calendar, User, FileText, Layers, Upload, ChevronUp } from 'lucide-react';
+import { Search, Filter, Calendar, User, FileText, Layers, Upload, ChevronUp, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { resolvePeriod, inPeriod } from '../utils/period';
 import CaoSapPanel from './transactions/CaoSapPanel';
 import RevenueImportPanel from './transactions/RevenueImportPanel';
@@ -8,9 +8,13 @@ import SanPhamChuaCoPanel from './transactions/SanPhamChuaCoPanel';
 import Pagination, { usePagedSlice } from './Pagination';
 import SortableTh from './SortableTh';
 import TableState from './TableState';
-import { hienNgay } from '../utils/vnDate';
+import { hienNgay, vnDateSlug } from '../utils/vnDate';
 import { useTableSort } from '../hooks/useTableSort';
 import { usePersistentState } from '../hooks/usePersistentState';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { useToast } from './ToastProvider';
+import { coTrangHopLe } from '../utils/paging';
+import { dongXuatDoanhThu, tenFileDoanhThu } from '../utils/transactionsExport';
 
 // Cột sắp xếp được (Đợt 2 / mục 3). Ngày so theo thời điểm, không so chữ 'dd/MM/yyyy'.
 const COLS = [
@@ -19,6 +23,7 @@ const COLS = [
 ];
 
 export default function TransactionGrid({ transactions, materials, token, activeUser, onImported }) {
+  const toast = useToast();
   // Panel nhập ZSD450 mặc định ĐÓNG: màn này chủ yếu để tra cứu, còn nhập là
   // việc mỗi tháng vài lần. Mở sẵn thì phần lớn lượt vào tab phải cuộn qua nó.
   const [moNhap, setMoNhap] = useState(false);
@@ -35,7 +40,10 @@ export default function TransactionGrid({ transactions, materials, token, active
   const [selectedYear, setSelectedYear] = usePersistentState('tx.year', null);
   const [selectedMonth, setSelectedMonth] = usePersistentState('tx.month', null);
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 25;
+  // Cỡ trang chọn được + nhớ qua F5 (Đợt 3): ~160 trang x 25 dòng là quá nhiều để bấm Sau từng trang.
+  const [pageSizeSaved, setPageSize] = usePersistentState('tx.pageSize', 25, (v) => coTrangHopLe(v, 0) !== 0);
+  const pageSize = coTrangHopLe(pageSizeSaved);
+  const [exporting, setExporting] = useState(false);
   // Bơm để NhipDoanhThu đọc lại mốc sau mỗi lượt nhập/cào — nếu không thì dòng
   // "cập nhật lần cuối" vẫn là mốc cũ ngay sau khi người dùng vừa cập nhật xong.
   const [nhipTick, setNhipTick] = useState(0);
@@ -62,10 +70,13 @@ export default function TransactionGrid({ transactions, materials, token, active
   const { years: yearsList, year: effectiveYear, months: monthsList, month: effectiveMonth } =
     useMemo(() => resolvePeriod(transactions, selectedYear, selectedMonth), [transactions, selectedYear, selectedMonth]);
 
+  // Ô tìm debounce (Đợt 3): ~4.000+ dòng x 5 trường, gõ nhanh không nên lọc lại ở mỗi ký tự.
+  const debouncedSearch = useDebouncedValue(searchTerm);
+
   const filteredData = useMemo(() => {
     // Hạ chuỗi tìm kiếm 1 lần, không phải 5 lần mỗi dòng mỗi phím gõ — giống
     // mẫu đã sửa ở ClientManagement/ProductManagement, bảng này bị bỏ sót.
-    const q = searchTerm.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     return transactions.filter(t => {
       const matchSearch =
         !q ||
@@ -81,7 +92,7 @@ export default function TransactionGrid({ transactions, materials, token, active
 
       return matchSearch && matchSale && matchGroup && matchMonth;
     });
-  }, [transactions, searchTerm, selectedSale, selectedGroup, effectiveYear, effectiveMonth]);
+  }, [transactions, debouncedSearch, selectedSale, selectedGroup, effectiveYear, effectiveMonth]);
 
   // usePagedSlice tự lùi trang khi bộ lọc làm filteredData ngắn lại, không chỉ
   // dựa vào setCurrentPage(1) gắn thủ công ở từng ô lọc — trước đây bảng này tự
@@ -98,6 +109,24 @@ export default function TransactionGrid({ transactions, materials, token, active
       return acc;
     }, { qty: 0, netRevenue: 0 });
   }, [filteredData]);
+
+  // Xuất ĐÚNG kết quả đang lọc + sắp xếp (không chỉ trang đang xem). xlsx tải lười: thư viện lớn, chỉ đáng tải khi có người bấm.
+  const handleExport = async () => {
+    if (exporting || !sortedData.length) return;
+    setExporting(true);
+    try {
+      const XLSX = await import('xlsx');
+      const ws = XLSX.utils.json_to_sheet(dongXuatDoanhThu(sortedData));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Doanh thu');
+      XLSX.writeFile(wb, tenFileDoanhThu(effectiveMonth, effectiveYear, vnDateSlug()));
+      toast.success(`Đã xuất ${sortedData.length.toLocaleString('vi-VN')} dòng ra file Excel.`);
+    } catch (err) {
+      toast.error('Không xuất được file Excel: ' + (err.message || err));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -124,6 +153,16 @@ export default function TransactionGrid({ transactions, materials, token, active
               {moNhap ? 'Đóng' : 'Cập nhật doanh thu'}
             </button>
           )}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleExport}
+            disabled={exporting || filteredData.length === 0}
+            title="Xuất đúng các dòng đang lọc (và thứ tự đang sắp) ra file Excel"
+          >
+            {exporting ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />}
+            {exporting ? 'Đang xuất...' : 'Xuất Excel'}
+          </button>
           <span className="badge badge-blue" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
             Hiển thị {filteredData.length.toLocaleString('vi-VN')} bản ghi
           </span>
@@ -304,6 +343,7 @@ export default function TransactionGrid({ transactions, materials, token, active
         pageSize={pageSize}
         totalItems={filteredData.length}
         onPageChange={setCurrentPage}
+        onPageSizeChange={(n) => { setPageSize(n); setCurrentPage(1); }}
         itemLabel="bản ghi"
       />
 

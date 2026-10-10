@@ -6,6 +6,10 @@
  *   &fail=1   mọi lệnh ĐỌC trả lỗi (xem trạng thái lỗi + nút Thử lại)
  *   &theme=dark|light
  *   &gio=0030 đồng hồ giả: 00:30 giờ VN ngày 01/11/2026 (xem tháng/ngày mặc định theo giờ VN)
+ *   &failwrite=1   mọi lệnh GHI báo lỗi Postgres thô (xem lớp dịch lỗi errorText: tiếng Việt + mã tham chiếu)
+ *   &failrow=11    chỉ updateOrderLine của dòng rowIndex=11 báo lỗi thô (thử "Lưu cả đơn" một phần)
+ *   &big=1         4.000+ dòng doanh thu (thử phân trang Đầu/Cuối/nhảy trang/cỡ trang + xuất Excel)
+ * Nhật ký lệnh ghi: window.__harnessLog (mảng { fn, args }) — để soát gửi gì lên máy chủ (vd lý do từ chối).
  */
 const q = new URLSearchParams(window.location.search);
 const role = q.get('role') || 'admin';
@@ -45,7 +49,7 @@ const materials = Array.from({ length: 60 }, (_, i) => ({
 }));
 const months = ['T08-2026', 'T09-2026', 'T10-2026'];
 const transactions = [];
-for (let m = 0; m < 3; m++) for (let i = 0; i < 70; i++) {
+for (let m = 0; m < 3; m++) for (let i = 0; i < (q.get('big') ? 1400 : 70); i++) {
   const c = clients[i % 25]; const mat = materials[(i * 3) % 60]; const day = 1 + (i % 28);
   const qty = 10 + ((i * 7) % 90);
   transactions.push({
@@ -73,9 +77,23 @@ const pendingProposals = materials.slice(0, 6).map((m) => ({
   currentRetail: m.suggestedPrice, currentPromo: 0, retailPropose: m.suggestedPrice + 2000, promoQtyPropose: 0, promoPricePropose: 0, pctChange: 0.04
 }));
 
+const RAW_PG = 'duplicate key value violates unique constraint "products_sku_key"';
+window.__harnessLog = [];
+let nextId = 500;
+
 function doc(fn, args) {
   if (q.get('fail') && /^get|^ping/.test(fn) && fn !== 'getBootstrap') throw new Error('Mô phỏng lỗi mạng (fail=1)');
+  if (!/^get|^ping|^login/.test(fn)) window.__harnessLog.push({ fn, args: args.slice(1) });
+  if (q.get('failwrite') && !/^get|^ping|^login/.test(fn)) throw new Error(RAW_PG);
+  if (q.get('failrow') && fn === 'updateOrderLine' && String(args[1]) === q.get('failrow')) throw new Error(RAW_PG);
   switch (fn) {
+    case 'updateOrderLine': { const o = orders.find((x) => x.rowIndex === Number(args[1])); if (o) Object.assign(o, args[2]); return { ok: true }; }
+    case 'insertOrderLine': {
+      const i = orders.findIndex((x) => x.rowIndex === Number(args[1])); const ref = orders[i];
+      const nu = { rowIndex: nextId++, orderNo: ref.orderNo, sku: '', name: '', qty: 0, price: 0, total: 0, clientCode: ref.clientCode, clientCodeSearch: ref.clientCodeSearch, createdAt: ref.createdAt, pic: ref.pic };
+      orders.splice(args[2] === 'above' ? i : i + 1, 0, nu); return { ok: true, insertedRowIndex: nu.rowIndex };
+    }
+    case 'deleteOrderLine': { const i = orders.findIndex((x) => x.rowIndex === Number(args[1])); if (i >= 0) orders.splice(i, 1); return { ok: true }; }
     case 'getBootstrap': return { clients, transactions, materials, plans, planDefaultMonth: '', kits: [] };
     case 'getReportContext': return { plan2026: {}, baselines2025: {} };
     case 'getOrders': return orders;

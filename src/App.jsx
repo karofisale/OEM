@@ -41,14 +41,15 @@ import { useToast } from './components/ToastProvider';
 import { useNavGuard } from './components/NavGuard';
 import { chayLacQuan } from './utils/optimistic';
 import { tabHopLe } from './utils/navMeta';
+import { lamSachLoi } from './utils/errorText';
 import { readUi, writeUi, setUiScope } from './utils/uiState';
 
 export default function App() {
   const toast = useToast();
   const guard = useNavGuard();
   const [session, setSession] = useState(() => api.loadSession());
-  // Nhớ tab cuối qua F5 (Đợt 2 / mục 9). Trước đây luôn về 'ai-agent' — kể cả với
-  // lead/admin vào để xem báo cáo. tabHopLe() chặn tab đã nhớ mà vai trò hiện tại
+  // Nhớ tab cuối qua F5 (Đợt 2 / mục 9). Chưa nhớ gì thì mặc định THEO VAI TRÒ (Đợt 3, navMeta.tabMacDinh):
+  // admin/leader vào báo cáo doanh thu, Sale vào AI Nhận Đơn Hàng, kế toán vào Sản phẩm. tabHopLe() chặn tab đã nhớ mà vai trò hiện tại
   // không được vào (vd kế toán chỉ có 3 mục). Phạm vi theo tên người đăng nhập:
   // máy dùng chung thì người sau không thừa hưởng tab/bộ lọc của người trước.
   const [activeTab, setActiveTabRaw] = useState(() => {
@@ -200,12 +201,10 @@ export default function App() {
     setUiScope(newSession && newSession.user && newSession.user.name);
     setSession(newSession);
     setShowLoginModal(false);
-    // Vai trò "account" không có trong menu "AI Agent Đặt Hàng SAP" (mặc định
-    // của mọi vai trò khác) — landing thẳng vào đó vẫn hiển thị được nội dung
-    // dù sidebar đã ẩn link, gây lẫn lộn. Đưa họ thẳng tới trang đầu tiên họ
-    // thực sự được vào.
-    if (newSession?.user?.role === 'account') setActiveTab('products');
-    else setActiveTab(tabHopLe(readUi('tab', activeTab), newSession?.user?.role));
+    // Đã có tab được nhớ (của người này, phạm vi theo tên) thì giữ; CHƯA có thì mặc định THEO VAI TRÒ (tabMacDinh:
+    // admin/leader -> báo cáo, Sale -> AI, kế toán -> Sản phẩm), không thừa hưởng tab của người đăng nhập trước.
+    // Dùng Raw: tab mặc định chưa phải lựa chọn của người dùng nên chưa ghi vào bộ nhớ.
+    setActiveTabRaw(tabHopLe(readUi('tab', null), newSession?.user?.role));
   };
 
   const handleLogout = () => {
@@ -332,7 +331,7 @@ export default function App() {
             <RefreshCw size={14} className="animate-spin" />
             {isShowingCached
               ? 'Đang hiển thị số liệu đã lưu lần trước — đang tải bản mới nhất ở nền, bảng sẽ tự cập nhật khi xong.'
-              : 'Đang tải lại dữ liệu từ backend — có thể mất khá lâu nếu mạng đang chập chờn, vui lòng chờ...'}
+              : 'Đang tải lại dữ liệu từ máy chủ — có thể mất khá lâu nếu mạng đang chập chờn, vui lòng chờ...'}
           </div>
         )}
 
@@ -350,7 +349,7 @@ export default function App() {
 
         {bootstrapError && (
           <div style={{ margin: '16px 32px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(220, 38, 38, 0.12)', color: 'var(--danger)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-            <span>Lỗi tải dữ liệu từ backend: {bootstrapError}</span>
+            <span>Lỗi tải dữ liệu từ máy chủ: {lamSachLoi(bootstrapError)}</span>
             <button onClick={() => fetchAllData(true)} className="btn btn-secondary btn-sm" disabled={isSyncing}>
               Thử lại
             </button>

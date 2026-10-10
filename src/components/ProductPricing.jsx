@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import KeepAliveTab from './KeepAliveTab';
 import SubTabs from './SubTabs';
 import { SUBTABS } from '../utils/navMeta';
@@ -69,7 +69,9 @@ export default function ProductPricing({ token, materials, clients, kits, active
             token={token}
             activeUser={activeUser}
             refreshTick={refreshTick}
-            onApproved={() => { if (onDataChanged) onDataChanged(); setSubView('catalog'); }}
+            // Ở LẠI tab Chờ duyệt (Đợt 3): duyệt xong thường còn đợt khác trong hàng đợi; trước đây bị đẩy về Danh Mục.
+            // Vẫn nạp lại dữ liệu nền để giá mới hiện ở Danh Mục khi người duyệt sang xem.
+            onApproved={() => { if (onDataChanged) onDataChanged(); }}
           />
         </KeepAliveTab>
       )}

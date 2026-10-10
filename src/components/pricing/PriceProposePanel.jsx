@@ -3,6 +3,7 @@ import { Search, Filter, Save, Users } from 'lucide-react';
 import * as api from '../../services/api';
 import Pagination, { usePagedSlice } from '../Pagination';
 import ConfirmDialog from '../ConfirmDialog';
+import Combobox from '../Combobox';
 import SortableTh from '../SortableTh';
 import TableState from '../TableState';
 import { useToast } from '../ToastProvider';
@@ -11,8 +12,12 @@ import { useTableSort } from '../../hooks/useTableSort';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { useUnsavedGuard } from '../../hooks/useUnsavedGuard';
 import { dongDeXuat, soMaCoNhap, boNhapDaGui } from '../../utils/priceDraft';
+import { chuanTim } from '../../utils/searchText';
 
 const PAGE_SIZE = 25;
+// Lựa chọn "không chọn khách" trong ô tìm khách: đề xuất giá CHUNG.
+const KHACH_CHUNG = { codeSearch: '', name: 'Áp dụng chung (mọi khách hàng)' };
+const nhanKhach = (c) => (c.codeSearch ? `${c.codeSearch} — ${c.name}` : c.name);
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
 
 const parseDigits = (text) => {
@@ -66,6 +71,27 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
 
     return () => { cancelled = true; };
   }, [token, clientCode]);
+
+  // Ô chọn khách tìm được (Đợt 3): danh bạ có hàng trăm khách, <select> không gõ để lọc được. Bỏ trùng theo Mã KH chữ
+  // (một khách thật có thể có nhiều dòng danh bạ); "Áp dụng chung" luôn đứng đầu.
+  const clientOptions = useMemo(() => {
+    const seen = new Set();
+    const out = [KHACH_CHUNG];
+    (clients || []).forEach((c) => {
+      if (!c.codeSearch || seen.has(c.codeSearch)) return;
+      seen.add(c.codeSearch);
+      out.push(c);
+    });
+    return out;
+  }, [clients]);
+  const khachDangChon = clientOptions.find((c) => c.codeSearch === clientCode) || KHACH_CHUNG;
+  const nhanDangChon = nhanKhach(khachDangChon);
+  const khopKhach = (c, q) => {
+    const k = chuanTim(q);
+    // Ô đang hiện đúng nhãn đã chọn (vừa bấm vào ô, chưa gõ gì) -> cho xem đủ danh sách, không chỉ đúng 1 dòng.
+    if (!k || q === nhanDangChon) return true;
+    return [c.codeSearch, c.name, c.code, c.alias].some((t) => chuanTim(t).includes(k));
+  };
 
   const groupsList = useMemo(() => {
     const set = new Set(materials.map((m) => m.group).filter(Boolean));
@@ -200,10 +226,31 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Users size={15} color="var(--text-muted)" />
-          <select className="input-field" style={{ width: '220px' }} value={clientCode} disabled={isSaving} onChange={(e) => requestClientChange(e.target.value)}>
-            <option value="">Áp dụng chung (mọi khách hàng)</option>
-            {clients.map((c) => <option key={c.codeSearch} value={c.codeSearch}>{c.name}</option>)}
-          </select>
+          <div style={{ width: '280px' }}>
+            {/* key theo khách đang chọn: đổi khách (đã xác nhận) thì ô dựng lại với đúng nhãn mới. */}
+            <Combobox
+              key={clientCode || '__chung__'}
+              initialText={nhanDangChon}
+              restoreText={nhanDangChon}
+              disabled={isSaving}
+              options={clientOptions}
+              filterFn={khopKhach}
+              toText={nhanKhach}
+              getKey={(c) => c.codeSearch || '__chung__'}
+              renderOption={(c) => (
+                <div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>
+                    {c.codeSearch ? <span className="code-font" style={{ color: 'var(--cyan-text)' }}>{c.codeSearch}</span> : 'Áp dụng chung'}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{c.codeSearch ? c.name : 'Giá chung của danh mục, không riêng khách nào'}</div>
+                </div>
+              )}
+              onSelect={(c) => requestClientChange(c.codeSearch)}
+              placeholder="Gõ tên / mã khách để tìm…"
+              ariaLabel="Chọn khách hàng cho đề xuất giá"
+              maxOptions={40}
+            />
+          </div>
         </div>
 
         <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -214,7 +261,7 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
       {clientCode && (
         <div className="glass-card" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Users size={14} color="var(--karofi-cyan)" />
-          Đang đề xuất giá <strong>RIÊNG</strong> cho khách hàng này — không ảnh hưởng giá chung trên Products.
+          Đang đề xuất giá <strong>RIÊNG</strong> cho khách hàng này — không ảnh hưởng giá chung của danh mục sản phẩm.
         </div>
       )}
 
@@ -298,7 +345,7 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
       {pendingClientCode !== null && (
         <ConfirmDialog
           title="Đổi khách hàng?"
-          message={`Đang có giá nháp cho ${draftCount.toLocaleString('vi-VN')} mã SKU của ${clientCode ? 'khách đang chọn' : 'giá chung'}. Đổi khách sẽ BỎ các giá nháp này (chưa gửi) để không gửi nhầm sang khách khác.`}
+          message={`Đang có giá nháp cho ${draftCount.toLocaleString('vi-VN')} mã SKU của ${clientCode ? `khách ${nhanDangChon}` : 'giá chung'}. Đổi sang ${pendingClientCode ? (clientOptions.find((c) => c.codeSearch === pendingClientCode) ? nhanKhach(clientOptions.find((c) => c.codeSearch === pendingClientCode)) : pendingClientCode) : 'giá chung'} sẽ BỎ các giá nháp này (chưa gửi) để không gửi nhầm giá của khách này sang khách khác. Bấm "Ở lại" nếu muốn gửi đề xuất hiện tại trước.`}
           confirmLabel="Bỏ nháp và đổi khách"
           cancelLabel="Ở lại"
           destructive

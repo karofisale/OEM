@@ -7,6 +7,7 @@ import SortableTh from './SortableTh';
 import TableState from './TableState';
 import ViewModeToggle from './ViewModeToggle';
 import { laMaMay } from '../utils/bom';
+import { catKhoangTrang, timMaTrung, kiemGia } from '../utils/formClean';
 import { NHAN_CHI_XEM } from '../utils/glossary';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { useTableSort } from '../hooks/useTableSort';
@@ -96,13 +97,25 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
 
   const handleCreateMaterial = async (e) => {
     e.preventDefault();
-    if (!newSku || !newName || savingAdd) return;
+    if (savingAdd) return;
+    // Cắt khoảng trắng đầu-cuối TRƯỚC khi so trùng và lưu (Đợt 3): mã dán từ Excel/SAP hay dính dấu cách,
+    // "MAT1000 " và "MAT1000" nhìn giống nhau nhưng server so chính xác nên cho lọt thành hai mã.
+    const sku = catKhoangTrang(newSku);
+    const name = catKhoangTrang(newName);
+    if (!sku || !name) { setAddError('Nhập đủ Mã SKU và Tên vật tư (khoảng trắng đơn thuần không tính).'); return; }
+    const loiGia = kiemGia(newSuggestedPrice, 'Giá bán');
+    if (loiGia) { setAddError(loiGia); return; }
+    const trung = timMaTrung(materials, (m) => m.sku, sku);
+    if (trung) {
+      setAddError(`Mã SKU "${trung.sku}" đã có trong danh mục (${trung.name}). ${isAdmin ? 'Dùng nút "Sửa" ở dòng đó để cập nhật.' : 'Nhờ Admin cập nhật nếu cần đổi thông tin.'}`);
+      return;
+    }
 
     const mat = {
-      sku: newSku,
-      name: newName,
-      alias: newAlias || newName.split(' ')[0],
-      group: newGroup,
+      sku,
+      name,
+      alias: catKhoangTrang(newAlias) || name.split(' ')[0],
+      group: catKhoangTrang(newGroup),
       unit: newUnit,
       suggestedPrice: parseFloat(newSuggestedPrice) || 0,
       avgPrice: parseFloat(newSuggestedPrice) || 0,
@@ -139,12 +152,14 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
   const handleSaveEditMaterial = async (e) => {
     e.preventDefault();
     if (!editingMat || savingEdit) return;
+    const loiGia = kiemGia(editSuggestedPrice, 'Giá bán');
+    if (loiGia) { setEditError(loiGia); return; }
     setSavingEdit(true);
     setEditError('');
     try {
       const kq = await onEditMaterial(editingMat.sku, {
-        alias: editAlias,
-        group: editGroup,
+        alias: catKhoangTrang(editAlias),
+        group: catKhoangTrang(editGroup),
         suggestedPrice: parseFloat(editSuggestedPrice) || 0
       });
       if (kq && kq.ok === false) { setEditError(kq.error || 'Không lưu được, thử lại.'); return; }
@@ -344,7 +359,7 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
 
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">Giá Bán (VND):</label>
-              <input type="number" min="0" className="input-field" value={editSuggestedPrice} onChange={(e) => setEditSuggestedPrice(e.target.value)} />
+              <input type="number" min="0" step="any" className="input-field" value={editSuggestedPrice} onChange={(e) => setEditSuggestedPrice(e.target.value)} />
             </div>
 
             {editError && (
@@ -366,7 +381,7 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
           <form onSubmit={handleCreateMaterial} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">Mã SKU Vật Tư (SAP Code):</label>
-              <input type="text" required className="input-field" value={newSku} onChange={(e) => setNewSku(e.target.value)} />
+              <input type="text" required className="input-field" value={newSku} onChange={(e) => setNewSku(e.target.value)} onBlur={() => setNewSku((v) => catKhoangTrang(v))} />
             </div>
 
             <div className="form-group" style={{ margin: 0 }}>
@@ -386,7 +401,7 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
 
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">Giá Bán (VND):</label>
-              <input type="number" min="0" className="input-field" value={newSuggestedPrice} onChange={(e) => setNewSuggestedPrice(e.target.value)} />
+              <input type="number" min="0" step="any" className="input-field" value={newSuggestedPrice} onChange={(e) => setNewSuggestedPrice(e.target.value)} />
             </div>
 
             {addError && (

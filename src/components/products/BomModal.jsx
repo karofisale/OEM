@@ -4,6 +4,7 @@ import * as api from '../../services/api';
 import { useToast } from '../ToastProvider';
 import Modal from '../Modal';
 import { hienNgay } from '../../utils/vnDate';
+import { lamSachLoi } from '../../utils/errorText';
 import { parseBomDan, JOB_BOM_NUT } from '../../utils/bom';
 
 /**
@@ -208,7 +209,7 @@ export default function BomModal({ token, sku, materialName, canUpdate, onClose 
             )}
             {phaCao === 'loi' && (
               <div style={{ fontSize: '0.78rem', color: 'var(--danger-strong)', display: 'flex', gap: '6px' }}>
-                <AlertTriangle size={14} /> {loiCao}
+                <AlertTriangle size={14} /> {lamSachLoi(loiCao)}
               </div>
             )}
 
@@ -238,7 +239,7 @@ export default function BomModal({ token, sku, materialName, canUpdate, onClose 
         <div className="table-container" style={{ overflowY: 'auto', flex: 1, minHeight: '120px' }}>
           {loiDoc ? (
             <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--danger-strong)', fontSize: '0.85rem' }}>
-              Không đọc được BOM: {loiDoc}
+              Không đọc được BOM: {lamSachLoi(loiDoc)}
             </div>
           ) : dangDoc && !bom ? (
             <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-dim)' }}>Đang đọc BOM...</div>

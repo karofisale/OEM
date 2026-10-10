@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node test/admin-tables.test.cjs && node test/dot1-sua-loi.test.cjs && node test/dot2-khung-ui.test.cjs && node test/kpi-nam.test.cjs && node test/period-year.test.cjs && node test/portalstats.test.cjs && node test/revenue-import.test.cjs && node test/sales-plan-done.test.cjs"
+    "test": "node test/admin-tables.test.cjs && node test/dot1-sua-loi.test.cjs && node test/dot2-khung-ui.test.cjs && node test/dot3-tung-man.test.cjs && node test/kpi-nam.test.cjs && node test/period-year.test.cjs && node test/portalstats.test.cjs && node test/revenue-import.test.cjs && node test/sales-plan-done.test.cjs"
   },
   "dependencies": {
     "lucide-react": "^0.344.0",

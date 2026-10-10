@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, AlertTriangle, Clock, AlertCircle } from 'lucide-react';
 import * as api from '../../services/api';
 import { docNgay, hienNgay } from '../../utils/vnDate';
+import { lamSachLoi } from '../../utils/errorText';
 
 /**
  * "Doanh thu cập nhật lần cuối: ..." trên màn Lịch sử doanh thu.
@@ -74,7 +75,7 @@ export default function NhipDoanhThu({ token, refreshTick }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '6px', fontSize: '0.78rem', color: mau }}>
       <Icon size={13} />
       {loi ? (
-        <span>Không đọc được mốc cập nhật ({loi})</span>
+        <span>Không đọc được mốc cập nhật ({lamSachLoi(loi)})</span>
       ) : !nhip ? (
         <span>{dangDoc ? 'Đang đọc mốc cập nhật doanh thu...' : 'Chưa ghi nhận lần cập nhật doanh thu nào.'}</span>
       ) : (

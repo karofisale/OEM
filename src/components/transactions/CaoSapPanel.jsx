@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Zap, Loader2, CheckCircle2, AlertTriangle, HelpCircle } from 'lucide-react';
 import * as api from '../../services/api';
 import { vnMonth, vnRecentMonths } from '../../utils/vnDate';
+import { lamSachLoi } from '../../utils/errorText';
 
 /**
  * Nút "Cào từ SAP" — chạy thẳng bộ script trên máy có SAP, không qua terminal.
@@ -209,7 +210,7 @@ export default function CaoSapPanel({ token, activeUser, onImported }) {
       {pha === 'loi' && (
         <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '0.85rem', color: 'var(--critical-text, #DC2626)' }}>
           <AlertTriangle size={17} style={{ flexShrink: 0, marginTop: '1px' }} />
-          <span>{loi}</span>
+          <span>{lamSachLoi(loi)}</span>
         </div>
       )}
 

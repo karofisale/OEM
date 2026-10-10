@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, Inbox, RefreshCw } from 'lucide-react';
 import LoadingScreen from './LoadingScreen';
+import { lamSachLoi } from '../utils/errorText';
 
 // Trạng thái dùng chung của mọi bảng: đang tải / lỗi + Thử lại / rỗng / có dữ liệu.
 //
@@ -52,7 +53,7 @@ export default function TableState({
     return (
       <div className="state-card state-error" role="alert">
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-          <AlertCircle size={16} /> {errorPrefix}: {error}
+          <AlertCircle size={16} /> {errorPrefix}: {lamSachLoi(error)}
         </span>
         {onRetry && <button type="button" onClick={onRetry} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Thử lại</button>}
       </div>

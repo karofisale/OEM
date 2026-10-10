@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 import { themToast, boToast, hetHan, giaHan, canDongHo } from '../utils/toastQueue';
+import { lamSachLoi } from '../utils/errorText';
 
 // Thông báo trong app, thay 15 lệnh alert() gốc.
 //
@@ -49,7 +50,8 @@ export function ToastProvider({ children }) {
   }, [canDong]);
 
   const api = useRef({});
-  api.current.error = (m, o) => push(m, 'error', o);
+  // Toast lỗi đi qua lamSachLoi (Đợt 3): lỗi Postgres/server thô -> tiếng Việt + mã tham chiếu.
+  api.current.error = (m, o) => push(lamSachLoi(m), 'error', o);
   api.current.success = (m, o) => push(m, 'success', o);
   api.current.info = (m, o) => push(m, 'info', o);
   api.current.dismiss = dismiss;

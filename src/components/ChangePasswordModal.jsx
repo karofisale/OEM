@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { KeyRound, Lock, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import * as api from '../services/api';
 import Modal from './Modal';
+import { lamSachLoi } from '../utils/errorText';
 import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 
 export default function ChangePasswordModal({ token, onClose }) {
@@ -114,7 +115,7 @@ export default function ChangePasswordModal({ token, onClose }) {
 
             {error && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--danger)', fontSize: '0.8rem', fontWeight: 600 }}>
-                <AlertCircle size={14} /> {error}
+                <AlertCircle size={14} /> {lamSachLoi(error)}
               </div>
             )}
 

@@ -50,9 +50,24 @@ export const ACCOUNT_TAB_IDS = ['products', 'clients', 'debt-importer'];
 
 export const TAB_DEFAULT = 'ai-agent';
 
+/** Vai trò làm việc chính là XEM báo cáo / duyệt (không phải lên đơn): mặc định vào Báo cáo doanh thu (Đợt 3). */
+export const VAI_TRO_BAO_CAO = ['admin', 'leader', 'lead'];
+export const TAB_BAO_CAO = 'revenue-reports';
+
+/**
+ * Tab mở đầu khi CHƯA có tab nào được nhớ: kế toán -> mục đầu của họ; admin/leader -> báo cáo doanh thu;
+ * còn lại (Sale, Creator...) -> AI Nhận Đơn Hàng, vì lên đơn là việc hằng ngày của họ.
+ */
+export function tabMacDinh(role) {
+  const r = String(role || '').toLowerCase();
+  if (r === 'account') return ACCOUNT_TAB_IDS[0];
+  if (VAI_TRO_BAO_CAO.includes(r)) return TAB_BAO_CAO;
+  return TAB_DEFAULT;
+}
+
 /** Tab mở đầu hợp lệ cho vai trò: tab đã nhớ nếu còn hợp lệ, không thì mặc định của vai trò. */
 export function tabHopLe(tab, role) {
-  const mac = role === 'account' ? ACCOUNT_TAB_IDS[0] : TAB_DEFAULT;
+  const mac = tabMacDinh(role);
   if (!TAB_IDS.includes(tab)) return mac;
   if (role === 'account' && !ACCOUNT_TAB_IDS.includes(tab)) return mac;
   return tab;

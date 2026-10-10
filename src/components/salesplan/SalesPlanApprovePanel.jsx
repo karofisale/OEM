@@ -96,7 +96,7 @@ export default function SalesPlanApprovePanel({ token, plans, transactions, onAp
               {[1, 2, 3, 4, 5].map((n) => (
                 <SortableTh key={n} col={'w' + n} sort={sort} onSort={onSort} align="right" style={{ width: '120px' }}>Tuần {n}</SortableTh>
               ))}
-              <SortableTh col="planUpdate" sort={sort} onSort={onSort} align="right" style={{ width: '140px' }}>Plan_Update</SortableTh>
+              <SortableTh col="planUpdate" sort={sort} onSort={onSort} align="right" style={{ width: '140px' }}>Plan update</SortableTh>
               <SortableTh col="done" sort={sort} onSort={onSort} align="right" style={{ width: '140px' }}>Doanh thu done</SortableTh>
               <SortableTh col="note" sort={sort} onSort={onSort}>Note</SortableTh>
             </tr>

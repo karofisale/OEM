@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, Lock, Check, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import * as api from '../services/api';
 import LoadingScreen from './LoadingScreen';
+import { lamSachLoi } from '../utils/errorText';
 import Modal from './Modal';
 
 const LOGIN_TIPS = [
   'Đang tải danh sách tài khoản...',
-  'Máy chủ Google Apps Script đôi khi cần vài giây để "khởi động" — vui lòng chờ chút.',
+  'Máy chủ đôi khi cần vài giây để "khởi động" — vui lòng chờ chút.',
   'Nếu quá lâu, mạng có thể đang chập chờn — hệ thống sẽ tự thử lại vài lần trước khi báo lỗi.',
 ];
 
@@ -79,7 +80,7 @@ export default function LoginModal({ onLoginSuccess, onClose, closable }) {
         {usersError && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--danger)', fontSize: '0.8rem', fontWeight: 600 }}>
-              <AlertCircle size={14} /> Không tải được danh sách tài khoản: {usersError}
+              <AlertCircle size={14} /> Không tải được danh sách tài khoản: {lamSachLoi(usersError)}
             </div>
             <button type="button" onClick={loadUsers} className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}>
               <RefreshCw size={14} /> Thử lại
@@ -155,7 +156,7 @@ export default function LoginModal({ onLoginSuccess, onClose, closable }) {
             </div>
             {loginError && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', color: 'var(--danger)', fontSize: '0.8rem', fontWeight: 600 }}>
-                <AlertCircle size={14} /> {loginError}
+                <AlertCircle size={14} /> {lamSachLoi(loginError)}
               </div>
             )}
           </div>
