@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { ToastProvider } from './components/ToastProvider.jsx';
+import { NavGuardProvider } from './components/NavGuard.jsx';
 import { initTheme } from './services/theme.js';
 import { loadSession } from './services/api.js';
 import { bounceToPortal, clearBounceFlag } from './services/karofiSession.js';
@@ -29,7 +30,9 @@ if (signedIn || !bounceToPortal()) {
     <React.StrictMode>
       <ErrorBoundary>
         <ToastProvider>
-          <App />
+          <NavGuardProvider>
+            <App />
+          </NavGuardProvider>
         </ToastProvider>
       </ErrorBoundary>
     </React.StrictMode>,

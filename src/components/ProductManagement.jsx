@@ -1,24 +1,39 @@
 import React, { useState, useMemo } from 'react';
-import { Package, Plus, Edit3, Search, Sparkles, Tag, Check, ArrowUpRight, Lock, Table, LayoutGrid, Layers } from 'lucide-react';
+import { Package, Plus, Edit3, Search, Lock, Layers } from 'lucide-react';
 import Pagination, { usePagedSlice } from './Pagination';
 import BomModal from './products/BomModal';
+import Modal from './Modal';
+import SortableTh from './SortableTh';
+import TableState from './TableState';
+import ViewModeToggle from './ViewModeToggle';
 import { laMaMay } from '../utils/bom';
+import { NHAN_CHI_XEM } from '../utils/glossary';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { useTableSort } from '../hooks/useTableSort';
+import { usePersistentState } from '../hooks/usePersistentState';
+import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 
 const fmtPrice = (v) => (v ? v.toLocaleString('vi-VN') : '-');
 const PAGE_SIZE = 25;
+// Cột sắp xếp được (Đợt 2 / mục 3).
+const COLS = [
+  { key: 'sku' }, { key: 'name' }, { key: 'group' },
+  { key: 'latestPriceVat', type: 'number' }, { key: 'suggestedPrice', type: 'number' },
+  { key: 'promoPrice', type: 'number' }, { key: 'promoQty', type: 'number' }, { key: 'totalQty', type: 'number' }
+];
 
 // `transactions` used to be passed in and destructured here but was never read —
 // dropped, so this component no longer re-renders when the transaction list changes.
 export default function ProductManagement({ materials, token, activeUser, onAddMaterial, onEditMaterial }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
-  const [viewMode, setViewMode] = useState('table');
+  const [viewMode, setViewMode] = usePersistentState('products.view', 'table', (v) => v === 'table' || v === 'grid');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingMat, setEditingMat] = useState(null);
   const [editAlias, setEditAlias] = useState('');
   const [editGroup, setEditGroup] = useState('');
   const [editSuggestedPrice, setEditSuggestedPrice] = useState('');
+  const [editInit, setEditInit] = useState('');
   // Mã máy đang mở BOM (null = đóng). Chỉ mã máy mới có BOM — xem laMaMay().
   const [bomMat, setBomMat] = useState(null);
   // withOptimistic cập nhật bảng ngay rồi mới gọi backend nền — trước đây modal
@@ -52,6 +67,11 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
   const [newUnit, setNewUnit] = useState('PC');
   const [newSuggestedPrice, setNewSuggestedPrice] = useState('');
 
+  // Đã gõ chữ vào form chưa — để Modal không đóng nhầm khi bấm nền và F5 có cảnh báo.
+  const addDirty = showAddModal && !!(newSku || newName || newAlias || newSuggestedPrice || newGroup !== 'LK nóng lạnh' || newUnit !== 'PC');
+  const editDirty = !!editingMat && JSON.stringify([editAlias, editGroup, editSuggestedPrice]) !== editInit;
+  useUnsavedGuard(addDirty || editDirty, 'Form sản phẩm');
+
   // Debounce ô tìm — nhất quán với ClientManagement, dữ liệu còn nhỏ nên chưa
   // giật nhưng gõ nhanh không nên lọc lại toàn bộ danh mục ở mỗi ký tự.
   const debouncedSearchTerm = useDebouncedValue(searchTerm);
@@ -70,7 +90,9 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
 
   // Every one of the 440 SKUs used to be rendered at once — ~8,000 DOM elements,
   // each row carrying one or two icon buttons.
-  const { safePage, pageItems: pagedMaterials } = usePagedSlice(filteredMaterials, page, PAGE_SIZE);
+  // Sắp xếp TRƯỚC khi cắt trang.
+  const { rows: sortedMaterials, sort, onSort } = useTableSort(filteredMaterials, COLS);
+  const { safePage, pageItems: pagedMaterials } = usePagedSlice(sortedMaterials, page, PAGE_SIZE);
 
   const handleCreateMaterial = async (e) => {
     e.preventDefault();
@@ -110,6 +132,7 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
     setEditAlias(mat.alias || '');
     setEditGroup(mat.group || '');
     setEditSuggestedPrice(mat.suggestedPrice || '');
+    setEditInit(JSON.stringify([mat.alias || '', mat.group || '', mat.suggestedPrice || '']));
     setEditError('');
   };
 
@@ -155,7 +178,7 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
 
         {isLeader && (
           <span className="badge badge-blue">
-            <Lock size={12} /> Leader View-Only Mode
+            <Lock size={12} /> {NHAN_CHI_XEM}
           </span>
         )}
       </div>
@@ -175,39 +198,37 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
           />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-main)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-          <button onClick={() => setViewMode('table')} className={`btn btn-sm ${viewMode === 'table' ? 'btn-primary' : 'btn-secondary'}`}>
-            <Table size={14} /> Dạng Bảng
-          </button>
-          <button onClick={() => setViewMode('grid')} className={`btn btn-sm ${viewMode === 'grid' ? 'btn-primary' : 'btn-secondary'}`}>
-            <LayoutGrid size={14} /> Dạng Lưới
-          </button>
-        </div>
+        <ViewModeToggle mode={viewMode} onChange={setViewMode} />
       </div>
 
+      <TableState
+        isEmpty={filteredMaterials.length === 0}
+        emptyText="Không tìm thấy sản phẩm nào khớp bộ lọc."
+        emptyHint={searchTerm ? `Từ khóa: "${searchTerm}"` : undefined}
+      >
       {viewMode === 'table' ? (
       <div className="table-container animate-fade-in" style={{ maxHeight: '600px', overflowY: 'auto' }}>
         <table className="custom-table">
           <thead>
             <tr>
-              <th>SKU</th>
-              <th>Tên Vật Tư</th>
-              <th>Nhóm</th>
-              <th style={{ textAlign: 'right' }}>Giá Mới Nhất (VAT)</th>
-              <th style={{ textAlign: 'right' }}>Giá Lẻ</th>
-              <th style={{ textAlign: 'right' }}>Giá KM</th>
-              <th style={{ textAlign: 'right' }}>SL KM</th>
-              <th style={{ textAlign: 'right' }}>Tổng Bán</th>
+              <SortableTh col="sku" sort={sort} onSort={onSort}>SKU</SortableTh>
+              <SortableTh col="name" sort={sort} onSort={onSort}>Tên Vật Tư</SortableTh>
+              <SortableTh col="group" sort={sort} onSort={onSort}>Nhóm</SortableTh>
+              <SortableTh col="latestPriceVat" sort={sort} onSort={onSort} align="right">Giá Mới Nhất (VAT)</SortableTh>
+              <SortableTh col="suggestedPrice" sort={sort} onSort={onSort} align="right">Giá Lẻ</SortableTh>
+              <SortableTh col="promoPrice" sort={sort} onSort={onSort} align="right">Giá KM</SortableTh>
+              <SortableTh col="promoQty" sort={sort} onSort={onSort} align="right">SL KM</SortableTh>
+              <SortableTh col="totalQty" sort={sort} onSort={onSort} align="right">Tổng Bán</SortableTh>
               <th style={{ width: '190px' }}></th>
             </tr>
           </thead>
           <tbody>
             {pagedMaterials.map((mat) => (
               <tr key={mat.sku}>
-                <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{mat.sku}</td>
+                <td className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.8rem' }}>{mat.sku}</td>
                 <td style={{ fontWeight: 600 }}>{mat.name}{mat.alias && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}> ({mat.alias})</span>}</td>
                 <td><span className="badge badge-purple">{mat.group}</span></td>
-                <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-emerald)' }}>{fmtPrice(mat.latestPriceVat)}</td>
+                <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-emerald-text)' }}>{fmtPrice(mat.latestPriceVat)}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmtPrice(mat.suggestedPrice)}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', color: mat.promoPrice ? 'var(--karofi-navy)' : 'var(--text-dim)' }}>{mat.promoPrice ? fmtPrice(mat.promoPrice) : '-'}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', color: 'var(--text-dim)' }}>{mat.promoQty || '-'}</td>
@@ -239,7 +260,7 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
           <div key={mat.sku} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <div>
-                <span className="code-font" style={{ fontSize: '0.75rem', color: 'var(--karofi-cyan)', fontWeight: 800 }}>
+                <span className="code-font" style={{ fontSize: '0.75rem', color: 'var(--cyan-text)', fontWeight: 800 }}>
                   SKU: {mat.sku}
                 </span>
                 <h4 style={{ fontSize: '0.95rem', fontWeight: 700, marginTop: '2px', color: 'var(--text-main)' }}>{mat.name}</h4>
@@ -260,7 +281,7 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
             }}>
               <div>
                 <span style={{ fontSize: '0.675rem', color: 'var(--text-dim)' }}>Giá Mới Nhất (VAT)</span>
-                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-emerald)' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-emerald-text)' }}>
                   {fmtPrice(mat.latestPriceVat)}
                 </div>
               </div>
@@ -295,14 +316,7 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
         ))}
       </div>
       )}
-
-      {/* None of the searchable tables told the user when a search matched
-          nothing — a typo just produced an empty grid. */}
-      {filteredMaterials.length === 0 && (
-        <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '32px 16px' }}>
-          Không tìm thấy sản phẩm nào khớp với "<strong>{searchTerm}</strong>".
-        </div>
-      )}
+      </TableState>
 
       <Pagination
         page={safePage}
@@ -312,95 +326,80 @@ export default function ProductManagement({ materials, token, activeUser, onAddM
         itemLabel="sản phẩm"
       />
 
-      {/* Admin Edit Modal (Alias / Nhóm SP / Giá bán đề xuất) */}
+      {/* Admin Edit Modal (Alias / Nhóm SP / Giá bán đề xuất) — khung chung Modal */}
       {editingMat && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(6px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div className="glass-card animate-fade-in" style={{ width: '440px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Sửa Sản Phẩm — {editingMat.sku}</h3>
-            <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>{editingMat.name}</p>
+        <Modal title={`Sửa Sản Phẩm — ${editingMat.sku}`} width={440} onClose={() => setEditingMat(null)} busy={savingEdit} dirty={editDirty}>
+          <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', margin: 0 }}>{editingMat.name}</p>
 
-            <form onSubmit={handleSaveEditMaterial} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Alias / Tên Viết Tắt (Dùng cho AI):</label>
-                <input type="text" className="input-field" value={editAlias} onChange={(e) => setEditAlias(e.target.value)} />
-              </div>
+          <form onSubmit={handleSaveEditMaterial} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Alias / Tên Viết Tắt (Dùng cho AI):</label>
+              <input type="text" className="input-field" value={editAlias} onChange={(e) => setEditAlias(e.target.value)} />
+            </div>
 
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Nhóm SP:</label>
-                <input type="text" list="product-group-options" className="input-field" value={editGroup} onChange={(e) => setEditGroup(e.target.value)} />
-              </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Nhóm SP:</label>
+              <input type="text" list="product-group-options" className="input-field" value={editGroup} onChange={(e) => setEditGroup(e.target.value)} />
+            </div>
 
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Giá Bán (VND):</label>
-                <input type="number" className="input-field" value={editSuggestedPrice} onChange={(e) => setEditSuggestedPrice(e.target.value)} />
-              </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Giá Bán (VND):</label>
+              <input type="number" min="0" className="input-field" value={editSuggestedPrice} onChange={(e) => setEditSuggestedPrice(e.target.value)} />
+            </div>
 
-              {editError && (
-                <div role="alert" style={{ fontSize: '0.8rem', color: 'var(--danger)', background: 'var(--danger-bg)', padding: '8px 10px', borderRadius: 'var(--radius-md)' }}>
-                  {editError}
-                </div>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setEditingMat(null)} className="btn btn-secondary" disabled={savingEdit}>Hủy</button>
-                <button type="submit" className="btn btn-primary" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu Thay Đổi'}</button>
+            {editError && (
+              <div role="alert" style={{ fontSize: '0.8rem', color: 'var(--danger)', background: 'var(--danger-bg)', padding: '8px 10px', borderRadius: 'var(--radius-md)' }}>
+                {editError}
               </div>
-            </form>
-          </div>
-        </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+              <button type="button" onClick={() => setEditingMat(null)} className="btn btn-secondary" disabled={savingEdit}>Hủy</button>
+              <button type="submit" className="btn btn-primary" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu Thay Đổi'}</button>
+            </div>
+          </form>
+        </Modal>
       )}
 
       {/* Add Product Modal */}
       {showAddModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(6px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div className="glass-card animate-fade-in" style={{ width: '460px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Thêm Vật Tư / Sản Phẩm OEM Mới</h3>
+        <Modal title="Thêm Vật Tư / Sản Phẩm OEM Mới" width={460} onClose={() => { setShowAddModal(false); setAddError(''); }} busy={savingAdd} dirty={addDirty}>
+          <form onSubmit={handleCreateMaterial} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Mã SKU Vật Tư (SAP Code):</label>
+              <input type="text" required className="input-field" value={newSku} onChange={(e) => setNewSku(e.target.value)} />
+            </div>
 
-            <form onSubmit={handleCreateMaterial} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Mã SKU Vật Tư (SAP Code):</label>
-                <input type="text" required className="input-field" value={newSku} onChange={(e) => setNewSku(e.target.value)} />
-              </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Tên Vật Tư / Linh Kiện:</label>
+              <input type="text" required className="input-field" value={newName} onChange={(e) => setNewName(e.target.value)} />
+            </div>
 
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Tên Vật Tư / Linh Kiện:</label>
-                <input type="text" required className="input-field" value={newName} onChange={(e) => setNewName(e.target.value)} />
-              </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Alias / Tên Viết Tắt (Dùng cho AI):</label>
+              <input type="text" className="input-field" value={newAlias} onChange={(e) => setNewAlias(e.target.value)} />
+            </div>
 
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Alias / Tên Viết Tắt (Dùng cho AI):</label>
-                <input type="text" className="input-field" value={newAlias} onChange={(e) => setNewAlias(e.target.value)} />
-              </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Nhóm SP:</label>
+              <input type="text" list="product-group-options" className="input-field" value={newGroup} onChange={(e) => setNewGroup(e.target.value)} />
+            </div>
 
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Nhóm SP:</label>
-                <input type="text" list="product-group-options" className="input-field" value={newGroup} onChange={(e) => setNewGroup(e.target.value)} />
-              </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Giá Bán (VND):</label>
+              <input type="number" min="0" className="input-field" value={newSuggestedPrice} onChange={(e) => setNewSuggestedPrice(e.target.value)} />
+            </div>
 
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Giá Bán (VND):</label>
-                <input type="number" className="input-field" value={newSuggestedPrice} onChange={(e) => setNewSuggestedPrice(e.target.value)} />
+            {addError && (
+              <div role="alert" style={{ fontSize: '0.8rem', color: 'var(--danger)', background: 'var(--danger-bg)', padding: '8px 10px', borderRadius: 'var(--radius-md)' }}>
+                {addError}
               </div>
-
-              {addError && (
-                <div role="alert" style={{ fontSize: '0.8rem', color: 'var(--danger)', background: 'var(--danger-bg)', padding: '8px 10px', borderRadius: 'var(--radius-md)' }}>
-                  {addError}
-                </div>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" onClick={() => { setShowAddModal(false); setAddError(''); }} className="btn btn-secondary" disabled={savingAdd}>Hủy</button>
-                <button type="submit" className="btn btn-primary" disabled={savingAdd}>{savingAdd ? 'Đang lưu...' : 'Lưu Sản Phẩm'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+              <button type="button" onClick={() => { setShowAddModal(false); setAddError(''); }} className="btn btn-secondary" disabled={savingAdd}>Hủy</button>
+              <button type="submit" className="btn btn-primary" disabled={savingAdd}>{savingAdd ? 'Đang lưu...' : 'Lưu Sản Phẩm'}</button>
+            </div>
+          </form>
+        </Modal>
       )}
 
       <datalist id="product-group-options">

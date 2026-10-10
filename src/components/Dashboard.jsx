@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { monthSortValue, yearsFromTransactions } from '../utils/period';
 import { thangGiaoDich } from '../utils/salesPlan';
 import { khopSale } from '../utils/roles';
+import { vnYear } from '../utils/vnDate';
 import {
   TrendingUp, 
   PackageCheck, 
@@ -32,7 +33,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
   // người và mặc định là "Tất cả SALE" — nó chỉ để thu hẹp tầm nhìn cho dễ đọc.
   const [saleFilter, setSaleFilter] = useState('ALL');
   // Bộ lọc NĂM (30/09/2026): trước đây mọi thẻ cộng TOÀN BỘ bảng doanh thu (mọi năm). Mặc định năm hiện tại.
-  const namHienTai = String(new Date().getFullYear());
+  const namHienTai = String(vnYear()); // theo giờ Việt Nam
   const [yearFilter, setYearFilter] = useState(namHienTai);
   const yearsList = useMemo(() => {
     const ys = yearsFromTransactions(transactions);
@@ -176,7 +177,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
         </select>
         {saleFilter !== 'ALL' && (
           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-            Mọi số bên dưới đang chỉ tính phần của <strong style={{ color: 'var(--karofi-cyan)' }}>{saleFilter}</strong>.
+            Mọi số bên dưới đang chỉ tính phần của <strong style={{ color: 'var(--cyan-text)' }}>{saleFilter}</strong>.
           </span>
         )}
       </div>
@@ -197,7 +198,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--karofi-navy)' }}>
               {dinhDangTien(totalRevenue)}
             </div>
-            <span style={{ fontSize: '0.7rem', color: 'var(--accent-emerald)', fontWeight: 600 }}>↑ Cập nhật từ SAP</span>
+            <span style={{ fontSize: '0.7rem', color: 'var(--accent-emerald-text)', fontWeight: 600 }}>↑ Cập nhật từ SAP</span>
           </div>
         </div>
 
@@ -248,7 +249,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>
               {totalTransactionsCount.toLocaleString('vi-VN')} Bản ghi
             </div>
-            <span style={{ fontSize: '0.7rem', color: 'var(--accent-amber)', fontWeight: 600 }}>Doanh thu từ SAP</span>
+            <span style={{ fontSize: '0.7rem', color: 'var(--warning-text)', fontWeight: 600 }}>Doanh thu từ SAP</span>
           </div>
         </div>
 
@@ -273,7 +274,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
                 <div key={month} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
                     <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{month}</span>
-                    <span style={{ fontWeight: 700, color: 'var(--karofi-cyan)' }}>{rev.toLocaleString('vi-VN')} ₫</span>
+                    <span style={{ fontWeight: 700, color: 'var(--cyan-text)' }}>{rev.toLocaleString('vi-VN')} ₫</span>
                   </div>
                   <div style={{ height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
                     <div style={{
@@ -320,11 +321,11 @@ export default function Dashboard({ transactions = [], clients = [], materials =
                     {idx + 1}
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--karofi-cyan)' }} className="code-font">{clientCode}</div>
+                    <div style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--cyan-text)' }} className="code-font">{clientCode}</div>
                     {alias && alias !== clientCode && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>{alias}</div>}
                   </div>
                 </div>
-                <div style={{ fontWeight: 800, color: 'var(--accent-emerald)', fontSize: '0.9rem' }}>
+                <div style={{ fontWeight: 800, color: 'var(--accent-emerald-text)', fontSize: '0.9rem' }}>
                   {dinhDangTien(rev)}
                 </div>
               </div>

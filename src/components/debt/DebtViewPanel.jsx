@@ -2,10 +2,19 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Search, RefreshCw, Filter, Clock } from 'lucide-react';
 import * as api from '../../services/api';
 import Pagination, { usePagedSlice } from '../Pagination';
-import LoadingScreen from '../LoadingScreen';
+import SortableTh from '../SortableTh';
+import TableState from '../TableState';
+import { hienNgay } from '../../utils/vnDate';
+import { useTableSort } from '../../hooks/useTableSort';
 
 const PAGE_SIZE = 25;
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
+// Cột sắp xếp được (Đợt 2 / mục 3).
+const COLS = [
+  { key: 'code' }, { key: 'name' }, { key: 'pic' },
+  { key: 'creditLimit', type: 'number' }, { key: 'overLimit', type: 'number' }, { key: 'balance', type: 'number' },
+  { key: 'updatedAt', type: 'date' }
+];
 
 // Read-facing view of tab "Debt" — same per-Sale scoping as everywhere else
 // (oemAppScopeOf_/oemAppMatchesSale_ on the PIC column), so a Sale only sees
@@ -47,7 +56,9 @@ export default function DebtViewPanel({ token, refreshTick }) {
     return rows.filter((r) => normalize(r.code).includes(q) || normalize(r.name).includes(q) || normalize(r.pic).includes(q));
   }, [rows, searchTerm]);
 
-  const { safePage, pageItems: pagedRows } = usePagedSlice(filteredRows, page, PAGE_SIZE);
+  // Sắp xếp TRƯỚC khi cắt trang; dòng tổng vẫn tính trên toàn bộ danh sách đang lọc.
+  const { rows: sortedRows, sort, onSort } = useTableSort(filteredRows, COLS);
+  const { safePage, pageItems: pagedRows } = usePagedSlice(sortedRows, page, PAGE_SIZE);
 
   const totals = useMemo(() => filteredRows.reduce((acc, r) => {
     acc.creditLimit += r.creditLimit || 0;
@@ -56,15 +67,9 @@ export default function DebtViewPanel({ token, refreshTick }) {
     return acc;
   }, { creditLimit: 0, overLimit: 0, balance: 0 }), [filteredRows]);
 
-  if (isLoading) return <LoadingScreen label="Đang tải bảng công nợ..." />;
-
-  if (loadError) {
-    return (
-      <div className="glass-card" style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-        <span>Lỗi tải bảng công nợ: {loadError}</span>
-        <button onClick={() => fetchView(true)} className="btn btn-secondary btn-sm">Thử lại</button>
-      </div>
-    );
+  // Tải / lỗi dùng chung một mẫu (TableState): lỗi luôn có Thử lại, không kẹt "Đang tải…".
+  if (isLoading || loadError) {
+    return <TableState loading={isLoading} error={loadError} errorPrefix="Lỗi tải bảng công nợ" loadingLabel="Đang tải bảng công nợ..." onRetry={() => fetchView(true)} />;
   }
 
   return (
@@ -83,22 +88,23 @@ export default function DebtViewPanel({ token, refreshTick }) {
           <Filter size={12} /> {filteredRows.length.toLocaleString('vi-VN')} khách hàng khớp
         </span>
         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }} title="Lần tải số dư công nợ gần nhất">
-          <Clock size={12} /> Cập nhật lần cuối: <b style={{ color: 'var(--karofi-navy)' }}>{lastUpdated || 'chưa có'}</b>
+          <Clock size={12} /> Cập nhật lần cuối: <b style={{ color: 'var(--karofi-navy)' }}>{lastUpdated ? hienNgay(lastUpdated) : 'chưa có'}</b>
         </span>
         <button onClick={() => fetchView(true)} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
       </div>
 
+      <TableState isEmpty={filteredRows.length === 0} emptyText={rows.length ? 'Không có khách hàng nào khớp bộ lọc.' : 'Chưa có dữ liệu công nợ.'}>
       <div className="table-container animate-fade-in" style={{ maxHeight: '600px', overflowY: 'auto' }}>
         <table className="custom-table">
           <thead>
             <tr>
-              <th>Mã KH</th>
-              <th>Tên khách hàng</th>
-              <th>PIC</th>
-              <th style={{ textAlign: 'right', width: '160px' }}>Hạn mức</th>
-              <th style={{ textAlign: 'right', width: '160px' }}>Vượt hạn mức</th>
-              <th style={{ textAlign: 'right', width: '160px' }}>Số dư công nợ</th>
-              <th style={{ width: '130px' }}>Ngày cập nhật</th>
+              <SortableTh col="code" sort={sort} onSort={onSort}>Mã KH</SortableTh>
+              <SortableTh col="name" sort={sort} onSort={onSort}>Tên khách hàng</SortableTh>
+              <SortableTh col="pic" sort={sort} onSort={onSort}>PIC</SortableTh>
+              <SortableTh col="creditLimit" sort={sort} onSort={onSort} align="right" style={{ width: '160px' }}>Hạn mức</SortableTh>
+              <SortableTh col="overLimit" sort={sort} onSort={onSort} align="right" style={{ width: '160px' }}>Vượt hạn mức</SortableTh>
+              <SortableTh col="balance" sort={sort} onSort={onSort} align="right" style={{ width: '160px' }}>Số dư công nợ</SortableTh>
+              <SortableTh col="updatedAt" sort={sort} onSort={onSort} style={{ width: '130px' }}>Ngày cập nhật</SortableTh>
             </tr>
           </thead>
           <tbody>
@@ -111,26 +117,20 @@ export default function DebtViewPanel({ token, refreshTick }) {
             </tr>
             {pagedRows.map((r) => (
               <tr key={r.code}>
-                <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{r.code}</td>
+                <td className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.8rem' }}>{r.code}</td>
                 <td style={{ fontWeight: 600 }}>{r.name}</td>
                 <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{r.pic}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(r.creditLimit)}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', fontWeight: 700, color: r.overLimit > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{fmt(r.overLimit)}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', fontWeight: 700 }}>{fmt(r.balance)}</td>
-                <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace" }}>{r.updatedAt || '—'}</td>
+                <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace" }}>{r.updatedAt ? hienNgay(r.updatedAt, { gio: false }) : '—'}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-
-      {filteredRows.length === 0 ? (
-        <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '28px 16px' }}>
-          Không có khách hàng nào khớp bộ lọc.
-        </div>
-      ) : (
-        <Pagination page={safePage} pageSize={PAGE_SIZE} totalItems={filteredRows.length} onPageChange={setPage} itemLabel="khách hàng" />
-      )}
+      <Pagination page={safePage} pageSize={PAGE_SIZE} totalItems={filteredRows.length} onPageChange={setPage} itemLabel="khách hàng" />
+      </TableState>
     </div>
   );
 }

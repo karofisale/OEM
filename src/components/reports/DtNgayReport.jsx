@@ -3,18 +3,33 @@ import { Filter } from 'lucide-react';
 import { weeksFromTransactions, resolvePeriod, inPeriod } from '../../utils/period';
 import { khopSale } from '../../utils/roles';
 import Pagination, { usePagedSlice } from '../Pagination';
+import SortableTh from '../SortableTh';
+import TableState from '../TableState';
+import { useTableSort } from '../../hooks/useTableSort';
+import { usePersistentState } from '../../hooks/usePersistentState';
+import { hienNgay } from '../../utils/vnDate';
 
 const PAGE_SIZE = 50;
+// Cột sắp xếp được (Đợt 2 / mục 3). Ngày so theo THỜI ĐIỂM (đọc được cả dd/MM/yyyy lẫn ISO): so chữ
+// 'dd/MM/yyyy' sẽ xếp 31/08 sau 01/10.
+const COLS = [
+  { key: 'date', type: 'date' }, { key: 'clientCode' }, { key: 'clientName' }, { key: 'sale' },
+  { key: 'totalRevenue', type: 'number' }
+];
+const SAP_MAC_DINH = { key: 'date', dir: 'desc' }; // mới nhất trước, như bản cũ
 
 export default function DtNgayReport({ transactions, salesList, canFilterAllSales, viewMode }) {
-  const [ngayFilterSale, setNgayFilterSale] = useState('ALL');
+  // Bộ lọc nhớ qua F5 (Đợt 2 / mục 9); giá trị đã nhớ mà không còn trong dữ liệu thì rơi về mặc định.
+  const [saleSaved, setNgayFilterSale] = usePersistentState('rpt.ngay.sale', 'ALL');
+  const ngayFilterSale = saleSaved === 'ALL' || (salesList || []).includes(saleSaved) ? saleSaved : 'ALL';
   // null = chưa chọn -> năm / tháng mới nhất có dữ liệu. "Tất cả tháng" chỉ cộng trong năm đang chọn (02/10/2026).
-  const [ngayFilterYear, setNgayFilterYear] = useState(null);
-  const [ngayFilterMonth, setNgayFilterMonth] = useState(null);
-  const [ngayFilterWeek, setNgayFilterWeek] = useState('ALL');
+  const [ngayFilterYear, setNgayFilterYear] = usePersistentState('rpt.ngay.year', null);
+  const [ngayFilterMonth, setNgayFilterMonth] = usePersistentState('rpt.ngay.month', null);
+  const [weekSaved, setNgayFilterWeek] = usePersistentState('rpt.ngay.week', 'ALL');
   const [page, setPage] = useState(1);
 
   const weeksList = useMemo(() => weeksFromTransactions(transactions), [transactions]);
+  const ngayFilterWeek = weekSaved === 'ALL' || weeksList.includes(weekSaved) ? weekSaved : 'ALL';
   const { years: yearsList, year: effectiveYear, months: monthsList, month: effectiveMonth } =
     useMemo(() => resolvePeriod(transactions, ngayFilterYear, ngayFilterMonth), [transactions, ngayFilterYear, ngayFilterMonth]);
 
@@ -46,14 +61,16 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
       item.totalRevenue += t.netRevenue || 0;
     });
 
-    return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
+    return Array.from(map.values());
   }, [transactions, ngayFilterSale, effectiveYear, effectiveMonth, ngayFilterWeek, canFilterAllSales]);
 
   // The table used to render dtNgayData.slice(0, 50) and the grid .slice(0, 30),
   // with no count and no pager — a sale checking yesterday's revenue could simply
   // not see their order and have no way to know rows had been dropped. Totals
   // below are still computed over the FULL filtered set, not the visible page.
-  const { safePage, pageItems: pagedRows } = usePagedSlice(dtNgayData, page, PAGE_SIZE);
+  // Sắp xếp TRƯỚC khi cắt trang; mặc định ngày mới nhất trước.
+  const { rows: sortedNgay, sort, onSort } = useTableSort(dtNgayData, COLS, SAP_MAC_DINH);
+  const { safePage, pageItems: pagedRows } = usePagedSlice(sortedNgay, page, PAGE_SIZE);
 
   const dtNgayTotals = useMemo(() => {
     return dtNgayData.reduce((acc, i) => {
@@ -101,16 +118,17 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
         </div>
       </div>
 
+      <TableState isEmpty={dtNgayData.length === 0} emptyText="Không có phát sinh doanh thu nào khớp với bộ lọc đang chọn.">
       {viewMode === 'table' ? (
         <div className="table-container animate-fade-in" style={{ maxHeight: '520px', overflowY: 'auto' }}>
           <table className="custom-table">
             <thead>
               <tr>
-                <th>Ngày Phát Sinh</th>
-                <th>Client</th>
-                <th>Tên Khách Hàng OEM</th>
-                <th>SALE</th>
-                <th style={{ textAlign: 'right' }}>DT thuần (VND)</th>
+                <SortableTh col="date" sort={sort} onSort={onSort}>Ngày Phát Sinh</SortableTh>
+                <SortableTh col="clientCode" sort={sort} onSort={onSort}>Client</SortableTh>
+                <SortableTh col="clientName" sort={sort} onSort={onSort}>Tên Khách Hàng OEM</SortableTh>
+                <SortableTh col="sale" sort={sort} onSort={onSort}>SALE</SortableTh>
+                <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right">DT thuần (VND)</SortableTh>
               </tr>
             </thead>
             <tbody>
@@ -126,11 +144,11 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
 
               {pagedRows.map((row) => (
                 <tr key={`${row.date}_${row.clientCode}`}>
-                  <td style={{ fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8rem' }}>{row.date}</td>
-                  <td className="code-font" style={{ fontWeight: 800, color: 'var(--karofi-cyan)' }}>{row.clientCode}</td>
+                  <td style={{ fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8rem' }}>{hienNgay(row.date, { gio: false })}</td>
+                  <td className="code-font" style={{ fontWeight: 800, color: 'var(--cyan-text)' }}>{row.clientCode}</td>
                   <td style={{ fontWeight: 700 }}>{row.clientName}</td>
                   <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{row.sale}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace" }}>
+                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace" }}>
                     {row.totalRevenue.toLocaleString('vi-VN')} ₫
                   </td>
                 </tr>
@@ -143,31 +161,25 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
           {pagedRows.map((row) => (
             <div key={`${row.date}_${row.clientCode}`} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{row.date}</span>
-                <span className="code-font" style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--karofi-cyan)' }}>{row.clientCode}</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{hienNgay(row.date, { gio: false })}</span>
+                <span className="code-font" style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--cyan-text)' }}>{row.clientCode}</span>
               </div>
               <h4 style={{ fontSize: '0.9rem', fontWeight: 700 }}>{row.clientName}</h4>
-              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>
+              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-emerald-text)' }}>
                 {row.totalRevenue.toLocaleString('vi-VN')} ₫
               </div>
             </div>
           ))}
         </div>
       )}
-
-      {dtNgayData.length === 0 ? (
-        <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '28px 16px' }}>
-          Không có phát sinh doanh thu nào khớp với bộ lọc đang chọn.
-        </div>
-      ) : (
-        <Pagination
-          page={safePage}
-          pageSize={PAGE_SIZE}
-          totalItems={dtNgayData.length}
-          onPageChange={setPage}
-          itemLabel="dòng phát sinh"
-        />
-      )}
+      <Pagination
+        page={safePage}
+        pageSize={PAGE_SIZE}
+        totalItems={dtNgayData.length}
+        onPageChange={setPage}
+        itemLabel="dòng phát sinh"
+      />
+      </TableState>
     </div>
   );
 }

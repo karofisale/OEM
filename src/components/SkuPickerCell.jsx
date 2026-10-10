@@ -21,7 +21,7 @@ export default function SkuPickerCell({ sku, name, materials, onSelect }) {
       inputStyle={{ padding: '4px 8px', fontSize: '0.775rem', fontWeight: 700, color: 'var(--code-blue)' }}
       renderOption={(m) => (
         <>
-          <div className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.775rem' }}>{m.sku}</div>
+          <div className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.775rem' }}>{m.sku}</div>
           <div style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>
             {m.name}{m.alias ? ` (${m.alias})` : ''}
           </div>

@@ -1,16 +1,23 @@
-import React, { useState } from 'react';
-import { CalendarRange, ClipboardList, ClipboardCheck, Target } from 'lucide-react';
+import React from 'react';
+import { CalendarRange } from 'lucide-react';
 import KeepAliveTab from './KeepAliveTab';
+import SubTabs from './SubTabs';
+import { SUBTABS } from '../utils/navMeta';
+import { usePersistentState } from '../hooks/usePersistentState';
 import SalesPlanViewPanel from './salesplan/SalesPlanViewPanel';
 import SalesPlanProposePanel from './salesplan/SalesPlanProposePanel';
 import SalesPlanApprovePanel from './salesplan/SalesPlanApprovePanel';
 import PlanNamPanel from './salesplan/PlanNamPanel';
 
 export default function SalesPlan({ token, plans, clients, transactions, plan2026, planDefaultMonth, activeUser, onDataChanged, onReloadPlanKpi }) {
-  const [subView, setSubView] = useState('view'); // 'view' | 'propose' | 'approve' | 'kpi'
-
   const canPropose = ['sale', 'admin', 'creator'].includes(activeUser.role);
   const canApprove = ['admin', 'creator'].includes(activeUser.role);
+
+  // Tab con: icon riêng, nhớ tab cuối qua F5 (Đợt 2 / mục 7, 9).
+  const hien = { view: true, propose: canPropose, approve: canApprove, kpi: canApprove };
+  const tabs = SUBTABS['sales-plan'].filter((t) => hien[t.id]);
+  const [subSaved, setSubView] = usePersistentState('sub.sales-plan', 'view'); // 'view' | 'propose' | 'approve' | 'kpi'
+  const subView = tabs.some((t) => t.id === subSaved) ? subSaved : 'view';
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -20,31 +27,13 @@ export default function SalesPlan({ token, plans, clients, transactions, plan202
             <CalendarRange size={24} color="var(--accent-emerald)" /> Kế hoạch kinh doanh
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-            Kế hoạch doanh số theo tháng/tuần, mỗi khách hàng — nhiều tháng cùng tồn tại song song (tab Plan_Thang).
+            Kế hoạch doanh số theo tháng/tuần, mỗi khách hàng — nhiều tháng cùng tồn tại song song.
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button onClick={() => setSubView('view')} className={`btn ${subView === 'view' ? 'btn-primary' : 'btn-secondary'}`}>
-            <CalendarRange size={16} /> Xem Kế Hoạch
-          </button>
-          {canPropose && (
-            <button onClick={() => setSubView('propose')} className={`btn ${subView === 'propose' ? 'btn-primary' : 'btn-secondary'}`}>
-              <ClipboardList size={16} /> Đề Xuất
-            </button>
-          )}
-          {canApprove && (
-            <button onClick={() => setSubView('approve')} className={`btn ${subView === 'approve' ? 'btn-primary' : 'btn-secondary'}`}>
-              <ClipboardCheck size={16} /> Chờ Duyệt
-            </button>
-          )}
-          {canApprove && (
-            <button onClick={() => setSubView('kpi')} className={`btn ${subView === 'kpi' ? 'btn-primary' : 'btn-secondary'}`}>
-              <Target size={16} /> KPI Năm
-            </button>
-          )}
-        </div>
       </div>
+
+      <SubTabs tabs={tabs} active={subView} onChange={setSubView} ariaLabel="Kế hoạch kinh doanh" />
 
       {/* Perf (2026-08-27): giữ nguyên sub-tab (KeepAliveTab) thay vì unmount.
           Cả 3 panel ở đây đọc `plans` từ prop (không tự gọi backend), nên cái

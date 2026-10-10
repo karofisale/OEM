@@ -2,10 +2,17 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Filter, CheckCircle2, Save, ShieldCheck, TrendingUp, RotateCcw } from 'lucide-react';
 import * as api from '../../services/api';
 import Pagination, { usePagedSlice } from '../Pagination';
-import LoadingScreen from '../LoadingScreen';
+import SortableTh from '../SortableTh';
+import TableState from '../TableState';
 import ConfirmDialog from '../ConfirmDialog';
 import { useToast } from '../ToastProvider';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useTableSort } from '../../hooks/useTableSort';
+import { usePersistentState } from '../../hooks/usePersistentState';
+import { useUnsavedGuard } from '../../hooks/useUnsavedGuard';
+
+// Chữ ký của bản nhập (chỉ ô > 0): so với lúc tải để biết còn gì chưa gửi.
+const chuKy = (map) => JSON.stringify(Object.keys(map).sort().filter((k) => (map[k] || []).some((v) => v > 0)).map((k) => [k, map[k]]));
 
 const PAGE_SIZE = 25;
 
@@ -19,14 +26,16 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
   const [loadError, setLoadError] = useState('');
   const [periodConfirmed, setPeriodConfirmed] = useState(false);
   const [draftMap, setDraftMap] = useState({}); // sku -> [sl1,sl2,sl3,sl4]
+  const [savedSig, setSavedSig] = useState(''); // chữ ký bản đã tải/đã gửi (Đợt 2 / mục 5)
   const [isSaving, setIsSaving] = useState(false);
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
   const [confirmingReset, setConfirmingReset] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [groupFilter, setGroupFilter] = useState('ALL');
-  const [exclusiveFilter, setExclusiveFilter] = useState('ALL');
-  const [onlyPriorPlanned, setOnlyPriorPlanned] = useState(true);
+  // Bộ lọc nhớ qua F5 (Đợt 2 / mục 9); giá trị đã nhớ mà không còn trong danh mục thì quay về "Tất cả".
+  const [groupSaved, setGroupFilter] = usePersistentState('sop.group', 'ALL');
+  const [exclusiveSaved, setExclusiveFilter] = usePersistentState('sop.exclusive', 'ALL');
+  const [onlyPriorPlanned, setOnlyPriorPlanned] = usePersistentState('sop.onlyPrior', true, (v) => typeof v === 'boolean');
   const [page, setPage] = useState(1);
 
   const fetchContext = async () => {
@@ -42,6 +51,7 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
       Object.entries(data.carryForwardBySku || {}).forEach(([sku, sl]) => { map[sku] = sl.slice(); });
       (data.myDraft || []).forEach(d => { map[d.sku] = [d.sl1 || 0, d.sl2 || 0, d.sl3 || 0, d.sl4 || 0]; });
       setDraftMap(map);
+      setSavedSig(chuKy(map));
     } catch (err) {
       setLoadError(err.message || String(err));
     } finally {
@@ -67,6 +77,9 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
     return Array.from(set).sort();
   }, [materials]);
 
+  const groupFilter = groupSaved === 'ALL' || groupsList.includes(groupSaved) ? groupSaved : 'ALL';
+  const exclusiveFilter = exclusiveSaved === 'ALL' || exclusiveList.includes(exclusiveSaved) ? exclusiveSaved : 'ALL';
+
   // Debounce ô tìm — nhất quán với ClientManagement/ProductManagement.
   const debouncedSearchTerm = useDebouncedValue(searchTerm);
 
@@ -82,7 +95,10 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
     });
   }, [materials, context, debouncedSearchTerm, groupFilter, exclusiveFilter, onlyPriorPlanned]);
 
-  const { safePage, pageItems: pagedMaterials } = usePagedSlice(filteredMaterials, page, PAGE_SIZE);
+  // Sắp xếp theo cột (Đợt 2 / mục 3) — chỉ Mã, Tên, Giá bán (các ô số lượng đang gõ không làm khoá sắp xếp).
+  const cols = useMemo(() => [{ key: 'sku' }, { key: 'name' }, { key: 'suggestedPrice', type: 'number' }], []);
+  const { rows: sortedMaterials, sort, onSort } = useTableSort(filteredMaterials, cols);
+  const { safePage, pageItems: pagedMaterials } = usePagedSlice(sortedMaterials, page, PAGE_SIZE);
 
   // Live SUMPRODUCT(SL x Giá bán) per month over the FULL filtered set (not
   // just the visible page) — recomputes on every keystroke so Sale sees the
@@ -119,12 +135,16 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
       .filter(r => r.sl1 > 0 || r.sl2 > 0 || r.sl3 > 0 || r.sl4 > 0);
   }, [draftMap]);
 
+  // F5 / đổi tab khi còn số đã nhập mà chưa gửi -> cảnh báo (Đợt 2 / mục 5).
+  useUnsavedGuard(!!context && chuKy(draftMap) !== savedSig, 'Kế hoạch SOP');
+
   const handleSubmit = async () => {
     if (isSaving || !submissionRows.length) return; // chặn gửi trùng khi lượt đầu chưa về
     setIsSaving(true);
     try {
       const result = await api.submitSopDraft(token, context.anchor, submissionRows);
       toast.success(`Đã lưu kế hoạch cho ${result.savedCount} mã SKU, chờ Admin duyệt.`);
+      setSavedSig(chuKy(draftMap));
       setConfirmingSubmit(false);
       if (onSubmitted) onSubmitted();
     } catch (err) {
@@ -144,15 +164,9 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
     toast.success('Đã xoá số lượng đang nhập — nhập lại từ đầu rồi bấm "Gửi Duyệt" để lưu.');
   };
 
-  if (isLoading) return <LoadingScreen label="Đang tải kỳ kế hoạch..." />;
-
-  if (loadError) {
-    return (
-      <div className="glass-card" style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-        <span>Lỗi tải kỳ kế hoạch: {loadError}</span>
-        <button onClick={fetchContext} className="btn btn-secondary btn-sm">Thử lại</button>
-      </div>
-    );
+  // Tải / lỗi dùng chung một mẫu (TableState): lỗi luôn có Thử lại, không kẹt "Đang tải…".
+  if (isLoading || loadError || !context) {
+    return <TableState loading={isLoading} error={loadError} errorPrefix="Lỗi tải kỳ kế hoạch" loadingLabel="Đang tải kỳ kế hoạch..." onRetry={fetchContext} />;
   }
 
   // Confirm-the-period gate — shown before the table so entering on the wrong
@@ -226,13 +240,14 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
         </span>
       </div>
 
+      <TableState isEmpty={filteredMaterials.length === 0} emptyText="Không có sản phẩm nào khớp bộ lọc." emptyHint='Bỏ lọc "SL kế hoạch tháng trước" hoặc tìm theo mã/tên để thêm SP mới vào kế hoạch.'>
       <div className="table-container animate-fade-in" style={{ maxHeight: '600px', overflowY: 'auto' }}>
         <table className="custom-table">
           <thead>
             <tr>
-              <th>Mã</th>
-              <th>Tên SP</th>
-              <th style={{ textAlign: 'right' }}>Giá bán</th>
+              <SortableTh col="sku" sort={sort} onSort={onSort}>Mã</SortableTh>
+              <SortableTh col="name" sort={sort} onSort={onSort}>Tên SP</SortableTh>
+              <SortableTh col="suggestedPrice" sort={sort} onSort={onSort} align="right">Giá bán</SortableTh>
               {context.monthLabels.map((label, i) => <th key={label + i} style={{ width: '110px', textAlign: 'right' }}>{label}</th>)}
             </tr>
           </thead>
@@ -241,7 +256,7 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
               const v = draftMap[m.sku] || [0, 0, 0, 0];
               return (
                 <tr key={m.sku}>
-                  <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>
+                  <td className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.8rem' }}>
                     {m.sku}
                   </td>
                   <td style={{ fontWeight: 600 }}>{m.name}</td>
@@ -262,20 +277,14 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
           </tbody>
         </table>
       </div>
-
-      {filteredMaterials.length === 0 ? (
-        <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '28px 16px' }}>
-          Không có sản phẩm nào khớp bộ lọc — bỏ lọc "SL kế hoạch tháng trước" hoặc tìm theo mã/tên để thêm SP mới vào kế hoạch.
-        </div>
-      ) : (
-        <Pagination page={safePage} pageSize={PAGE_SIZE} totalItems={filteredMaterials.length} onPageChange={setPage} itemLabel="sản phẩm" />
-      )}
+      <Pagination page={safePage} pageSize={PAGE_SIZE} totalItems={filteredMaterials.length} onPageChange={setPage} itemLabel="sản phẩm" />
+      </TableState>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
         <button onClick={() => setConfirmingReset(true)} disabled={isSaving} className="btn btn-secondary">
           <RotateCcw size={16} /> Tạo Mới Từ Đầu
         </button>
-        <button onClick={() => setConfirmingSubmit(true)} disabled={isSaving || !submissionRows.length} className="btn btn-emerald">
+        <button onClick={() => setConfirmingSubmit(true)} disabled={isSaving || !submissionRows.length} className="btn btn-primary">
           <Save size={16} /> Lưu Kế Hoạch ({submissionRows.length.toLocaleString('vi-VN')} SKU), Gửi Duyệt
         </button>
       </div>
@@ -284,7 +293,7 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
         <ConfirmDialog
           title="Tạo mới từ đầu?"
           message="Sẽ xoá toàn bộ số lượng đang nhập trên màn hình này (kể cả số đã carry-forward từ kỳ trước) để bạn nhập lại từ đầu. Chưa lưu gì lên hệ thống — chỉ thực sự thay thế kế hoạch cũ khi bạn bấm 'Gửi Duyệt' sau đó."
-          confirmLabel="Xoá và làm lại"
+          confirmLabel="Xoá số đang nhập"
           destructive
           onConfirm={handleResetFromScratch}
           onCancel={() => setConfirmingReset(false)}
@@ -295,7 +304,8 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
         <ConfirmDialog
           title="Đã kiểm tra kỹ chưa?"
           message={`Sẽ gửi kế hoạch SOP kỳ ${context.monthLabels[0]} → ${context.monthLabels[context.monthLabels.length - 1]} cho ${submissionRows.length.toLocaleString('vi-VN')} mã SKU có số lượng > 0. Nếu kỳ này đã từng gửi trước đó, bản cũ sẽ bị THAY THẾ HOÀN TOÀN bằng bản này — mã SKU nào không còn số lượng trong lần gửi này sẽ bị xoá khỏi kế hoạch. Hãy chắc chắn đã kiểm tra kỹ số lượng trước khi xác nhận.`}
-          confirmLabel="Đã kiểm tra kỹ, Gửi"
+          confirmLabel="Gửi và thay kế hoạch kỳ này"
+          danger
           busy={isSaving}
           busyLabel="Đang gửi..."
           onConfirm={handleSubmit}

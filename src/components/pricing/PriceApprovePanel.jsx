@@ -2,7 +2,20 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { CheckCircle2, XCircle, RefreshCw, Users, Clock } from 'lucide-react';
 import * as api from '../../services/api';
 import ConfirmDialog from '../ConfirmDialog';
+import SortableTh from '../SortableTh';
+import TableState from '../TableState';
 import { useToast } from '../ToastProvider';
+import { vnToday, hienNgay, sapXepNgay } from '../../utils/vnDate';
+import { useTableSort } from '../../hooks/useTableSort';
+import { useUnsavedGuard } from '../../hooks/useUnsavedGuard';
+
+const KHONG_DONG = [];
+// Cột sắp xếp được: chỉ các cột KHÔNG sửa được (sắp theo ô đang gõ thì dòng nhảy chỗ).
+const COLS = [
+  { key: 'sku' }, { key: 'name' },
+  { key: 'currentRetail', type: 'number' }, { key: 'currentPromo', type: 'number' },
+  { key: 'pctChange', type: 'number' }
+];
 
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
 const fmtPct = (v) => {
@@ -11,13 +24,9 @@ const fmtPct = (v) => {
   return `${n >= 0 ? '+' : ''}${(n * 100).toFixed(1)}%`;
 };
 
-function todayStr() {
-  // Không dùng new Date() trực tiếp cho input[type=date] để tránh lệch múi giờ
-  // hiển thị — giá trị này chỉ là gợi ý ban đầu, Admin có thể đổi.
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
+// Gợi ý ban đầu cho Ngày hiệu lực: hôm nay THEO GIỜ VIỆT NAM (utils/vnDate.js). Cách cũ
+// ghép getFullYear/getMonth/getDate theo múi giờ của máy nên máy đặt sai múi giờ ra nhầm ngày.
+const todayStr = () => vnToday();
 
 // Admin/Creator xem TỪNG ĐỢT đề xuất giá đang chờ duyệt (nhóm theo Mã đợt),
 // sửa số nếu cần, chọn Ngày hiệu lực, rồi Duyệt (ghi thẳng vào Products hoặc
@@ -33,6 +42,8 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
   const [selectedBatch, setSelectedBatch] = useState('');
   const [editedRows, setEditedRows] = useState({}); // sku -> { retail, promoQty, promoPrice }
   const [effectiveDate, setEffectiveDate] = useState(todayStr());
+  // Ảnh chụp số lúc mở đợt: khác ảnh chụp = người duyệt đã sửa số, chưa Duyệt (Đợt 2 / mục 5).
+  const [editedInit, setEditedInit] = useState('');
   const [confirmAction, setConfirmAction] = useState(null); // 'approve' | 'reject' | null
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [costBySku, setCostBySku] = useState({});
@@ -72,7 +83,12 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
       }
       groups[r.batchId].rows.push(r);
     });
-    return order.map((id) => groups[id]).sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1));
+    // Mới nhất trước. So theo thời điểm đã đọc (dd/MM/yyyy HH:mm so như chữ sẽ sai khi qua tháng).
+    return order.map((id) => groups[id]).sort((a, b) => {
+      const x = sapXepNgay(a.submittedAt), y = sapXepNgay(b.submittedAt);
+      if (isNaN(x) || isNaN(y)) return a.submittedAt < b.submittedAt ? 1 : -1;
+      return y - x;
+    });
   }, [rows]);
 
   useEffect(() => {
@@ -88,7 +104,12 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
       init[r.sku] = { retail: r.retailPropose, promoQty: r.promoQtyPropose, promoPrice: r.promoPricePropose };
     });
     setEditedRows(init);
+    setEditedInit(JSON.stringify(init));
   }, [selectedBatch]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sắp xếp theo cột + cảnh báo mất số đã sửa — phải đặt TRƯỚC các `return` sớm bên dưới (quy tắc hook).
+  const { rows: sortedRows, sort, onSort } = useTableSort(currentBatch ? currentBatch.rows : KHONG_DONG, COLS);
+  useUnsavedGuard(!!currentBatch && !!editedInit && JSON.stringify(editedRows) !== editedInit, 'Duyệt giá');
 
   const setCell = (sku, field, value) => {
     setEditedRows((prev) => ({ ...prev, [sku]: { ...prev[sku], [field]: value === '' ? 0 : (parseFloat(value) || 0) } }));
@@ -137,23 +158,19 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
     }
   };
 
-  if (isLoading) return <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '28px 16px' }}>Đang tải...</div>;
-
-  if (loadError) {
+  // Tải / lỗi / rỗng dùng chung một mẫu (TableState): lỗi luôn có Thử lại, không kẹt "Đang tải…".
+  if (isLoading || loadError || !batches.length) {
     return (
-      <div className="glass-card" style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-        <span>Lỗi tải bảng chờ duyệt: {loadError}</span>
-        <button onClick={() => fetchPending(true)} className="btn btn-secondary btn-sm">Thử lại</button>
-      </div>
-    );
-  }
-
-  if (!batches.length) {
-    return (
-      <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-        <span style={{ color: 'var(--text-muted)' }}>Chưa có đợt đề xuất giá nào đang chờ duyệt.</span>
-        <button onClick={() => fetchPending(true)} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
-      </div>
+      <TableState
+        loading={isLoading}
+        error={loadError}
+        isEmpty={!batches.length}
+        errorPrefix="Lỗi tải bảng chờ duyệt"
+        loadingLabel="Đang tải các đợt đề xuất giá..."
+        emptyText="Chưa có đợt đề xuất giá nào đang chờ duyệt."
+        emptyAction={<button onClick={() => fetchPending(true)} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>}
+        onRetry={() => fetchPending(true)}
+      />
     );
   }
 
@@ -164,7 +181,7 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
           <select className="input-field" style={{ width: '320px' }} value={selectedBatch} onChange={(e) => setSelectedBatch(e.target.value)}>
             {batches.map((b) => (
               <option key={b.batchId} value={b.batchId}>
-                {b.submittedAt} — {b.sale}{b.clientCode ? ` — Riêng: ${b.clientCode}` : ' — Áp dụng chung'} ({b.rows.length} SKU)
+                {hienNgay(b.submittedAt)} — {b.sale}{b.clientCode ? ` — Riêng: ${b.clientCode}` : ' — Áp dụng chung'} ({b.rows.length} SKU)
               </option>
             ))}
           </select>
@@ -180,7 +197,7 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
             <button onClick={() => setConfirmAction('reject')} disabled={isSubmitting} className="btn btn-secondary btn-sm">
               <XCircle size={14} /> Từ Chối
             </button>
-            <button onClick={() => setConfirmAction('approve')} disabled={isSubmitting} className="btn btn-emerald btn-sm">
+            <button onClick={() => setConfirmAction('approve')} disabled={isSubmitting} className="btn btn-primary btn-sm">
               <CheckCircle2 size={14} /> Duyệt & Áp Dụng
             </button>
           </div>
@@ -190,7 +207,7 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
       {currentBatch && currentBatch.clientCode && (
         <div className="glass-card" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Users size={14} color="var(--karofi-cyan)" />
-          Đợt này là giá <strong>RIÊNG</strong> cho khách hàng <strong>{currentBatch.clientCode}</strong> — duyệt sẽ ghi vào tab "Gia_KhachHang", không đổi giá chung.
+          Đợt này là giá <strong>RIÊNG</strong> cho khách hàng <strong>{currentBatch.clientCode}</strong> — duyệt sẽ ghi vào bảng giá riêng của khách, không đổi giá chung.
         </div>
       )}
 
@@ -199,26 +216,26 @@ export default function PriceApprovePanel({ token, activeUser, refreshTick, onAp
           <table className="custom-table">
             <thead>
               <tr>
-                <th>Mã</th>
-                <th>Tên SP</th>
-                <th style={{ textAlign: 'right', width: '130px' }}>Giá lẻ hiện tại</th>
-                <th style={{ textAlign: 'right', width: '130px' }}>Giá KM hiện tại</th>
+                <SortableTh col="sku" sort={sort} onSort={onSort}>Mã</SortableTh>
+                <SortableTh col="name" sort={sort} onSort={onSort}>Tên SP</SortableTh>
+                <SortableTh col="currentRetail" sort={sort} onSort={onSort} align="right" style={{ width: '130px' }}>Giá lẻ hiện tại</SortableTh>
+                <SortableTh col="currentPromo" sort={sort} onSort={onSort} align="right" style={{ width: '130px' }}>Giá KM hiện tại</SortableTh>
                 <th style={{ textAlign: 'right', width: '140px' }}>Giá lẻ ĐX</th>
                 <th style={{ textAlign: 'right', width: '110px' }}>SL KM ĐX</th>
                 <th style={{ textAlign: 'right', width: '140px' }}>Giá KM ĐX</th>
-                <th style={{ textAlign: 'right', width: '90px' }}>% thay đổi</th>
+                <SortableTh col="pctChange" sort={sort} onSort={onSort} align="right" style={{ width: '90px' }}>% thay đổi</SortableTh>
                 {isCreator && <th style={{ textAlign: 'right', width: '130px' }}>Giá vốn (VAT)</th>}
                 {isCreator && <th style={{ textAlign: 'right', width: '90px' }}>LNG %</th>}
               </tr>
             </thead>
             <tbody>
-              {currentBatch.rows.map((r) => {
+              {sortedRows.map((r) => {
                 const e = editedRows[r.sku] || {};
                 const cost = costBySku[r.sku];
                 const margin = isCreator ? marginFor(r.sku, e.retail) : null;
                 return (
                   <tr key={r.sku}>
-                    <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{r.sku}</td>
+                    <td className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.8rem' }}>{r.sku}</td>
                     <td style={{ fontWeight: 600 }}>{r.name}</td>
                     <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(r.currentRetail)}</td>
                     <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', color: 'var(--text-dim)' }}>{r.currentPromo ? fmt(r.currentPromo) : '-'}</td>

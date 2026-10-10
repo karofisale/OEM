@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ClipboardList, RefreshCw, Copy, Check, Save, AlertCircle, Loader2, Trash2, FileSpreadsheet } from 'lucide-react';
+import { ClipboardList, RefreshCw, Copy, Check, Save, Loader2, Trash2, FileSpreadsheet, ArrowDownUp } from 'lucide-react';
 import * as api from '../services/api';
-import LoadingScreen from './LoadingScreen';
+import TableState from './TableState';
+import MoreMenu from './MoreMenu';
 import ConfirmDialog from './ConfirmDialog';
 import { useToast } from './ToastProvider';
 import SkuPickerCell from './SkuPickerCell';
 import ClientPickerCell from './ClientPickerCell';
 import RowActionButtons from './RowActionButtons';
 import { ownsOrder } from '../utils/roles';
+import { vnDateSlug, hienNgay, sapXepNgay } from '../utils/vnDate';
+import { usePersistentState } from '../hooks/usePersistentState';
+import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 
 export default function OrdersReview({ token, activeUser, materials, clients, isActive = true, isStale = true, onLoaded }) {
   const toast = useToast();
@@ -23,6 +27,8 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
   const [deletingOrderNo, setDeletingOrderNo] = useState('');
   const [exportingOrderNo, setExportingOrderNo] = useState('');
   const [exportingAll, setExportingAll] = useState(false);
+  // Thứ tự các đơn nhớ qua F5 (Đợt 2 / mục 3, 9).
+  const [orderSort, setOrderSort] = usePersistentState('orders.sort', 'newest', (v) => ['newest', 'oldest', 'total', 'orderNo'].includes(v));
 
   // Orders sheet only stores Mã KH (code) + Mã KH Chữ (codeSearch) — resolve the
   // full display name by looking the code up against the loaded client list.
@@ -74,8 +80,25 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
       if (!map.has(o.orderNo)) map.set(o.orderNo, []);
       map.get(o.orderNo).push(o);
     });
-    return Array.from(map.entries()).sort((a, b) => (b[1][0].createdAt || '').localeCompare(a[1][0].createdAt || ''));
-  }, [visibleOrders]);
+    // So theo THỜI ĐIỂM đã đọc, không so chữ: createdAt dạng 'dd/MM/yyyy HH:mm' so như chữ sẽ xếp
+    // 31/08 sau 01/10 (utils/vnDate.js). Đơn không đọc được ngày thì xuống cuối.
+    const when = (g) => { const t = sapXepNgay(g[1][0].createdAt); return isNaN(t) ? -Infinity : t; };
+    const tong = (g) => g[1].reduce((sum, r) => sum + (Number(r.total) || (Number(r.qty) * Number(r.price)) || 0), 0);
+    const cmp = {
+      newest: (a, b) => when(b) - when(a) || String(b[0]).localeCompare(String(a[0])),
+      oldest: (a, b) => when(a) - when(b) || String(a[0]).localeCompare(String(b[0])),
+      total: (a, b) => tong(b) - tong(a),
+      orderNo: (a, b) => String(a[0]).localeCompare(String(b[0]), 'vi', { numeric: true })
+    }[orderSort];
+    return Array.from(map.entries()).sort((a, b) => {
+      const x = when(a), y = when(b);
+      if (orderSort === 'newest' && x === -Infinity && y === -Infinity) return 0;
+      return cmp(a, b);
+    });
+  }, [visibleOrders, orderSort]);
+
+  // F5 / đổi tab khi còn dòng đã sửa mà chưa bấm Lưu -> cảnh báo (Đợt 2 / mục 5).
+  useUnsavedGuard(Object.keys(editedRows).length > 0, 'Đơn hàng chờ duyệt');
 
   const getValue = (row, field) => {
     const edited = editedRows[row.rowIndex];
@@ -145,9 +168,9 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
 
   const handleDeleteRow = (row) => setConfirming({
     kind: 'row',
-    title: 'Xóa dòng này?',
-    message: `Dòng "${row.sku || '(chưa có mã)'} — ${row.name || ''}" sẽ bị xóa khỏi danh sách đơn.`,
-    confirmLabel: 'Xóa dòng',
+    title: 'Xoá dòng này?',
+    message: `Dòng "${row.sku || '(chưa có mã)'} — ${row.name || ''}" sẽ bị xoá khỏi danh sách đơn.`,
+    confirmLabel: 'Xoá dòng',
     run: () => deleteRowConfirmed(row)
   });
 
@@ -158,7 +181,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
       setEditedRows({});
       await fetchOrders();
     } catch (err) {
-      toast.error('Không xóa được dòng: ' + err.message);
+      toast.error('Không xoá được dòng: ' + err.message);
     } finally {
       setBusyRowIndex(null);
     }
@@ -166,9 +189,9 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
 
   const handleDeleteOrder = (orderNo) => setConfirming({
     kind: 'order',
-    title: `Xóa toàn bộ đơn ${orderNo}?`,
-    message: 'Tất cả các dòng của đơn này sẽ bị xóa khỏi danh sách đơn. Thao tác này không thể hoàn tác.',
-    confirmLabel: 'Xóa cả đơn',
+    title: `Xoá toàn bộ đơn ${orderNo}?`,
+    message: 'Tất cả các dòng của đơn này sẽ bị xoá khỏi danh sách đơn. Thao tác này không thể hoàn tác.',
+    confirmLabel: 'Xoá cả đơn',
     run: () => deleteOrderConfirmed(orderNo)
   });
 
@@ -179,7 +202,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
       setEditedRows({});
       await fetchOrders();
     } catch (err) {
-      toast.error('Không xóa được đơn hàng: ' + err.message);
+      toast.error('Không xoá được đơn hàng: ' + err.message);
     } finally {
       setDeletingOrderNo('');
     }
@@ -237,7 +260,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
       const ws = XLSX.utils.json_to_sheet(buildExportRows(visibleOrders));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Don Hang Cho Duyet');
-      const today = new Date().toLocaleDateString('vi-VN').replace(/\//g, '-');
+      const today = vnDateSlug();
       XLSX.writeFile(wb, `Don_Hang_Cho_Duyet_${today}.xlsx`);
     } catch (err) {
       toast.error('Không xuất được file Excel: ' + err.message);
@@ -258,7 +281,16 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
             Rà soát các đơn AI Agent đã tạo, chỉnh sửa nếu cần, rồi copy mã dán vào SAP.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+            <ArrowDownUp size={14} aria-hidden="true" />
+            <select className="input-field" style={{ width: '170px', padding: '6px 10px' }} value={orderSort} onChange={(e) => setOrderSort(e.target.value)} aria-label="Sắp xếp các đơn">
+              <option value="newest">Mới nhất trước</option>
+              <option value="oldest">Cũ nhất trước</option>
+              <option value="total">Tổng tiền cao → thấp</option>
+              <option value="orderNo">Mã đơn A → Z</option>
+            </select>
+          </label>
           <button
             onClick={handleExportAll}
             disabled={exportingAll || !visibleOrders.length}
@@ -274,25 +306,25 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
         </div>
       </div>
 
-      {loadError && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--danger)', fontSize: '0.85rem', fontWeight: 600 }}>
-          <AlertCircle size={16} /> Không tải được danh sách đơn hàng: {loadError}
+      {/* Tải / lỗi / rỗng dùng chung một mẫu (TableState). Đang tải lại mà đã có danh sách thì GIỮ danh
+          sách (các dòng đang sửa không bị che), chỉ nút "Tải lại" quay. Lỗi mà đã có danh sách thì hiện
+          thanh lỗi + Thử lại phía trên, không xoá danh sách. */}
+      {loadError && groups.length > 0 && (
+        <div className="state-card state-error" role="alert">
+          <span>Không tải lại được danh sách đơn hàng: {loadError}</span>
+          <button type="button" onClick={fetchOrders} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Thử lại</button>
         </div>
       )}
 
-      {/* `isLoading` was tracked but never rendered, so the tab showed a header
-          and blank space for the whole fetch — which on this backend can be
-          tens of seconds. */}
-      {isLoading && !loadError && (
-        <LoadingScreen compact label="Đang tải danh sách đơn hàng chờ duyệt..." />
-      )}
-
-      {!isLoading && !loadError && groups.length === 0 && (
-        <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '32px 16px' }}>
-          Chưa có đơn hàng nào được lưu.
-        </div>
-      )}
-
+      <TableState
+        loading={isLoading && groups.length === 0 && !loadError}
+        error={groups.length === 0 ? loadError : ''}
+        isEmpty={!isLoading && groups.length === 0}
+        errorPrefix="Không tải được danh sách đơn hàng"
+        loadingLabel="Đang tải danh sách đơn hàng chờ duyệt..."
+        emptyText="Chưa có đơn hàng nào được lưu."
+        onRetry={fetchOrders}
+      >
       {groups.map(([orderNo, rows]) => {
         const groupTotal = rows.reduce((sum, r) => sum + (Number(getValue(r, 'qty')) * Number(getValue(r, 'price')) || r.total || 0), 0);
         // Mọi dòng của một đơn dùng chung PIC (ghi một lần lúc lưu đơn), nên
@@ -302,43 +334,41 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
           <div key={orderNo} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-                <span className="code-font" style={{ fontWeight: 800, color: 'var(--accent-purple)' }}>{orderNo}</span>
+                <span className="code-font" style={{ fontWeight: 800, color: 'var(--purple-text)' }}>{orderNo}</span>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                   Mã KH: <strong>{rows[0].clientCode}{rows[0].clientCodeSearch ? ` - ${rows[0].clientCodeSearch}` : ''}</strong>
                 </span>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{rows[0].createdAt}</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{hienNgay(rows[0].createdAt)}</span>
                 <span className="badge badge-blue" style={{ fontSize: '0.7rem' }}>PIC: {rows[0].pic}</span>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              {/* Một nút chính (Copy dán SAP — bước tiếp theo của đơn); Xuất Excel / Xoá gom vào "Thêm". */}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <button
                   onClick={() => handleCopyGroup(orderNo, rows)}
-                  className="btn btn-emerald btn-sm"
+                  className="btn btn-primary btn-sm"
                   title="Copy các dòng của đơn này để dán vào SAP"
                 >
                   {copiedOrderNo === orderNo ? <Check size={14} /> : <Copy size={14} />}
                   {copiedOrderNo === orderNo ? 'Đã Sao Chép!' : 'Copy Dán SAP'}
                 </button>
-                <button
-                  onClick={() => handleExportOrder(orderNo, rows)}
-                  disabled={exportingOrderNo === orderNo}
-                  className="btn btn-secondary btn-sm"
-                  title="Xuất riêng đơn này ra file Excel"
-                >
-                  {exportingOrderNo === orderNo ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
-                  Xuất Excel
-                </button>
-                {canDeleteOrder && (
-                  <button
-                    onClick={() => handleDeleteOrder(orderNo)}
-                    disabled={deletingOrderNo === orderNo}
-                    className="btn btn-secondary btn-sm"
-                    style={{ color: 'var(--danger)' }}
-                    title="Xóa toàn bộ đơn hàng này (phòng lên đơn trùng/nhầm)"
-                  >
-                    {deletingOrderNo === orderNo ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                    Xóa Cả Đơn
-                  </button>
-                )}
+                <MoreMenu
+                  items={[
+                    {
+                      label: exportingOrderNo === orderNo ? 'Đang xuất...' : 'Xuất Excel',
+                      icon: <FileSpreadsheet size={14} />,
+                      disabled: exportingOrderNo === orderNo,
+                      onClick: () => handleExportOrder(orderNo, rows)
+                    },
+                    {
+                      label: deletingOrderNo === orderNo ? 'Đang xoá...' : 'Xoá cả đơn',
+                      icon: <Trash2 size={14} />,
+                      danger: true,
+                      hidden: !canDeleteOrder,
+                      disabled: deletingOrderNo === orderNo,
+                      onClick: () => handleDeleteOrder(orderNo)
+                    }
+                  ]}
+                />
               </div>
             </div>
 
@@ -406,7 +436,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
                           <div style={{ textAlign: 'right' }}>{row.price.toLocaleString('vi-VN')}</div>
                         )}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald)', whiteSpace: 'nowrap' }}>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald-text)', whiteSpace: 'nowrap' }}>
                         {Math.round((parseFloat(getValue(row, 'qty')) || 0) * (parseFloat(getValue(row, 'price')) || 0)).toLocaleString('vi-VN')} ₫
                       </td>
                       <td>
@@ -465,6 +495,7 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
           </div>
         );
       })}
+      </TableState>
 
       {confirming && (
         <ConfirmDialog

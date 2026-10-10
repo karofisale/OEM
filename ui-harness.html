@@ -1,0 +1,16 @@
+<!doctype html>
+<!-- CHỈ DÙNG KHI PHÁT TRIỂN (npm run dev -> /ui-harness.html): chạy CẢ app với "máy chủ giả" (chặn fetch) và phiên đăng nhập giả,
+     để thử khung giao diện dùng chung (hộp thoại, toast, bảng sắp xếp, tab con, giao diện tối...) mà không cần backend.
+     Tham số: ?role=admin|sale|account|leader  &fail=1 (mọi lệnh đọc báo lỗi, thử "Thử lại")  &theme=dark.
+     Không nằm trong bản build (vite build chỉ lấy index.html). -->
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OEM — thử khung UI cục bộ</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/dev/uiHarness.jsx"></script>
+  </body>
+</html>

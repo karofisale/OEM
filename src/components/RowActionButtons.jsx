@@ -13,6 +13,7 @@ export default function RowActionButtons({ onInsertAbove, onInsertBelow, onDelet
         onClick={onInsertAbove}
         className="btn btn-secondary btn-sm"
         title="Chèn dòng trên"
+        aria-label="Chèn dòng trên"
         style={{ padding: '4px 6px' }}
       >
         <ArrowUpToLine size={13} />
@@ -22,6 +23,7 @@ export default function RowActionButtons({ onInsertAbove, onInsertBelow, onDelet
         onClick={onInsertBelow}
         className="btn btn-secondary btn-sm"
         title="Chèn dòng dưới"
+        aria-label="Chèn dòng dưới"
         style={{ padding: '4px 6px' }}
       >
         <ArrowDownToLine size={13} />
@@ -29,9 +31,10 @@ export default function RowActionButtons({ onInsertAbove, onInsertBelow, onDelet
       <button
         type="button"
         onClick={onDelete}
-        className="btn btn-secondary btn-sm"
-        title="Xóa dòng"
-        style={{ padding: '4px 6px', color: 'var(--danger)' }}
+        className="btn btn-secondary btn-sm btn-danger-outline"
+        title="Xoá dòng"
+        aria-label="Xoá dòng"
+        style={{ padding: '4px 6px' }}
       >
         <Trash2 size={13} />
       </button>

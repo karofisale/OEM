@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, AlertTriangle, Clock, AlertCircle } from 'lucide-react';
 import * as api from '../../services/api';
+import { docNgay, hienNgay } from '../../utils/vnDate';
 
 /**
  * "Doanh thu cập nhật lần cuối: ..." trên màn Lịch sử doanh thu.
@@ -32,15 +33,12 @@ function moTaTuoi(tuoiGio) {
   return `${Math.floor(tuoiGio / 24)} ngày trước`;
 }
 
-// Ghép tay chứ không dùng toLocaleString('vi-VN'): locale này trả giờ TRƯỚC
-// ngày ("07:18 13/09/2026"), mà đây là dòng "ngày cập nhật" nên ngày phải đọc
-// được trước. Các phần vẫn lấy theo múi giờ máy người xem (GMT+7).
+// Ngày đọc trước giờ ("13/09/2026 07:18"), theo GIỜ VIỆT NAM chứ không theo múi giờ của
+// máy người xem (utils/vnDate.js). Không đọc được thì trả rỗng (dòng "cập nhật lần cuối"
+// tự ẩn), không hiện "NaN".
 function dinhDangMoc(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  const hai = (n) => String(n).padStart(2, '0');
-  return `${hai(d.getDate())}/${hai(d.getMonth() + 1)}/${d.getFullYear()} ${hai(d.getHours())}:${hai(d.getMinutes())}`;
+  if (!iso || !docNgay(iso)) return '';
+  return hienNgay(iso);
 }
 
 export default function NhipDoanhThu({ token, refreshTick }) {

@@ -2,7 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { CheckCircle2, Users } from 'lucide-react';
 import * as api from '../../services/api';
 import ConfirmDialog from '../ConfirmDialog';
+import SortableTh from '../SortableTh';
+import TableState from '../TableState';
 import { useToast } from '../ToastProvider';
+import { useTableSort } from '../../hooks/useTableSort';
 import { monthSortValue } from '../../utils/period';
 import { doneTheoKhach, doneDong } from '../../utils/salesPlan';
 
@@ -31,6 +34,17 @@ export default function SalesPlanApprovePanel({ token, plans, transactions, onAp
   // Tính từ tab Data, xem doneTheoKhach().
   const doneByCode = useMemo(() => doneTheoKhach(transactions, month), [transactions, month]);
 
+  // Sắp xếp theo cột (Đợt 2 / mục 3). Cột "Doanh thu done" tính từ Data nên cần `get`.
+  const cols = useMemo(() => [
+    { key: 'searchCode' }, { key: 'clientName' }, { key: 'sale' },
+    { key: 'planKpi', type: 'number' },
+    ...['w1', 'w2', 'w3', 'w4', 'w5'].map((k) => ({ key: k, type: 'number' })),
+    { key: 'planUpdate', type: 'number' },
+    { key: 'done', type: 'number', get: (p) => doneDong(p, p.searchCode, doneByCode).value },
+    { key: 'note' }
+  ], [doneByCode]);
+  const { rows: sortedRows, sort, onSort } = useTableSort(pendingRows, cols);
+
   const totals = useMemo(() => pendingRows.reduce((acc, p) => {
     acc.planKpi += p.planKpi || 0;
     acc.planUpdate += p.planUpdate || 0;
@@ -55,11 +69,7 @@ export default function SalesPlanApprovePanel({ token, plans, transactions, onAp
   };
 
   if (!monthsWithPending.length) {
-    return (
-      <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '28px 16px' }}>
-        Không có tháng nào đang chờ duyệt.
-      </div>
-    );
+    return <TableState isEmpty emptyText="Không có tháng nào đang chờ duyệt." />;
   }
 
   return (
@@ -69,7 +79,7 @@ export default function SalesPlanApprovePanel({ token, plans, transactions, onAp
           {monthsWithPending.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={() => setConfirming(true)} disabled={!pendingRows.length} className="btn btn-emerald btn-sm">
+          <button onClick={() => setConfirming(true)} disabled={!pendingRows.length} className="btn btn-primary btn-sm">
             <CheckCircle2 size={14} /> Duyệt Toàn Bộ Tháng {month}
           </button>
         </div>
@@ -79,18 +89,16 @@ export default function SalesPlanApprovePanel({ token, plans, transactions, onAp
         <table className="custom-table">
           <thead>
             <tr>
-              <th>Mã KH</th>
-              <th>Khách hàng</th>
-              <th><Users size={12} /> SALE</th>
-              <th style={{ textAlign: 'right', width: '140px' }}>Plan KPI</th>
-              <th style={{ textAlign: 'right', width: '120px' }}>Tuần 1</th>
-              <th style={{ textAlign: 'right', width: '120px' }}>Tuần 2</th>
-              <th style={{ textAlign: 'right', width: '120px' }}>Tuần 3</th>
-              <th style={{ textAlign: 'right', width: '120px' }}>Tuần 4</th>
-              <th style={{ textAlign: 'right', width: '120px' }}>Tuần 5</th>
-              <th style={{ textAlign: 'right', width: '140px' }}>Plan_Update</th>
-              <th style={{ textAlign: 'right', width: '140px' }}>Doanh thu done</th>
-              <th>Note</th>
+              <SortableTh col="searchCode" sort={sort} onSort={onSort}>Mã KH</SortableTh>
+              <SortableTh col="clientName" sort={sort} onSort={onSort}>Khách hàng</SortableTh>
+              <SortableTh col="sale" sort={sort} onSort={onSort}><Users size={12} /> SALE</SortableTh>
+              <SortableTh col="planKpi" sort={sort} onSort={onSort} align="right" style={{ width: '140px' }}>Plan KPI</SortableTh>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <SortableTh key={n} col={'w' + n} sort={sort} onSort={onSort} align="right" style={{ width: '120px' }}>Tuần {n}</SortableTh>
+              ))}
+              <SortableTh col="planUpdate" sort={sort} onSort={onSort} align="right" style={{ width: '140px' }}>Plan_Update</SortableTh>
+              <SortableTh col="done" sort={sort} onSort={onSort} align="right" style={{ width: '140px' }}>Doanh thu done</SortableTh>
+              <SortableTh col="note" sort={sort} onSort={onSort}>Note</SortableTh>
             </tr>
           </thead>
           <tbody>
@@ -106,9 +114,9 @@ export default function SalesPlanApprovePanel({ token, plans, transactions, onAp
               <td style={{ textAlign: 'right', color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>{fmt(totals.done)}</td>
               <td />
             </tr>
-            {pendingRows.map((p, idx) => (
+            {sortedRows.map((p, idx) => (
               <tr key={`${p.searchCode}_${idx}`}>
-                <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{p.searchCode}</td>
+                <td className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.8rem' }}>{p.searchCode}</td>
                 <td style={{ fontWeight: 600 }}>{p.clientName}</td>
                 <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{p.sale}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(p.planKpi)}</td>
@@ -118,7 +126,7 @@ export default function SalesPlanApprovePanel({ token, plans, transactions, onAp
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(p.w4)}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(p.w5)}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(p.planUpdate)}</td>
-                <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(doneDong(p, p.searchCode, doneByCode).value)}</td>
+                <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(doneDong(p, p.searchCode, doneByCode).value)}</td>
                 <td style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>{p.note || '-'}</td>
               </tr>
             ))}
@@ -130,7 +138,7 @@ export default function SalesPlanApprovePanel({ token, plans, transactions, onAp
         <ConfirmDialog
           title={`Duyệt toàn bộ kế hoạch tháng ${month}?`}
           message={`Sẽ đánh dấu Đã duyệt cho toàn bộ ${pendingRows.length} khách hàng đang chờ duyệt của tháng ${month}. Không thể duyệt lại từng dòng riêng sau khi xác nhận.`}
-          confirmLabel="Duyệt"
+          confirmLabel={`Duyệt kế hoạch ${month}`}
           busy={isApproving}
           busyLabel="Đang duyệt..."
           onConfirm={handleApprove}

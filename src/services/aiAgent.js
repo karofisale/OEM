@@ -34,6 +34,8 @@
 // and checks each candidate independently.
 
 // Thành Tiền / Tổng Giá Trị are shown VAT-inclusive per request; Đơn Giá stays pre-VAT.
+import { vnTimestamp } from '../utils/vnDate';
+
 export const VAT_RATE = 1.08;
 
 // "Bộ cốc ĐL, Bộ cốc Đài Loan" -> ["Bộ cốc ĐL", "Bộ cốc Đài Loan"] — several
@@ -461,7 +463,7 @@ export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, t
     orderNo: 'SAP-SO-' + Math.floor(100000 + Math.random() * 900000),
     items: orderItems,
     grandTotal: grandTotal,
-    timestamp: new Date().toLocaleString('vi-VN'),
+    timestamp: vnTimestamp(),
     warnings
   };
 }

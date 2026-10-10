@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { TrendingUp, Download, RefreshCw, AlertTriangle } from 'lucide-react';
+import { TrendingUp, Download, RefreshCw } from 'lucide-react';
 import * as api from '../../services/api';
 import Pagination, { usePagedSlice } from '../Pagination';
-import LoadingScreen from '../LoadingScreen';
+import SortableTh from '../SortableTh';
+import TableState from '../TableState';
 import { useToast } from '../ToastProvider';
+import { vnDateSlug } from '../../utils/vnDate';
+import { useTableSort } from '../../hooks/useTableSort';
 
 const PAGE_SIZE = 25;
 const fmtNum = (v) => (v || 0).toLocaleString('vi-VN');
@@ -36,7 +39,13 @@ export default function SopViewPanel({ token, refreshTick }) {
 
   useEffect(() => { fetchView(); }, [refreshTick]);
 
-  const { safePage, pageItems: pagedRows } = usePagedSlice(rows, page, PAGE_SIZE);
+  // Sắp xếp theo cột TRƯỚC khi cắt trang (Đợt 2 / mục 3).
+  const cols = useMemo(() => [
+    { key: 'sku' }, { key: 'name' }, { key: 'price', type: 'number' },
+    ...monthLabels.map((_, i) => ({ key: 'sl' + i, type: 'number', get: (r) => r.sl[i] }))
+  ], [monthLabels]);
+  const { rows: sortedRows, sort, onSort } = useTableSort(rows, cols);
+  const { safePage, pageItems: pagedRows } = usePagedSlice(sortedRows, page, PAGE_SIZE);
 
   // SUMPRODUCT(SL x Giá bán) per month, over the FULL set — not just the visible page.
   const revenueByMonth = useMemo(() => {
@@ -58,7 +67,7 @@ export default function SopViewPanel({ token, refreshTick }) {
       const ws = XLSX.utils.json_to_sheet(exportRows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'SOP');
-      const today = new Date().toLocaleDateString('vi-VN').replace(/\//g, '-');
+      const today = vnDateSlug();
       XLSX.writeFile(wb, `SOP_${today}.xlsx`);
     } catch (err) {
       toast.error('Không xuất được file Excel: ' + err.message);
@@ -67,23 +76,19 @@ export default function SopViewPanel({ token, refreshTick }) {
     }
   };
 
-  if (isLoading) return <LoadingScreen label="Đang tải bảng SOP..." />;
-
-  if (loadError) {
+  // Tải / lỗi / rỗng dùng chung một mẫu (TableState): lỗi luôn có Thử lại, không kẹt "Đang tải…".
+  if (isLoading || loadError || !rows.length) {
     return (
-      <div className="glass-card" style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-        <span>Lỗi tải bảng SOP: {loadError}</span>
-        <button onClick={fetchView} className="btn btn-secondary btn-sm">Thử lại</button>
-      </div>
-    );
-  }
-
-  if (!rows.length) {
-    return (
-      <div className="glass-card" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', color: 'var(--warning-text)', background: 'var(--warning-bg)' }}>
-        <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '1px' }} />
-        <span>Chưa có kế hoạch SOP nào được duyệt. Sau khi Admin/Creator duyệt một kỳ kế hoạch, bảng sẽ hiện ở đây.</span>
-      </div>
+      <TableState
+        loading={isLoading}
+        error={loadError}
+        isEmpty={!rows.length}
+        errorPrefix="Lỗi tải bảng SOP"
+        loadingLabel="Đang tải bảng SOP..."
+        emptyText="Chưa có kế hoạch SOP nào được duyệt."
+        emptyHint="Sau khi Admin/Creator duyệt một kỳ kế hoạch, bảng sẽ hiện ở đây."
+        onRetry={fetchView}
+      />
     );
   }
 
@@ -118,16 +123,27 @@ export default function SopViewPanel({ token, refreshTick }) {
         <table className="custom-table">
           <thead>
             <tr>
-              <th>Mã</th>
-              <th>Tên SP</th>
-              <th style={{ textAlign: 'right' }}>Giá bán</th>
-              {monthLabels.map((label, i) => <th key={label + i} style={{ textAlign: 'right' }}>{label}</th>)}
+              <SortableTh col="sku" sort={sort} onSort={onSort}>Mã</SortableTh>
+              <SortableTh col="name" sort={sort} onSort={onSort}>Tên SP</SortableTh>
+              <SortableTh col="price" sort={sort} onSort={onSort} align="right">Giá bán</SortableTh>
+              {monthLabels.map((label, i) => <SortableTh key={label + i} col={'sl' + i} sort={sort} onSort={onSort} align="right">{label}</SortableTh>)}
             </tr>
           </thead>
           <tbody>
+            {/* Dòng tổng: số lượng cả kế hoạch theo từng tháng (không chỉ trang đang xem). */}
+            <tr className="top-summary-row">
+              <td style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>Σ TỔNG</td>
+              <td style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>{rows.length.toLocaleString('vi-VN')} mã SKU</td>
+              <td />
+              {monthLabels.map((label, i) => (
+                <td key={label + i} style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900, color: 'var(--karofi-navy)' }}>
+                  {fmtNum(rows.reduce((sum, r) => sum + (r.sl[i] || 0), 0))}
+                </td>
+              ))}
+            </tr>
             {pagedRows.map(r => (
               <tr key={r.sku}>
-                <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{r.sku}</td>
+                <td className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.8rem' }}>{r.sku}</td>
                 <td style={{ fontWeight: 600 }}>{r.name}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmtNum(r.price)}</td>
                 {r.sl.map((v, i) => (

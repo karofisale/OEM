@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { Package, DollarSign, ClipboardCheck, Calculator, Upload, Boxes } from 'lucide-react';
+import React from 'react';
 import KeepAliveTab from './KeepAliveTab';
+import SubTabs from './SubTabs';
+import { SUBTABS } from '../utils/navMeta';
+import { usePersistentState } from '../hooks/usePersistentState';
 import ProductManagement from './ProductManagement';
 import PriceProposePanel from './pricing/PriceProposePanel';
 import PriceApprovePanel from './pricing/PriceApprovePanel';
@@ -14,7 +16,6 @@ import KitsPanel from './pricing/KitsPanel';
 // (Admin/Creator, công cụ gợi ý giá theo % LNG — không lộ giá vốn thật), Giá
 // Vốn (chỉ Creator, nhập Excel giá vốn hàng tháng).
 export default function ProductPricing({ token, materials, clients, kits, activeUser, onAddMaterial, onEditMaterial, onDataChanged }) {
-  const [subView, setSubView] = useState('catalog'); // catalog | propose | approve | calculator | cost | kits
 
   // Perf (2026-08-27): sub-tab giờ giữ nguyên (KeepAliveTab) thay vì unmount
   // khi chuyển — mỗi lần unmount là mất luôn dữ liệu đã tải, và mở lại phải
@@ -30,38 +31,15 @@ export default function ProductPricing({ token, materials, clients, kits, active
   const canCalculate = ['admin', 'creator'].includes(activeUser.role);
   const canImportCost = activeUser.role === 'creator';
 
+  // Tab con: icon riêng từng tab (utils/navMeta.js), nhớ tab cuối qua F5 (Đợt 2 / mục 9).
+  const hien = { catalog: true, propose: canPropose, approve: canApprove, calculator: canCalculate, cost: canImportCost, kits: canApprove };
+  const tabs = SUBTABS.products.filter((t) => hien[t.id]);
+  const [subSaved, setSubView] = usePersistentState('sub.products', 'catalog'); // catalog | propose | approve | calculator | cost | kits
+  const subView = tabs.some((t) => t.id === subSaved) ? subSaved : 'catalog';
+
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-        <button onClick={() => setSubView('catalog')} className={`btn ${subView === 'catalog' ? 'btn-primary' : 'btn-secondary'}`}>
-          <Package size={16} /> Danh Mục
-        </button>
-        {canPropose && (
-          <button onClick={() => setSubView('propose')} className={`btn ${subView === 'propose' ? 'btn-primary' : 'btn-secondary'}`}>
-            <DollarSign size={16} /> Đề Xuất Giá
-          </button>
-        )}
-        {canApprove && (
-          <button onClick={() => setSubView('approve')} className={`btn ${subView === 'approve' ? 'btn-primary' : 'btn-secondary'}`}>
-            <ClipboardCheck size={16} /> Chờ Duyệt
-          </button>
-        )}
-        {canCalculate && (
-          <button onClick={() => setSubView('calculator')} className={`btn ${subView === 'calculator' ? 'btn-primary' : 'btn-secondary'}`}>
-            <Calculator size={16} /> Tính Giá
-          </button>
-        )}
-        {canImportCost && (
-          <button onClick={() => setSubView('cost')} className={`btn ${subView === 'cost' ? 'btn-primary' : 'btn-secondary'}`}>
-            <Upload size={16} /> Giá Vốn
-          </button>
-        )}
-        {canApprove && (
-          <button onClick={() => setSubView('kits')} className={`btn ${subView === 'kits' ? 'btn-primary' : 'btn-secondary'}`}>
-            <Boxes size={16} /> Bộ SP
-          </button>
-        )}
-      </div>
+      <SubTabs tabs={tabs} active={subView} onChange={setSubView} ariaLabel="Sản phẩm và bảng giá" />
 
       <KeepAliveTab isActive={subView === 'catalog'}>
         <ProductManagement

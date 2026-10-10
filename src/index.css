@@ -31,7 +31,7 @@
   
   --text-main: #0f172a;
   --text-muted: #475569;
-  --text-dim: #94a3b8;
+  --text-dim: #5b6b80; /* chữ phụ: 5,4:1 trên thẻ trắng (cũ #94a3b8 chỉ 2,6:1) */
   
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -50,11 +50,11 @@
 
   /* Danger had NO token at all: --accent-rose is #ef4444, a different red, and
      SalesPlan used #dc2626 and #ef4444 for the same meaning twelve lines apart. */
-  --danger: #dc2626;
+  --danger: #c81e1e;
   --danger-strong: #b91c1c;
   --danger-bg: rgba(220, 38, 38, 0.12);
 
-  --warning-text: #b45309;
+  --warning-text: #a64a07;
   --warning-bg: rgba(245, 158, 11, 0.15);
 
   --success-text: #047857;
@@ -65,11 +65,25 @@
 
   /* Readable emerald for TEXT. #34d399 was used for the order grand total and
      measures about 1.9:1 on white — the badge styles already used #059669. */
-  --accent-emerald-text: #059669;
+  --accent-emerald-text: #047857;
 
   /* Referenced as var(--accent-cyan) in AIOrderAgent's OCR status line but never
      defined anywhere, so that text silently inherited its parent colour. */
   --accent-cyan: #0e7490;
+
+  /* Màu CHỮ riêng cho các tông thương hiệu (Đợt 2 / mục 8). --karofi-cyan (#00a0e9)
+     chỉ đạt 2,9:1 trên nền trắng — dùng cho nền nút / viền / icon thì được, còn
+     dùng làm màu chữ thường thì phải qua token -text này (>= 4,5:1 ở cả hai giao diện). */
+  --cyan-text: #00689d;
+  --purple-text: #6d28d9;
+  --text-secondary: var(--text-muted);
+
+  /* Bảng: tiêu đề, dòng rê chuột, đường kẻ. Trước đây hardcode #334155 / #f8fafc /
+     #f1f5f9 nên giao diện tối ra chữ tiêu đề 1,6:1 và hàng rê chuột nền trắng. */
+  --th-bg: #f1f5f9;
+  --th-text: #334155;
+  --row-hover: #eef6fc;
+  --border-soft: #f1f5f9;
 
   /* Deeper navy used for the sticky summary row in the three reports. */
   --summary-navy: #005fa7;
@@ -87,7 +101,7 @@
   /* Badge ink, measured against each badge's own 10% tint over the card. */
   --badge-blue-ink: #0369a1;
   --badge-emerald-ink: #047857;
-  --badge-amber-ink: #b45309;
+  --badge-amber-ink: #9a4507;
   --badge-purple-ink: #6d28d9;
   --badge-rose-ink: #b91c1c;
 }
@@ -101,7 +115,11 @@
    Three states, not two: an explicit choice stamps data-theme on <html>, while
    the default "system" setting stamps nothing and is separated only by
    prefers-color-scheme. The media query is guarded with :not([data-theme="light"])
-   so an explicit light choice still beats a dark OS. */
+   so an explicit light choice still beats a dark OS.
+
+   HAI KHỐI DƯỚI ĐÂY PHẢI GIỐNG HỆT NHAU (test/dot2-khung-ui.test.cjs so từng dòng):
+   bản cũ để khối "data-theme=dark" thiếu --badge-*-ink nên chọn tối tay thì badge
+   ra chữ tối trên nền tối. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg-main: #0e1620;
@@ -110,16 +128,23 @@
     --bg-input: #16212e;
     --surface-sunk: #111c27;
     --border-color: #27384a;
+    --border-soft: #1f2e3e;
 
     --text-main: #e8eff5;
     --text-strong: #f1f5f9;
     --text-muted: #a6bacd;
-    --text-dim: #7690a8;
+    --text-dim: #8aa3ba;
+
+    --th-bg: #1d2c3d;
+    --th-text: #c9d8e6;
+    --row-hover: #1f3043;
 
     /* Brand blues are too dark to read on a dark ground — lift them. */
     --karofi-cyan: #35b9f5;
     --karofi-cyan-hover: #5cc8f8;
     --karofi-navy: #6bb4e8;
+    --cyan-text: #35b9f5;
+    --purple-text: #bda6fb;
     --summary-navy: #8ac6ee;
     --summary-row-bg: #16303f;
     --code-blue: #62b6e8;
@@ -150,13 +175,7 @@
     --badge-purple-ink: #bda6fb;
     --badge-rose-ink: #ff9ea3;
 
-    --badge-blue-ink: #7cc9f5;
-  --badge-emerald-ink: #5ed4a8;
-  --badge-amber-ink: #f2c46b;
-  --badge-purple-ink: #bda6fb;
-  --badge-rose-ink: #ff9ea3;
-
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
     --shadow-md: 0 4px 12px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.3);
   }
 }
@@ -169,15 +188,23 @@
   --bg-input: #16212e;
   --surface-sunk: #111c27;
   --border-color: #27384a;
+  --border-soft: #1f2e3e;
 
   --text-main: #e8eff5;
   --text-strong: #f1f5f9;
   --text-muted: #a6bacd;
-  --text-dim: #7690a8;
+  --text-dim: #8aa3ba;
 
+  --th-bg: #1d2c3d;
+  --th-text: #c9d8e6;
+  --row-hover: #1f3043;
+
+  /* Brand blues are too dark to read on a dark ground — lift them. */
   --karofi-cyan: #35b9f5;
   --karofi-cyan-hover: #5cc8f8;
   --karofi-navy: #6bb4e8;
+  --cyan-text: #35b9f5;
+  --purple-text: #bda6fb;
   --summary-navy: #8ac6ee;
   --summary-row-bg: #16303f;
   --code-blue: #62b6e8;
@@ -201,6 +228,12 @@
   --success-bg: rgba(82, 201, 159, 0.16);
   --info-text: #8fb2dd;
   --info-bg: rgba(143, 178, 221, 0.16);
+
+  --badge-blue-ink: #7cc9f5;
+  --badge-emerald-ink: #5ed4a8;
+  --badge-amber-ink: #f2c46b;
+  --badge-purple-ink: #bda6fb;
+  --badge-rose-ink: #ff9ea3;
 
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
   --shadow-md: 0 4px 12px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.3);
@@ -290,15 +323,32 @@ body {
   white-space: nowrap;
 }
 
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.btn:focus-visible,
+.tab-btn:focus-visible,
+.th-sort:focus-visible,
+.more-menu-item:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
 .btn-primary {
-  background: linear-gradient(135deg, #00a0e9, #0082c3);
+  /* Chữ trắng trên nền: cả hai đầu gradient >= 4,5:1 (cũ #00a0e9 chỉ 2,9:1). */
+  background: linear-gradient(135deg, #0079bd, #005f96);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(0, 160, 233, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 121, 189, 0.3);
 }
 .btn-primary:hover {
-  background: linear-gradient(135deg, #00b0ff, #0090d7);
+  background: linear-gradient(135deg, #006aa6, #00507f);
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(0, 160, 233, 0.4);
+  box-shadow: 0 6px 16px rgba(0, 121, 189, 0.4);
 }
 
 .btn-secondary {
@@ -310,27 +360,61 @@ body {
 .btn-secondary:hover {
   background: var(--bg-card-hover);
   border-color: var(--karofi-cyan-border);
-  color: var(--karofi-cyan);
+  color: var(--cyan-text);
 }
 
 .btn-emerald {
-  background: linear-gradient(135deg, #059669, #10b981);
+  background: linear-gradient(135deg, #036348, #047857);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  box-shadow: 0 4px 12px rgba(4, 120, 87, 0.25);
 }
 .btn-emerald:hover {
-  background: linear-gradient(135deg, #10b981, #34d399);
+  background: linear-gradient(135deg, #025a42, #036348);
   transform: translateY(-1px);
 }
 
 .btn-accent {
-  background: linear-gradient(135deg, #004e89, #00a0e9);
+  background: linear-gradient(135deg, #004e89, #0069a8);
   color: #fff;
   box-shadow: 0 4px 12px rgba(0, 78, 137, 0.3);
 }
 .btn-accent:hover {
-  background: linear-gradient(135deg, #005fa7, #00b0ff);
+  background: linear-gradient(135deg, #003a66, #005a94);
   transform: translateY(-1px);
+}
+
+/* Nút nguy hiểm (xoá / ghi đè): đỏ đặc, chữ trắng >= 4,5:1 ở cả hai giao diện
+   (không dùng --danger làm nền vì ở giao diện tối nó là hồng nhạt). */
+.btn-danger {
+  background: #b42318;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(180, 35, 24, 0.25);
+}
+.btn-danger:hover {
+  background: #912018;
+  transform: translateY(-1px);
+}
+
+/* Nút xoá cỡ nhỏ / chỉ có icon: giữ nền thường, chữ + viền đỏ. */
+.btn-danger-outline {
+  color: var(--danger-strong);
+  border-color: var(--danger-bg);
+}
+.btn-danger-outline:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger-strong);
+  color: var(--danger-strong);
+}
+
+/* Nút phụ không viền — trước đây được dùng ở 6 chỗ nhưng chưa có kiểu. */
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+}
+.btn-ghost:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-main);
 }
 
 .btn-sm {
@@ -348,6 +432,7 @@ body {
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .badge-blue {
@@ -374,6 +459,11 @@ body {
   background: rgba(239, 68, 68, 0.1);
   color: var(--badge-rose-ink);
   border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.badge-neutral {
+  background: rgba(100, 116, 139, 0.12);
+  color: var(--text-muted);
+  border: 1px solid rgba(100, 116, 139, 0.3);
 }
 
 /* Form Inputs */
@@ -426,10 +516,10 @@ body {
 }
 
 .custom-table th {
-  background: var(--surface-sunk);
+  background: var(--th-bg);
   padding: 12px 16px;
   font-weight: 700;
-  color: #334155;
+  color: var(--th-text);
   text-transform: uppercase;
   font-size: 0.725rem;
   letter-spacing: 0.05em;
@@ -452,13 +542,37 @@ body {
 
 .custom-table td {
   padding: 12px 16px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--border-soft);
   color: var(--text-main);
 }
 
 .custom-table tr:hover td {
-  background: #f8fafc;
+  background: var(--row-hover);
 }
+
+/* Dòng tổng giữ nền riêng khi rê chuột (không bị --row-hover đè). */
+.custom-table tr.top-summary-row:hover td {
+  background: var(--summary-row-bg) !important;
+}
+
+/* Tiêu đề cột bấm được để sắp xếp (SortableTh). */
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.th-sort:hover { color: var(--cyan-text); }
+.th-sort-icon { opacity: 0.55; flex-shrink: 0; }
+.th-sort.is-active .th-sort-icon { opacity: 1; color: var(--cyan-text); }
 
 .code-font {
   font-family: 'JetBrains Mono', monospace;
@@ -615,3 +729,158 @@ body {
     min-height: 50vh;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Khung giao diện dùng chung (Đợt 2): hộp thoại, tab con, trạng thái bảng,
+   menu "Thêm", hàng đợi toast.
+   --------------------------------------------------------------------------- */
+
+/* Hộp thoại (DialogShell / Modal / ConfirmDialog). Chỉ animate opacity — xem ghi chú
+   ở .animate-fade-in: animate transform sẽ làm mọi `position: fixed` bên trong tính
+   theo khung thẻ chứ không theo viewport. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 94vw;
+  max-height: 92vh;
+  overflow-y: auto;
+  outline: none;
+}
+.modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+.modal-x { padding: 6px; }
+
+/* Tab con: kiểu riêng, KHÔNG dùng btn-primary — để mỗi màn chỉ có một nút chính. */
+.tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+}
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tab-btn:hover { color: var(--text-main); background: var(--bg-card-hover); }
+.tab-btn.is-active {
+  color: var(--cyan-text);
+  background: var(--karofi-cyan-light);
+  border-color: var(--karofi-cyan-border);
+  font-weight: 800;
+}
+
+/* Trạng thái bảng: lỗi / rỗng / chờ lâu (TableState). */
+.state-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+.state-error { color: var(--danger-strong); border-color: var(--danger-bg); background: var(--danger-bg); }
+.state-empty { justify-content: center; text-align: center; padding: 28px 16px; color: var(--text-muted); }
+
+/* Menu "⋯ Thêm". */
+.more-menu { position: relative; display: inline-block; }
+.more-menu-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 60;
+  min-width: 190px;
+  padding: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+}
+.more-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 0.825rem;
+  font-weight: 600;
+  text-align: left;
+  color: var(--text-main);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.more-menu-item:hover:not(:disabled) { background: var(--bg-card-hover); }
+.more-menu-item:disabled { opacity: 0.5; cursor: not-allowed; }
+.more-menu-item.is-danger { color: var(--danger-strong); }
+
+/* Hàng đợi toast (ToastProvider). */
+.toast-stack {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  pointer-events: none;
+}
+.toast-stack > * { pointer-events: auto; }
+.toast-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  font-size: 0.85rem;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+}
+.toast-clear { align-self: flex-end; }

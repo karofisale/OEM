@@ -2,13 +2,16 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Target, Plus, Trash2, ClipboardPaste, Save, RefreshCw, Loader2 } from 'lucide-react';
 import * as api from '../../services/api';
 import ConfirmDialog from '../ConfirmDialog';
+import TableState from '../TableState';
 import { useToast } from '../ToastProvider';
+import { useUnsavedGuard } from '../../hooks/useUnsavedGuard';
 import { parseKpiDan } from '../../utils/adminTables';
 import { tongThang, tongNam, tyTrongHienTai, datTongNam, datTyTrongThang } from '../../utils/kpiNam';
+import { vnYear, hienNgay } from '../../utils/vnDate';
 
 const THANG = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
-const namHienTai = () => new Date().getFullYear();
+const namHienTai = () => vnYear(); // theo giờ Việt Nam
 const dongTrong = () => ({ code: '', name: '', pic: '', months: new Array(12).fill(0) });
 
 /** Ô số VNĐ nguyên: sửa tại chỗ, chốt khi rời ô / Enter (không co giãn lại cả bảng theo từng phím). */
@@ -54,10 +57,14 @@ export default function PlanNamPanel({ token, onSaved }) {
   const [moDan, setMoDan] = useState(false);
   const [vanBan, setVanBan] = useState('');
   const [xacNhan, setXacNhan] = useState(false);
+  const [namCho, setNamCho] = useState(null);        // năm đang chờ xác nhận đổi sang (null = không chờ)
   const [dangLuu, setDangLuu] = useState(false);
   const [nguon, setNguon] = useState(null);          // KPI điền ngược từ Kế hoạch năm FC? (null = nhập tay)
   const [cheDo, setCheDo] = useState('deu');           // sửa tỷ trọng: chia đều | dồn vào tháng chỉ định
   const [thangChon, setThangChon] = useState([]);
+
+  // F5 / đổi tab khi còn chỗ đã sửa chưa lưu -> cảnh báo (Đợt 2 / mục 5).
+  useUnsavedGuard(daSua, 'KPI năm');
 
   const doc = useCallback(async () => {
     setDangDoc(true);
@@ -145,7 +152,7 @@ export default function PlanNamPanel({ token, onSaved }) {
           <Target size={20} color="var(--accent-emerald)" />
           <strong>KPI năm</strong>
           <select className="input-field" style={{ width: '110px' }} value={nam}
-                  onChange={(e) => { if (!daSua || window.confirm('Bỏ các chỗ đã sửa chưa lưu?')) setNam(Number(e.target.value)); }}>
+                  onChange={(e) => { const y = Number(e.target.value); if (!daSua) setNam(y); else setNamCho(y); }}>
             {[namHienTai() - 1, namHienTai(), namHienTai() + 1].map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{rows.length} khách{daSua ? ' · có thay đổi CHƯA lưu' : ''}</span>
@@ -160,7 +167,7 @@ export default function PlanNamPanel({ token, onSaved }) {
           <button onClick={() => { setRows((rs) => [...rs, dongTrong()]); setDaSua(true); }} disabled={dangLuu} className="btn btn-secondary btn-sm">
             <Plus size={14} /> Thêm khách
           </button>
-          <button onClick={() => setXacNhan(true)} disabled={!daSua || dangLuu || maTrung.length > 0} className="btn btn-emerald btn-sm">
+          <button onClick={() => setXacNhan(true)} disabled={!daSua || dangLuu || maTrung.length > 0} className="btn btn-primary btn-sm">
             {dangLuu ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Lưu KPI năm {nam}
           </button>
         </div>
@@ -176,7 +183,7 @@ export default function PlanNamPanel({ token, onSaved }) {
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
             Bôi bảng trong Excel rồi dán vào đây. Cột: <b>Mã KH · Tên KH · PIC · T1 … T12</b> (15 cột), hoặc có thêm cột
-            "Năm" sau PIC như tab Plan2026 cũ (16 cột). Dòng tiêu đề và dòng tổng tự bỏ. Dán xong bảng bên dưới được
+            "Năm" sau PIC như bảng KPI năm cũ (16 cột). Dòng tiêu đề và dòng tổng tự bỏ. Dán xong bảng bên dưới được
             THAY bằng dữ liệu dán — vẫn phải bấm Lưu mới ghi.
           </span>
           <textarea className="input-field" style={{ minHeight: '120px', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.75rem' }}
@@ -194,7 +201,7 @@ export default function PlanNamPanel({ token, onSaved }) {
             {nguon ? (
               <>
                 Nguồn: <b>{nguon.label}</b>
-                {nguon.appliedAt ? <> · điền ngược {new Date(nguon.appliedAt).toLocaleDateString('vi-VN')}</> : null}
+                {nguon.appliedAt ? <> · điền ngược {hienNgay(nguon.appliedAt, { gio: false })}</> : null}
                 {nguon.editedManually
                   ? <span className="badge badge-amber" style={{ marginLeft: '8px' }}>Đã sửa tay{nguon.editedBy ? ' (' + nguon.editedBy + ')' : ''} — kế hoạch năm mới sẽ KHÔNG tự ghi đè</span>
                   : <span className="badge badge-emerald" style={{ marginLeft: '8px' }}>Chưa sửa tay</span>}
@@ -210,17 +217,16 @@ export default function PlanNamPanel({ token, onSaved }) {
             <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><input type="radio" checked={cheDo === 'deu'} onChange={() => setCheDo('deu')} /> chia đều cho các tháng còn lại</label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><input type="radio" checked={cheDo === 'chiDinh'} onChange={() => setCheDo('chiDinh')} /> dồn vào các tháng:</label>
             {cheDo === 'chiDinh' && THANG.map((t, i) => (
-              <button key={t} type="button" className={`btn btn-sm ${thangChon.includes(i) ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '2px 6px', fontSize: '0.7rem' }}
+              <button key={t} type="button" aria-pressed={thangChon.includes(i)} className={`tab-btn${thangChon.includes(i) ? ' is-active' : ''}`} style={{ padding: '2px 8px', fontSize: '0.7rem' }}
                       onClick={() => setThangChon((c) => (c.includes(i) ? c.filter((x) => x !== i) : c.concat([i])))}>{t}</button>
             ))}
           </div>
         </div>
       )}
 
+      <TableState loading={dangDoc && !rows.length} error={loiDoc} onRetry={doc} errorPrefix="Không đọc được KPI năm" loadingLabel="Đang tải KPI năm...">
       <div className="table-container" style={{ maxHeight: '620px', overflow: 'auto' }}>
-        {loiDoc ? (
-          <div style={{ padding: '24px', textAlign: 'center', color: 'var(--danger-strong)' }}>Không đọc được KPI năm: {loiDoc}</div>
-        ) : (
+        {(
           <table className="custom-table">
             <thead>
               <tr>
@@ -282,16 +288,30 @@ export default function PlanNamPanel({ token, onSaved }) {
           </table>
         )}
       </div>
+      </TableState>
 
       {xacNhan && (
         <ConfirmDialog
           title={`Lưu KPI năm ${nam}?`}
           message={`Sẽ THAY TOÀN BỘ KPI năm ${nam} bằng ${rows.filter((r) => r.code.trim()).length} khách đang có trên màn hình. Khách đã xoá khỏi bảng sẽ bị xoá thật.`}
-          confirmLabel="Lưu"
+          confirmLabel={`Thay KPI năm ${nam}`}
+          danger
           busy={dangLuu}
           busyLabel="Đang lưu..."
           onConfirm={luu}
           onCancel={() => setXacNhan(false)}
+        />
+      )}
+
+      {namCho !== null && (
+        <ConfirmDialog
+          title="Bỏ các chỗ đã sửa chưa lưu?"
+          message={`Bảng KPI năm ${nam} còn thay đổi chưa lưu. Đổi sang năm ${namCho} sẽ bỏ các thay đổi này.`}
+          confirmLabel={`Bỏ thay đổi, sang năm ${namCho}`}
+          cancelLabel="Ở lại"
+          danger
+          onConfirm={() => { setNam(namCho); setNamCho(null); }}
+          onCancel={() => setNamCho(null)}
         />
       )}
     </div>

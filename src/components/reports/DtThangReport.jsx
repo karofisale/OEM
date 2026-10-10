@@ -1,20 +1,32 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Filter, TrendingUp, TrendingDown } from 'lucide-react';
 import { priorMonthKey, shortMonthLabel, resolvePeriod, inPeriod, parseMonthKey } from '../../utils/period';
 import { khopSale } from '../../utils/roles';
+import SortableTh from '../SortableTh';
+import TableState from '../TableState';
+import { useTableSort } from '../../hooks/useTableSort';
+import { usePersistentState } from '../../hooks/usePersistentState';
+
+// Cột sắp xếp được (Đợt 2 / mục 3). `pct` = % biến động so với kỳ đối chiếu (rỗng nếu chưa có số liệu đối chiếu -> luôn nằm cuối).
+const COLS = [
+  { key: 'clientCode' }, { key: 'clientName' }, { key: 'sale' },
+  { key: 'totalRevenue', type: 'number' }, { key: 'pct', type: 'number' }
+];
 
 // Replaces a hardcoded if-chain that only knew T04..T08-2026 and fell through to
 // 'T07-2026' for anything else — so from September the report would silently have
 // compared September against July, and January would never have reached December.
 
 export default function DtThangReport({ transactions, salesList, canFilterAllSales, viewMode, baselines2025 }) {
-  const [thangFilterSale, setThangFilterSale] = useState('ALL');
+  // Bộ lọc nhớ qua F5 (Đợt 2 / mục 9); giá trị đã nhớ mà không còn trong dữ liệu thì rơi về mặc định.
+  const [saleSaved, setThangFilterSale] = usePersistentState('rpt.thang.sale', 'ALL');
+  const thangFilterSale = saleSaved === 'ALL' || (salesList || []).includes(saleSaved) ? saleSaved : 'ALL';
   // null = người dùng CHƯA chọn gì: năm rơi về năm mới nhất có dữ liệu, tháng rơi về tháng mới nhất CỦA NĂM đó. Không đặt
   // cứng "tháng theo đồng hồ máy": mùng 1-3 hàng tháng đợt đổ dữ liệu SAP chưa về thì báo cáo sẽ rỗng — đúng cái bẫy mà ghi
   // chú đầu file này đã kể. "Tất cả các tháng" CHỈ cộng trong năm đang chọn (trước đây cộng gộp mọi tháng của mọi năm rồi
   // so với nền 2025) và so với CẢ NĂM TRƯỚC (02/10/2026).
-  const [thangFilterYear, setThangFilterYear] = useState(null);
-  const [thangFilterMonth, setThangFilterMonth] = useState(null);
+  const [thangFilterYear, setThangFilterYear] = usePersistentState('rpt.thang.year', null);
+  const [thangFilterMonth, setThangFilterMonth] = usePersistentState('rpt.thang.month', null);
 
   const { years: yearsList, year: effectiveYear, months: monthsList, month: effectiveMonth } =
     useMemo(() => resolvePeriod(transactions, thangFilterYear, thangFilterMonth), [transactions, thangFilterYear, thangFilterMonth]);
@@ -71,6 +83,32 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
     }, { totalRevenue: 0 });
   }, [dtThangData]);
 
+  // So sánh với kỳ đối chiếu, tính MỘT lần cho cả bảng để sắp xếp được theo cột "Biến động".
+  //
+  // `null` = không có cơ sở để so sánh. Trước đây thiếu nền 2025 thì app lấy `totalRevenue * 0.85`, tức tự
+  // bịa ra con số rồi báo "Tăng +18% (vs 2025)" — số bịa trong báo cáo ban lãnh đạo đọc; thiếu tháng trước
+  // thì hiện cứng "+100%".
+  const dtThangRows = useMemo(() => dtThangData.map((row) => {
+    let baseline = null;
+    let compareLabel = '';
+    if (effectiveMonth === 'ALL') {
+      // Mốc = cả năm trước tính từ giao dịch; năm trước chưa có giao dịch nào trong app thì (chỉ với 2025)
+      // dùng bảng nền 2025.
+      const coNamTruoc = yearsList.includes(prevYear);
+      const b = coNamTruoc ? row.prevYearRevenue : (prevYear === '2025' ? baselines2025.get(row.clientCode) : 0);
+      baseline = b > 0 ? b : null;
+      compareLabel = `vs ${prevYear}`;
+    } else {
+      baseline = row.priorMonthRevenue > 0 ? row.priorMonthRevenue : null;
+      compareLabel = `vs ${priorMonthKey(effectiveMonth) || 'kỳ trước'}`;
+    }
+    const hasBaseline = baseline !== null;
+    const pct = hasBaseline ? Math.round(((row.totalRevenue - baseline) / baseline) * 100) : null;
+    return { ...row, compareLabel, hasBaseline, pct };
+  }), [dtThangData, effectiveMonth, effectiveYear, yearsList, prevYear, baselines2025]);
+
+  const { rows: sortedThang, sort, onSort } = useTableSort(dtThangRows, COLS);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {/* Filters */}
@@ -116,16 +154,17 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
         </div>
       </div>
 
+      <TableState isEmpty={dtThangRows.length === 0} emptyText="Không có doanh thu nào khớp với bộ lọc đang chọn.">
       {viewMode === 'table' ? (
         <div className="table-container animate-fade-in" style={{ maxHeight: '560px', overflowY: 'auto' }}>
           <table className="custom-table">
             <thead>
               <tr>
-                <th>Client</th>
-                <th>Tên Khách Hàng OEM</th>
-                <th>SALE</th>
-                <th style={{ textAlign: 'right' }}>DT thuần (VND)</th>
-                <th>Biến động</th>
+                <SortableTh col="clientCode" sort={sort} onSort={onSort}>Client</SortableTh>
+                <SortableTh col="clientName" sort={sort} onSort={onSort}>Tên Khách Hàng OEM</SortableTh>
+                <SortableTh col="sale" sort={sort} onSort={onSort}>SALE</SortableTh>
+                <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right">DT thuần (VND)</SortableTh>
+                <SortableTh col="pct" sort={sort} onSort={onSort}>Biến động</SortableTh>
               </tr>
             </thead>
             <tbody>
@@ -139,47 +178,23 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
                 <td style={{ color: 'var(--karofi-navy)' }}>Doanh Thu Tháng</td>
               </tr>
 
-              {dtThangData.map((row) => {
-                // `null` means "no real basis for a comparison". Previously a
-                // missing 2025 baseline fell back to `row.totalRevenue * 0.85`,
-                // i.e. the app invented the number it was comparing against and
-                // then reported a confident "Tăng +18% (vs 2025)" derived from
-                // it — a fabricated figure, in a report read by management.
-                // A missing prior month likewise showed a flat "+100%".
-                let baseline = null;
-                let compareLabel = '';
-
-                if (effectiveMonth === 'ALL') {
-                  // Mốc = cả năm trước tính từ giao dịch; năm trước chưa có giao dịch nào trong app thì (chỉ với 2025)
-                  // dùng bảng nền 2025.
-                  const coNamTruoc = yearsList.includes(prevYear);
-                  const b = coNamTruoc ? row.prevYearRevenue : (prevYear === '2025' ? baselines2025.get(row.clientCode) : 0);
-                  baseline = b > 0 ? b : null;
-                  compareLabel = `vs ${prevYear}`;
-                } else {
-                  baseline = row.priorMonthRevenue > 0 ? row.priorMonthRevenue : null;
-                  compareLabel = `vs ${priorMonthKey(effectiveMonth) || 'kỳ trước'}`;
-                }
-
-                const hasBaseline = baseline !== null;
-                const percentChange = hasBaseline
-                  ? Math.round(((row.totalRevenue - baseline) / baseline) * 100)
-                  : null;
+              {sortedThang.map((row) => {
+                const { hasBaseline, compareLabel } = row;
+                const percentChange = row.pct;
                 const isPositive = hasBaseline && percentChange >= 0;
 
                 return (
                   <tr key={row.clientCode}>
-                    <td className="code-font" style={{ fontWeight: 800, color: 'var(--karofi-cyan)' }}>{row.clientCode}</td>
+                    <td className="code-font" style={{ fontWeight: 800, color: 'var(--cyan-text)' }}>{row.clientCode}</td>
                     <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{row.clientName}</td>
                     <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{row.sale}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace" }}>
+                    <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace" }}>
                       {row.totalRevenue.toLocaleString('vi-VN')} ₫
                     </td>
                     <td>
                       {!hasBaseline ? (
                         <span
-                          className="badge"
-                          style={{ background: 'var(--bg-input)', color: 'var(--text-dim)' }}
+                          className="badge badge-neutral"
                           title={`Không có số liệu ${compareLabel.replace('vs ', '')} để đối chiếu`}
                         >
                           — Chưa có số liệu {compareLabel.replace('vs ', '')}
@@ -202,20 +217,21 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }} className="animate-fade-in">
-          {dtThangData.map((row) => (
+          {sortedThang.map((row) => (
             <div key={row.clientCode} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span className="code-font" style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--karofi-cyan)' }}>{row.clientCode}</span>
+                <span className="code-font" style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--cyan-text)' }}>{row.clientCode}</span>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{row.sale}</span>
               </div>
               <h4 style={{ fontSize: '0.95rem', fontWeight: 700 }}>{row.clientName}</h4>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-emerald-text)' }}>
                 {row.totalRevenue.toLocaleString('vi-VN')} ₫
               </div>
             </div>
           ))}
         </div>
       )}
+      </TableState>
     </div>
   );
 }

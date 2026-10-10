@@ -164,7 +164,7 @@ export default function CostImportPanel({ token, activeUser, onImported }) {
         <div className="glass-card animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Xem trước ({rows.length.toLocaleString('vi-VN')} mã) — Tháng {monthLabel}</h3>
-            <button onClick={() => setConfirming(true)} className="btn btn-emerald">
+            <button onClick={() => setConfirming(true)} className="btn btn-primary">
               <ArrowRight size={16} /> Lưu Giá Vốn
             </button>
           </div>
@@ -181,7 +181,7 @@ export default function CostImportPanel({ token, activeUser, onImported }) {
               <tbody>
                 {rows.map((r, idx) => (
                   <tr key={`${r.sku}_${idx}`}>
-                    <td className="code-font" style={{ color: 'var(--accent-purple)', fontWeight: 600 }}>{r.sku}</td>
+                    <td className="code-font" style={{ color: 'var(--purple-text)', fontWeight: 600 }}>{r.sku}</td>
                     <td style={{ fontWeight: 600 }}>{r.name}</td>
                     <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>{fmt(r.cost)}</td>
                   </tr>
@@ -195,8 +195,9 @@ export default function CostImportPanel({ token, activeUser, onImported }) {
       {confirming && (
         <ConfirmDialog
           title={`Đồng bộ giá vốn tháng ${monthLabel}?`}
-          message={`Sẽ cập nhật/thêm mới ${rows.length} mã vào tab "Cost" cho tháng ${monthLabel}. Nếu mã nào đã có dữ liệu đúng tháng này thì bị ghi đè; các tháng khác không đổi.`}
-          confirmLabel="Đồng bộ"
+          message={`Sẽ cập nhật/thêm mới ${rows.length} mã vào bảng giá vốn cho tháng ${monthLabel}. Nếu mã nào đã có dữ liệu đúng tháng này thì bị ghi đè; các tháng khác không đổi.`}
+          confirmLabel={`Ghi đè giá vốn tháng ${monthLabel}`}
+          danger
           busy={isImporting}
           busyLabel="Đang đồng bộ..."
           onConfirm={handleImport}

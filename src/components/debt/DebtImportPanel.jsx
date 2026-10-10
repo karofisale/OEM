@@ -180,7 +180,7 @@ export default function DebtImportPanel({ token, activeUser, clients, onImported
         <div className="glass-card animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Xem trước ({rows.length.toLocaleString('vi-VN')} khách hàng)</h3>
-            <button onClick={() => setConfirming(true)} className="btn btn-emerald">
+            <button onClick={() => setConfirming(true)} className="btn btn-primary">
               <ArrowRight size={16} /> Lưu Công Nợ
             </button>
           </div>
@@ -200,7 +200,7 @@ export default function DebtImportPanel({ token, activeUser, clients, onImported
               <tbody>
                 {rows.map((r, idx) => (
                   <tr key={`${r.code}_${idx}`}>
-                    <td className="code-font" style={{ color: 'var(--accent-purple)', fontWeight: 600 }}>{r.code}</td>
+                    <td className="code-font" style={{ color: 'var(--purple-text)', fontWeight: 600 }}>{r.code}</td>
                     <td style={{ fontWeight: 600 }}>{r.name}</td>
                     <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{r.pic}</td>
                     <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace" }}>{fmt(r.creditLimit)}</td>
@@ -222,7 +222,8 @@ export default function DebtImportPanel({ token, activeUser, clients, onImported
         <ConfirmDialog
           title="Lưu công nợ?"
           message={`Sẽ cập nhật/thêm mới ${rows.length} khách hàng vào bảng công nợ — ghi đè Hạn mức và Số dư công nợ theo file vừa tải lên. Bảng này cũng được cập nhật bởi quy trình đối chiếu công nợ riêng (skill cong-no-oem); hãy chắc chắn dữ liệu trong file là bản mới nhất trước khi lưu.`}
-          confirmLabel="Lưu"
+          confirmLabel="Ghi đè công nợ"
+          danger
           busy={isImporting}
           busyLabel="Đang lưu..."
           onConfirm={handleImport}

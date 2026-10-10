@@ -66,7 +66,7 @@ export default function PriceCalculatorPanel({ token, materials }) {
               <tbody>
                 {matches.map((m) => (
                   <tr key={m.sku} style={{ cursor: 'pointer' }} onClick={() => { setSelectedSku(m.sku); setSearchTerm(''); setResult(null); }}>
-                    <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{m.sku}</td>
+                    <td className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.8rem' }}>{m.sku}</td>
                     <td style={{ fontWeight: 600 }}>{m.name}</td>
                   </tr>
                 ))}
@@ -90,7 +90,7 @@ export default function PriceCalculatorPanel({ token, materials }) {
           {!result.hasCost ? (
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', color: 'var(--warning-text)' }}>
               <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '1px' }} />
-              <span>SKU này chưa có giá vốn nào trong tab "Cost" — Creator cần nhập tay giá vốn trước khi dùng công cụ này cho mã này.</span>
+              <span>SKU này chưa có giá vốn nào trong bảng giá vốn — Creator cần nhập tay giá vốn trước khi dùng công cụ này cho mã này.</span>
             </div>
           ) : (
             <div style={{ textAlign: 'center' }}>

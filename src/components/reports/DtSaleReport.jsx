@@ -1,16 +1,28 @@
-import React, { useMemo, useState } from 'react';
-import { Filter, Table, LayoutGrid } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Filter } from 'lucide-react';
 import { weeksFromTransactions, resolvePeriod, inPeriod } from '../../utils/period';
+import SortableTh from '../SortableTh';
+import TableState from '../TableState';
+import { useTableSort } from '../../hooks/useTableSort';
+import { usePersistentState } from '../../hooks/usePersistentState';
+
+// Cột sắp xếp được (Đợt 2 / mục 3).
+const COLS = [
+  { key: 'sale' }, { key: 'orderCount', type: 'number' }, { key: 'totalQty', type: 'number' },
+  { key: 'totalRevenue', type: 'number' }, { key: 'share', type: 'number', get: (r) => r.totalRevenue }
+];
 
 export default function DtSaleReport({ transactions, viewMode }) {
   // null = chưa chọn: năm rơi về năm mới nhất có dữ liệu, tháng rơi về tháng mới nhất CỦA NĂM đó (không phải tháng theo
   // đồng hồ máy: mùng 1-3 đợt đổ dữ liệu SAP chưa về thì màn sẽ rỗng). "Tất cả tháng" chỉ cộng trong năm đang chọn —
   // không còn mục "Tất cả năm" trộn các năm vào một số (02/10/2026).
-  const [saleFilterYear, setSaleFilterYear] = useState(null);
-  const [saleFilterMonth, setSaleFilterMonth] = useState(null);
-  const [saleFilterWeek, setSaleFilterWeek] = useState('ALL');
+  // Bộ lọc năm/tháng/tuần nhớ qua F5 (Đợt 2 / mục 9); giá trị đã nhớ mà không còn trong dữ liệu thì rơi về mặc định.
+  const [saleFilterYear, setSaleFilterYear] = usePersistentState('rpt.sale.year', null);
+  const [saleFilterMonth, setSaleFilterMonth] = usePersistentState('rpt.sale.month', null);
+  const [weekSaved, setSaleFilterWeek] = usePersistentState('rpt.sale.week', 'ALL');
 
   const weeksList = useMemo(() => weeksFromTransactions(transactions), [transactions]);
+  const saleFilterWeek = weekSaved === 'ALL' || weeksList.includes(weekSaved) ? weekSaved : 'ALL';
   const { years: yearsList, year: effectiveYear, months: monthsList, month: effectiveMonth } =
     useMemo(() => resolvePeriod(transactions, saleFilterYear, saleFilterMonth), [transactions, saleFilterYear, saleFilterMonth]);
 
@@ -43,6 +55,8 @@ export default function DtSaleReport({ transactions, viewMode }) {
     }, { totalRevenue: 0, totalQty: 0, orderCount: 0 });
   }, [dtSaleData]);
 
+  const { rows: sortedSale, sort, onSort } = useTableSort(dtSaleData, COLS);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {/* Cascading Filters Bar */}
@@ -72,17 +86,18 @@ export default function DtSaleReport({ transactions, viewMode }) {
         </div>
       </div>
 
+      <TableState isEmpty={dtSaleData.length === 0} emptyText="Không có doanh thu nào khớp với bộ lọc đang chọn.">
       {viewMode === 'table' ? (
         <div className="table-container animate-fade-in" style={{ maxHeight: '560px', overflowY: 'auto' }}>
           <table className="custom-table">
             <thead>
               <tr>
                 <th>STT</th>
-                <th>SALE</th>
-                <th>Số Đơn Hàng</th>
-                <th style={{ textAlign: 'right' }}>Sản Lượng (PC)</th>
-                <th style={{ textAlign: 'right' }}>DT thuần (VND)</th>
-                <th>Tỷ Lệ Đóng Góp</th>
+                <SortableTh col="sale" sort={sort} onSort={onSort}>SALE</SortableTh>
+                <SortableTh col="orderCount" sort={sort} onSort={onSort}>Số Đơn Hàng</SortableTh>
+                <SortableTh col="totalQty" sort={sort} onSort={onSort} align="right">Sản Lượng (PC)</SortableTh>
+                <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right">DT thuần (VND)</SortableTh>
+                <SortableTh col="share" sort={sort} onSort={onSort}>Tỷ Lệ Đóng Góp</SortableTh>
               </tr>
             </thead>
             <tbody>
@@ -97,7 +112,7 @@ export default function DtSaleReport({ transactions, viewMode }) {
                 <td style={{ color: 'var(--karofi-navy)' }}>100%</td>
               </tr>
 
-              {dtSaleData.map((item, idx) => {
+              {sortedSale.map((item, idx) => {
                 const grandTotal = dtSaleTotals.totalRevenue || 1;
                 const pct = Math.round((item.totalRevenue / grandTotal) * 100);
                 return (
@@ -106,7 +121,7 @@ export default function DtSaleReport({ transactions, viewMode }) {
                     <td style={{ fontWeight: 700, color: 'var(--karofi-navy)' }}>{item.sale}</td>
                     <td style={{ fontWeight: 600 }}>{item.orderCount} đơn</td>
                     <td style={{ textAlign: 'right', fontWeight: 600 }}>{item.totalQty.toLocaleString('vi-VN')} PC</td>
-                    <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace" }}>
+                    <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace" }}>
                       {item.totalRevenue.toLocaleString('vi-VN')} ₫
                     </td>
                     <td>
@@ -125,19 +140,20 @@ export default function DtSaleReport({ transactions, viewMode }) {
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }} className="animate-fade-in">
-          {dtSaleData.map((item, idx) => (
+          {sortedSale.map((item, idx) => (
             <div key={item.sale} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--karofi-navy)' }}>{item.sale}</h4>
                 <span className="badge badge-blue">Hạng {idx + 1}</span>
               </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>
+              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--accent-emerald-text)' }}>
                 {(item.totalRevenue / 1e6).toFixed(1)} Triệu ₫
               </div>
             </div>
           ))}
         </div>
       )}
+      </TableState>
     </div>
   );
 }

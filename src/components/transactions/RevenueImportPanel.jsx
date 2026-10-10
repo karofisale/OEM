@@ -166,7 +166,7 @@ export default function RevenueImportPanel({ token, activeUser, onImported }) {
                 {kq.boQuaKhachNoiBo > 0 && ` · bỏ qua ${kq.boQuaKhachNoiBo} dòng khách nội bộ`}
               </p>
             </div>
-            <button onClick={() => setConfirming(true)} className="btn btn-emerald">
+            <button onClick={() => setConfirming(true)} className="btn btn-primary">
               <ArrowRight size={16} /> Ghi vào bảng doanh thu
             </button>
           </div>
@@ -188,7 +188,7 @@ export default function RevenueImportPanel({ token, activeUser, onImported }) {
                 {kq.xemTruoc.map((r, i) => (
                   <tr key={i}>
                     <td className="code-font">{r.ngay}</td>
-                    <td className="code-font" style={{ color: 'var(--accent-purple)' }}>{r.maKhach}</td>
+                    <td className="code-font" style={{ color: 'var(--purple-text)' }}>{r.maKhach}</td>
                     <td style={{ fontWeight: 600 }}>{r.tenKhach}</td>
                     <td className="code-font">{r.maVatTu}</td>
                     <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{r.tenVatTu}</td>
@@ -212,7 +212,7 @@ export default function RevenueImportPanel({ token, activeUser, onImported }) {
         <ConfirmDialog
           title={`Thay toàn bộ doanh thu tháng ${kq.thang}?`}
           message={
-            `Toàn bộ dòng của tháng ${kq.thang} đang có trên tab "Data" sẽ bị XOÁ, ` +
+            `Toàn bộ dòng của tháng ${kq.thang} đang có trong bảng doanh thu sẽ bị XOÁ, ` +
             `rồi ghi vào ${fmt(kq.rows.length)} dòng từ file "${fileName}". ` +
             `Các tháng khác không bị ảnh hưởng. ` +
             `Chạy lại cùng file cho ra đúng cùng kết quả, nên nếu không chắc thì cứ chạy lại — ` +

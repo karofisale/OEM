@@ -1,26 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Bot,
-  BarChart3,
-  Table,
-  Package,
-  Users,
-  CalendarRange,
-  FileSpreadsheet,
   Sparkles,
-  PieChart,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
-  ClipboardList,
-  CalendarClock
+  ChevronDown
 } from 'lucide-react';
+import { NAV, ACCOUNT_TAB_IDS, iconOf } from '../utils/navMeta';
 
 // Vai trò "account" (kế toán) chỉ cần Sản phẩm & Bảng giá, Khách hàng, Công
 // nợ — không liên quan tới đặt hàng/doanh thu/kế hoạch kinh doanh nội bộ Sale
 // (2026-08-26). Mọi vai trò khác vẫn thấy đủ menu như trước — phân quyền chi
 // tiết hơn (view-only, ai được sửa gì) nằm trong từng trang, không phải ở đây.
-const OEMAPP_ACCOUNT_MENU_IDS_ = ['products', 'clients', 'debt-importer'];
+// Danh sách id + icon + nhãn nằm ở utils/navMeta.js (mỗi mục một icon riêng).
 
 export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, transactionCount = 0, activeUser }) {
   // The mobile drawer always shows full labels — icon-only collapse is a
@@ -36,27 +27,19 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
   // accordion entry (2026-08-25) — they stay real flat activeTab ids
   // underneath (App.jsx/KeepAliveTab never changed), this is purely a
   // sidebar-presentation grouping.
-  const revenueChildren = [
-    { id: 'revenue-reports', label: 'Báo cáo doanh thu', icon: PieChart },
-    { id: 'dashboard', label: 'Tổng quan Metric', icon: BarChart3 },
-    // Real loaded row count. This used to be the literal string '1,890+', which
-    // never changed no matter what was actually in the Sheet.
-    { id: 'transactions', label: 'Lịch sử doanh thu', icon: Table, count: transactionCount ? transactionCount.toLocaleString('vi-VN') : '' }
-  ];
-
-  const allMenuItems = [
-    { id: 'ai-agent', label: 'AI Nhận Đơn Hàng', icon: Bot },
-    { id: 'pending-orders', label: 'Đơn Hàng Chờ Duyệt', icon: ClipboardList },
-    { id: 'doanh-thu', label: 'Doanh thu', icon: PieChart, children: revenueChildren },
-    { id: 'products', label: 'Sản phẩm & Bảng giá', icon: Package },
-    { id: 'clients', label: 'Khách hàng OEM', icon: Users },
-    { id: 'sales-plan', label: 'Kế hoạch kinh doanh', icon: CalendarRange },
-    { id: 'sop', label: 'Kế hoạch SOP', icon: CalendarClock },
-    { id: 'debt-importer', label: 'Công nợ', icon: FileSpreadsheet }
-  ];
+  //
+  // Số dòng là số thật đã nạp (từng là chuỗi cứng '1,890+' không bao giờ đổi).
+  const gan = (m) => {
+    const icon = iconOf(m.icon);
+    if (m.children) return { ...m, icon, children: m.children.map(gan) };
+    return m.id === 'transactions'
+      ? { ...m, icon, count: transactionCount ? transactionCount.toLocaleString('vi-VN') : '' }
+      : { ...m, icon };
+  };
+  const allMenuItems = NAV.map(gan);
 
   const menuItems = activeUser && activeUser.role === 'account'
-    ? allMenuItems.filter((m) => OEMAPP_ACCOUNT_MENU_IDS_.includes(m.id))
+    ? allMenuItems.filter((m) => ACCOUNT_TAB_IDS.includes(m.id))
     : allMenuItems;
 
   const [expandedGroup, setExpandedGroup] = useState(null);
@@ -79,7 +62,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
     borderRadius: 'var(--radius-md)',
     border: isActive ? '1px solid var(--karofi-cyan-border)' : '1px solid transparent',
     background: isActive ? 'var(--karofi-cyan-light)' : 'transparent',
-    color: isActive ? 'var(--karofi-cyan)' : 'var(--text-muted)',
+    color: isActive ? 'var(--cyan-text)' : 'var(--text-muted)',
     fontWeight: isActive ? 800 : 500,
     fontSize: '0.85rem',
     cursor: 'pointer',
@@ -167,6 +150,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
                       <button
                         key={child.id}
                         onClick={() => handleSelect(child.id)}
+                        aria-current={isActive ? 'page' : undefined}
                         style={{ ...baseButtonStyle(isActive), padding: '9px 12px', fontSize: '0.8rem' }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -193,6 +177,8 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
             key={item.id}
             onClick={() => handleSelect(item.id)}
             title={effectiveCollapsed ? item.label : ''}
+            aria-label={item.label}
+            aria-current={isActive ? 'page' : undefined}
             style={baseButtonStyle(isActive)}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

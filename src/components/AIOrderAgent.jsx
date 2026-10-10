@@ -35,6 +35,8 @@ import { useToast } from './ToastProvider';
 import SkuPickerCell from './SkuPickerCell';
 import ClientPickerCell from './ClientPickerCell';
 import RowActionButtons from './RowActionButtons';
+import { vnTimestamp } from '../utils/vnDate';
+import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 
 const createBlankItem = () => ({
   id: 'ITEM-' + Math.random().toString(36).substr(2, 6),
@@ -124,6 +126,8 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
   const [bangLui, setBangLui] = useState('');
 
   const [orderResult, setOrderResult] = useState(null);
+  // Đơn AI đã phân tích mà chưa Lưu thì F5 / đổi tab sẽ mất (kèm một lượt gọi Gemini tốn thời gian) -> cảnh báo (Đợt 2 / mục 5).
+  useUnsavedGuard(!!orderResult && !saved, 'Đơn AI chưa lưu');
 
   const tongDinhKem = dinhKem.files.length + dinhKem.tables.length;
 
@@ -240,7 +244,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
         orderNo: 'SAP-SO-' + Math.floor(100000 + Math.random() * 900000),
         items,
         grandTotal: tinhTong(items),
-        timestamp: new Date().toLocaleString('vi-VN'),
+        timestamp: vnTimestamp(),
         warnings: kq.warnings || [],
         docText: kq.docText || '',
         nguon: 'ai',
@@ -453,7 +457,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
               <button
                 onClick={handleGenerateOrder}
                 disabled={isProcessing || (!promptText.trim() && !tongDinhKem)}
-                className="btn btn-accent btn-sm"
+                className={`btn btn-sm ${orderResult ? 'btn-secondary' : 'btn-primary'}`}
                 style={{ justifyContent: 'center' }}
               >
                 {isProcessing ? (
@@ -520,7 +524,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
             </div>
 
             {orderResult && (
-              <button onClick={handleCopySAP} className="btn btn-emerald btn-sm" title="Sao chép toàn bộ dòng định dạng Tab-Separated dán thẳng vào SAP">
+              <button onClick={handleCopySAP} className="btn btn-secondary btn-sm" title="Sao chép toàn bộ dòng định dạng Tab-Separated dán thẳng vào SAP">
                 {copied ? <Check size={16} /> : <Copy size={16} />}
                 {copied ? 'Đã sao chép!' : 'Copy dán về SAP'}
               </button>
@@ -566,7 +570,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-dim)' }}>Mã tham chiếu SAP SO:</span>
-                  <div className="code-font" style={{ fontWeight: 700, color: 'var(--accent-purple)' }}>{orderResult.orderNo}</div>
+                  <div className="code-font" style={{ fontWeight: 700, color: 'var(--purple-text)' }}>{orderResult.orderNo}</div>
                   <span style={{ fontSize: '0.725rem', color: 'var(--text-dim)' }}>{orderResult.timestamp}</span>
                 </div>
               </div>
@@ -681,7 +685,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
                             style={{ padding: '4px 6px', fontSize: '0.78rem', textAlign: 'right' }}
                           />
                         </td>
-                        <td style={{ fontWeight: 700, color: 'var(--accent-emerald)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <td style={{ fontWeight: 700, color: 'var(--accent-emerald-text)', textAlign: 'right', whiteSpace: 'nowrap' }}>
                           {Math.round(item.total).toLocaleString('vi-VN')} ₫
                         </td>
                         <td>

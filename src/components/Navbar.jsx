@@ -2,18 +2,18 @@ import React, { useState } from 'react';
 import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut, Menu, KeyRound, Sun, Moon, Monitor, ArrowLeft } from 'lucide-react';
 import { loadTheme, applyTheme } from '../services/theme';
 import { appKhacDungDuoc } from '../services/karofiSession';
+import { nhanVaiTro, TONE_CLASS } from '../utils/glossary';
 
 export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSyncing, onRefreshData, onOpenMobileMenu, onOpenChangePassword }) {
   // Đọc một lần khi dựng: khối quyền nằm trong token, không đổi giữa các lần vẽ.
   const [appKhac] = useState(() => appKhacDungDuoc('OEM'));
 
+  // Nhãn vai trò lấy từ utils/glossary.js (có cả 'account' — bản cũ bỏ sót nên kế
+  // toán hiện thành "Sale: Chung"). Emoji chỉ để dễ nhìn lướt, không mang nghĩa.
+  const ROLE_EMOJI = { creator: '👑', admin: '🛡️', leader: '📊', account: '🧾', sale: '💼' };
   const getRoleLabel = (role) => {
-    switch (role) {
-      case 'creator': return { text: '👑 Creator', badge: 'badge-amber' };
-      case 'admin': return { text: '🛡️ Admin', badge: 'badge-purple' };
-      case 'leader': return { text: '📊 Leader (Xem)', badge: 'badge-blue' };
-      case 'sale': default: return { text: `💼 Sale: ${activeUser.saleId || 'Chung'}`, badge: 'badge-emerald' };
-    }
+    const v = nhanVaiTro(role, activeUser.saleId);
+    return { text: `${ROLE_EMOJI[String(role || '').toLowerCase()] || ROLE_EMOJI.sale} ${v.text}`, badge: TONE_CLASS[v.tone] };
   };
 
   const roleInfo = getRoleLabel(activeUser.role);
@@ -123,7 +123,7 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
         </div>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <h1 style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--karofi-cyan)', letterSpacing: '-0.03em' }}>
+            <h1 style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--cyan-text)', letterSpacing: '-0.03em' }}>
               KAROFI
             </h1>
             <span className="hide-mobile-xs" style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--karofi-navy)', letterSpacing: '0.05em' }}>
@@ -182,7 +182,7 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
             </span>
           </div>
 
-          <span className="hide-mobile-xs" style={{ fontSize: '0.725rem', color: 'var(--karofi-cyan)', fontWeight: 700, marginLeft: '4px' }}>
+          <span className="hide-mobile-xs" style={{ fontSize: '0.725rem', color: 'var(--cyan-text)', fontWeight: 700, marginLeft: '4px' }}>
             Đổi
           </span>
         </button>

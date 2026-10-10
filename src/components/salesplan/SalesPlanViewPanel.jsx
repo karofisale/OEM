@@ -1,6 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Filter, User, Clock, CheckCircle2 } from 'lucide-react';
+import { Filter, User } from 'lucide-react';
 import Pagination, { usePagedSlice } from '../Pagination';
+import SortableTh from '../SortableTh';
+import StatusBadge from '../StatusBadge';
+import TableState from '../TableState';
+import { useTableSort } from '../../hooks/useTableSort';
+import { usePersistentState } from '../../hooks/usePersistentState';
 import { monthSortValue } from '../../utils/period';
 import { canSeeAllSales } from '../../utils/roles';
 import { doneMoiThang, dtCuaThang, doneDong } from '../../utils/salesPlan';
@@ -8,16 +13,6 @@ import { doneMoiThang, dtCuaThang, doneDong } from '../../utils/salesPlan';
 const PAGE_SIZE = 25;
 
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
-
-function StatusBadge({ status }) {
-  if (status === 'Đã duyệt') {
-    return <span className="badge badge-emerald"><CheckCircle2 size={12} /> Đã duyệt</span>;
-  }
-  if (status === 'Chờ duyệt') {
-    return <span className="badge badge-amber"><Clock size={12} /> Chờ duyệt</span>;
-  }
-  return <span className="badge" style={{ background: 'var(--bg-input)', color: 'var(--text-dim)' }}>—</span>;
-}
 
 // Các cột Tuần 1-5 = số Sale đã GỬI (w1..w5, như màn Chờ duyệt / Đề xuất); đặt SAU cột Chênh (theo yêu cầu 05/10/2026).
 const TUAN = ['w1', 'w2', 'w3', 'w4', 'w5'];
@@ -36,20 +31,22 @@ export default function SalesPlanViewPanel({ plans, transactions, activeUser }) 
   const doneBang = useMemo(() => doneMoiThang(transactions, monthsList), [transactions, monthsList]);
   const doneCua = (p) => doneDong(p, p.searchCode, dtCuaThang(doneBang, p.month)).value;
 
-  const [selectedMonth, setSelectedMonth] = useState('ALL');
-  const [selectedSale, setSelectedSale] = useState('ALL');
+  // Bộ lọc tháng + Sale nhớ qua F5 (Đợt 2 / mục 9). `null` = chưa chọn -> tháng mới nhất;
+  // 'ALL' = người dùng CHỦ ĐỘNG chọn "Tất cả tháng" (bản cũ ép về tháng mới nhất mỗi lần dữ liệu
+  // nạp lại nên lựa chọn này không bao giờ giữ được).
+  const [monthSaved, setSelectedMonth] = usePersistentState('plan.view.month', null);
+  const [saleSaved, setSelectedSale] = usePersistentState('plan.view.sale', 'ALL');
   const [page, setPage] = useState(1);
-
-  // Default to the newest month once the list is known, so the table doesn't
-  // open showing every month's rows mixed together.
-  useEffect(() => {
-    if (selectedMonth === 'ALL' && monthsList.length) setSelectedMonth(monthsList[0]);
-  }, [monthsList]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const salesList = useMemo(() => {
     const set = new Set(plans.map(p => p.sale).filter(Boolean));
     return Array.from(set);
   }, [plans]);
+
+  // Giá trị hiệu lực: tháng/Sale đã nhớ mà không còn trong dữ liệu -> quay về mặc định (tháng mới
+  // nhất / tất cả Sale) thay vì ra bảng trống vì bộ lọc cũ.
+  const selectedMonth = monthSaved === 'ALL' ? 'ALL' : (monthSaved && monthsList.includes(monthSaved) ? monthSaved : (monthsList[0] || 'ALL'));
+  const selectedSale = saleSaved === 'ALL' || salesList.includes(saleSaved) ? saleSaved : 'ALL';
 
   const filteredPlans = useMemo(() => {
     return plans.filter(p => {
@@ -59,7 +56,17 @@ export default function SalesPlanViewPanel({ plans, transactions, activeUser }) 
     });
   }, [plans, selectedMonth, selectedSale, canFilterAllSales, activeUser]);
 
-  const { safePage, pageItems: pagedPlans } = usePagedSlice(filteredPlans, page, PAGE_SIZE);
+  // Sắp xếp theo cột TRƯỚC khi cắt trang (Đợt 2 / mục 3). Cột Done/Chênh tính từ Data nên cần `get`.
+  const cols = useMemo(() => [
+    { key: 'month', type: 'month' }, { key: 'searchCode' }, { key: 'clientName' }, { key: 'sale' },
+    { key: 'planKpi', type: 'number' }, { key: 'planUpdate', type: 'number' },
+    { key: 'done', type: 'number', get: (p) => doneCua(p) },
+    { key: 'chenh', type: 'number', get: (p) => doneCua(p) - (p.planUpdate || 0) },
+    ...TUAN.map((k) => ({ key: k, type: 'number' })),
+    { key: 'note' }, { key: 'status' }
+  ], [doneBang]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { rows: sortedPlans, sort, onSort } = useTableSort(filteredPlans, cols);
+  const { safePage, pageItems: pagedPlans } = usePagedSlice(sortedPlans, page, PAGE_SIZE);
 
   const totals = useMemo(() => filteredPlans.reduce((acc, p) => {
     const done = doneCua(p);
@@ -94,21 +101,22 @@ export default function SalesPlanViewPanel({ plans, transactions, activeUser }) 
         </span>
       </div>
 
+      <TableState isEmpty={filteredPlans.length === 0} emptyText="Không có kế hoạch nào khớp với bộ lọc đang chọn.">
       <div className="table-container animate-fade-in" style={{ maxHeight: '600px', overflowY: 'auto' }}>
         <table className="custom-table">
           <thead>
             <tr>
-              <th style={{ width: '110px' }}>Tháng</th>
-              <th style={{ width: '130px' }}>Search Code</th>
-              <th>Khách hàng</th>
-              <th style={{ width: '130px' }}>SALE</th>
-              <th style={{ textAlign: 'right', width: '120px' }}>Plan KPI</th>
-              <th style={{ textAlign: 'right', width: '130px' }}>Plan_Update</th>
-              <th style={{ textAlign: 'right', width: '120px' }}>Done</th>
-              <th style={{ textAlign: 'right', width: '120px' }}>Chênh</th>
-              {TUAN.map((k, i) => <th key={k} style={{ textAlign: 'right', width: '110px' }}>Tuần {i + 1}</th>)}
-              <th style={{ minWidth: '150px' }}>Note</th>
-              <th style={{ width: '110px' }}>Trạng thái</th>
+              <SortableTh col="month" sort={sort} onSort={onSort} style={{ width: '110px' }}>Tháng</SortableTh>
+              <SortableTh col="searchCode" sort={sort} onSort={onSort} style={{ width: '130px' }}>Search Code</SortableTh>
+              <SortableTh col="clientName" sort={sort} onSort={onSort}>Khách hàng</SortableTh>
+              <SortableTh col="sale" sort={sort} onSort={onSort} style={{ width: '130px' }}>SALE</SortableTh>
+              <SortableTh col="planKpi" sort={sort} onSort={onSort} align="right" style={{ width: '120px' }}>Plan KPI</SortableTh>
+              <SortableTh col="planUpdate" sort={sort} onSort={onSort} align="right" style={{ width: '130px' }}>Plan_Update</SortableTh>
+              <SortableTh col="done" sort={sort} onSort={onSort} align="right" style={{ width: '120px' }}>Done</SortableTh>
+              <SortableTh col="chenh" sort={sort} onSort={onSort} align="right" style={{ width: '120px' }}>Chênh</SortableTh>
+              {TUAN.map((k, i) => <SortableTh key={k} col={k} sort={sort} onSort={onSort} align="right" style={{ width: '110px' }}>Tuần {i + 1}</SortableTh>)}
+              <SortableTh col="note" sort={sort} onSort={onSort} style={{ minWidth: '150px' }}>Note</SortableTh>
+              <SortableTh col="status" sort={sort} onSort={onSort} style={{ width: '110px' }}>Trạng thái</SortableTh>
             </tr>
           </thead>
           <tbody>
@@ -127,14 +135,14 @@ export default function SalesPlanViewPanel({ plans, transactions, activeUser }) 
               const chenh = done - (plan.planUpdate || 0);
               return (
                 <tr key={`${plan.month}_${plan.searchCode}_${idx}`} style={{ height: '42px' }}>
-                  <td style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--karofi-cyan)' }}>{plan.month || '—'}</td>
-                  <td className="code-font" style={{ fontWeight: 800, color: 'var(--karofi-cyan)', fontSize: '0.85rem' }}>{plan.searchCode}</td>
+                  <td style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--cyan-text)' }}>{plan.month || '—'}</td>
+                  <td className="code-font" style={{ fontWeight: 800, color: 'var(--cyan-text)', fontSize: '0.85rem' }}>{plan.searchCode}</td>
                   <td style={{ fontWeight: 600 }}>{plan.clientName}</td>
                   <td style={{ fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>{plan.sale}</td>
                   <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-muted)', fontSize: '0.8rem' }}>{fmt(plan.planKpi)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--karofi-navy)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(plan.planUpdate)}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(done)}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 800, color: chenh >= 0 ? 'var(--accent-emerald-text)' : 'var(--accent-rose)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(chenh)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(done)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 800, color: chenh >= 0 ? 'var(--accent-emerald-text)' : 'var(--danger-strong)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{fmt(chenh)}</td>
                   {TUAN.map((k) => <td key={k} style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-muted)', fontSize: '0.8rem' }}>{fmt(plan[k])}</td>)}
                   <td style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>{plan.note || '-'}</td>
                   <td><StatusBadge status={plan.status} /></td>
@@ -144,14 +152,8 @@ export default function SalesPlanViewPanel({ plans, transactions, activeUser }) 
           </tbody>
         </table>
       </div>
-
-      {filteredPlans.length === 0 ? (
-        <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '28px 16px' }}>
-          Không có kế hoạch nào khớp với bộ lọc đang chọn.
-        </div>
-      ) : (
-        <Pagination page={safePage} pageSize={PAGE_SIZE} totalItems={filteredPlans.length} onPageChange={setPage} itemLabel="kế hoạch" />
-      )}
+      <Pagination page={safePage} pageSize={PAGE_SIZE} totalItems={filteredPlans.length} onPageChange={setPage} itemLabel="kế hoạch" />
+      </TableState>
     </div>
   );
 }

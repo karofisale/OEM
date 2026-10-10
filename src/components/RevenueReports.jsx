@@ -1,14 +1,19 @@
-import React, { useState, useMemo } from 'react';
-import { BarChart3, User, Calendar, CalendarDays, Table, LayoutGrid } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { PieChart } from 'lucide-react';
 import KeepAliveTab from './KeepAliveTab';
+import SubTabs from './SubTabs';
+import ViewModeToggle from './ViewModeToggle';
+import { SUBTABS } from '../utils/navMeta';
+import { usePersistentState } from '../hooks/usePersistentState';
 import DtSaleReport from './reports/DtSaleReport';
 import DtThangReport from './reports/DtThangReport';
 import DtNgayReport from './reports/DtNgayReport';
 import { canSeeAllSales } from '../utils/roles';
 
 export default function RevenueReports({ transactions, clients, activeUser, baselines2025 }) {
-  const [reportTab, setReportTab] = useState('dt-sale'); // 'dt-sale' | 'dt-thang' | 'kh-date'
-  const [viewMode, setViewMode] = useState('table'); // 'table' | 'grid'
+  // Nhớ tab báo cáo + kiểu xem qua F5 (Đợt 2 / mục 9).
+  const [reportTab, setReportTab] = usePersistentState('reports.tab', 'dt-sale', (v) => SUBTABS['revenue-reports'].some((t) => t.id === v)); // 'dt-sale' | 'dt-thang' | 'kh-date'
+  const [viewMode, setViewMode] = usePersistentState('reports.view', 'table', (v) => v === 'table' || v === 'grid'); // 'table' | 'grid'
 
   const canFilterAllSales = canSeeAllSales(activeUser.role);
 
@@ -29,7 +34,7 @@ export default function RevenueReports({ transactions, clients, activeUser, base
       <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BarChart3 size={24} color="var(--karofi-cyan)" /> Báo cáo doanh thu
+            <PieChart size={24} color="var(--karofi-cyan)" /> Báo cáo doanh thu
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
             Theo dõi phân tích doanh số đa chiều theo Sale, theo Tháng và theo Ngày phát sinh.
@@ -37,45 +42,11 @@ export default function RevenueReports({ transactions, clients, activeUser, base
         </div>
 
         {/* View Mode Toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-main)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-          <button
-            onClick={() => setViewMode('table')}
-            className={`btn btn-sm ${viewMode === 'table' ? 'btn-primary' : 'btn-secondary'}`}
-          >
-            <Table size={14} /> Dạng Bảng
-          </button>
-          <button
-            onClick={() => setViewMode('grid')}
-            className={`btn btn-sm ${viewMode === 'grid' ? 'btn-primary' : 'btn-secondary'}`}
-          >
-            <LayoutGrid size={14} /> Dạng Lưới
-          </button>
-        </div>
+        <ViewModeToggle mode={viewMode} onChange={setViewMode} />
       </div>
 
       {/* Main Tabs Navigation */}
-      <div className="glass-card" style={{ padding: '14px 20px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button
-            onClick={() => setReportTab('dt-sale')}
-            className={`btn ${reportTab === 'dt-sale' ? 'btn-primary' : 'btn-secondary'}`}
-          >
-            <User size={16} /> DT Sale
-          </button>
-          <button
-            onClick={() => setReportTab('dt-thang')}
-            className={`btn ${reportTab === 'dt-thang' ? 'btn-primary' : 'btn-secondary'}`}
-          >
-            <Calendar size={16} /> DT Tháng
-          </button>
-          <button
-            onClick={() => setReportTab('kh-date')}
-            className={`btn ${reportTab === 'kh-date' ? 'btn-primary' : 'btn-secondary'}`}
-          >
-            <CalendarDays size={16} /> DT Ngày
-          </button>
-        </div>
-      </div>
+      <SubTabs tabs={SUBTABS['revenue-reports']} active={reportTab} onChange={setReportTab} ariaLabel="Báo cáo doanh thu" />
 
       {/* Perf (2026-08-27): giữ nguyên 3 tab báo cáo (KeepAliveTab) thay vì
           unmount. Không panel nào gọi backend ở đây, nhưng mỗi tab tổng hợp lại

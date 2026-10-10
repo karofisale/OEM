@@ -38,21 +38,35 @@ import * as api from './services/api';
 import { veCongSauDangXuat } from './services/karofiSession';
 import { readBootstrapCache, writeBootstrapCache, clearBootstrapCache } from './services/dataCache';
 import { useToast } from './components/ToastProvider';
+import { useNavGuard } from './components/NavGuard';
 import { chayLacQuan } from './utils/optimistic';
+import { tabHopLe } from './utils/navMeta';
+import { readUi, writeUi, setUiScope } from './utils/uiState';
 
 export default function App() {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState('ai-agent');
+  const guard = useNavGuard();
+  const [session, setSession] = useState(() => api.loadSession());
+  // Nhớ tab cuối qua F5 (Đợt 2 / mục 9). Trước đây luôn về 'ai-agent' — kể cả với
+  // lead/admin vào để xem báo cáo. tabHopLe() chặn tab đã nhớ mà vai trò hiện tại
+  // không được vào (vd kế toán chỉ có 3 mục). Phạm vi theo tên người đăng nhập:
+  // máy dùng chung thì người sau không thừa hưởng tab/bộ lọc của người trước.
+  const [activeTab, setActiveTabRaw] = useState(() => {
+    setUiScope(session && session.user && session.user.name);
+    return tabHopLe(readUi('tab', null), session && session.user && session.user.role);
+  });
+  const setActiveTab = (id) => { setActiveTabRaw(id); writeUi('tab', id); };
+  // Chuyển tab đi qua hộp thoại chung "còn thay đổi chưa lưu" (NavGuard).
+  const requestTab = (id) => { if (id !== activeTab) guard(() => setActiveTab(id)); };
   // Which tabs have ever been opened. Tabs mount on first visit and then stay
   // mounted (hidden) — see KeepAliveTab for why.
-  const [visitedTabs, setVisitedTabs] = useState(() => new Set(['ai-agent']));
+  const [visitedTabs, setVisitedTabs] = useState(() => new Set([activeTab]));
   // Orders live in OrdersReview, which now stays mounted, so it no longer
   // refetches just because the user came back to the tab. This flag is how it
   // learns it genuinely needs to: set when the AI agent saves a new order.
   const [ordersStale, setOrdersStale] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [session, setSession] = useState(() => api.loadSession());
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
@@ -182,6 +196,8 @@ export default function App() {
   }, [session?.token]);
 
   const handleLoginSuccess = (newSession) => {
+    // Đổi người dùng: bộ lọc/tab nhớ được tính theo người MỚI.
+    setUiScope(newSession && newSession.user && newSession.user.name);
     setSession(newSession);
     setShowLoginModal(false);
     // Vai trò "account" không có trong menu "AI Agent Đặt Hàng SAP" (mặc định
@@ -189,6 +205,7 @@ export default function App() {
     // dù sidebar đã ẩn link, gây lẫn lộn. Đưa họ thẳng tới trang đầu tiên họ
     // thực sự được vào.
     if (newSession?.user?.role === 'account') setActiveTab('products');
+    else setActiveTab(tabHopLe(readUi('tab', activeTab), newSession?.user?.role));
   };
 
   const handleLogout = () => {
@@ -284,7 +301,7 @@ export default function App() {
       {/* Sidebar Navigation */}
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={requestTab}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
         isMobileOpen={isMobileSidebarOpen}
@@ -298,7 +315,7 @@ export default function App() {
         <Navbar
           activeUser={activeUser}
           onOpenLoginModal={() => setShowLoginModal(true)}
-          onLogout={handleLogout}
+          onLogout={() => guard(handleLogout)}
           isSyncing={isSyncing}
           onRefreshData={() => fetchAllData(true)}
           onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}

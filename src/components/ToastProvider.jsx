@@ -1,97 +1,102 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+import { themToast, boToast, hetHan, giaHan, canDongHo } from '../utils/toastQueue';
 
-// In-app notifications, replacing 15 native alert() calls.
+// Thông báo trong app, thay 15 lệnh alert() gốc.
 //
-// alert() blocks the browser thread until dismissed, is unstyled and unbranded,
-// is barely readable on a phone, and — the real problem — it stops the app dead
-// for something as routine as "the Sheet write failed, try again". Toasts say
-// the same thing without seizing the page.
+// alert() chặn luồng trình duyệt tới khi bấm đóng, không có kiểu dáng và khó đọc
+// trên điện thoại — nhất là với việc thường ngày như "ghi Sheet lỗi, thử lại".
 //
-// Errors stay until dismissed: a failed Sheet write is something the user has to
-// act on, so it must not disappear while they are looking elsewhere.
+// Hàng đợi (Đợt 2 / mục 2, logic thuần ở utils/toastQueue.js):
+//  - nhiều toast xếp chồng, cái sau không xoá cái trước;
+//  - toast LỖI không tự tắt và có nút ×; toast thường tự tắt sau ~4 giây;
+//  - rê chuột vào vùng toast thì tạm dừng đếm giờ;
+//  - chữ ký cũ giữ nguyên: toast.error(msg) / success(msg) / info(msg). Thêm tuỳ
+//    chọn thứ hai: toast.info(msg, { ms: 8000 }) hoặc { ms: 0 } để giữ lại.
 const ToastContext = createContext(null);
 
-const AUTO_DISMISS_MS = 5000;
-
 const VARIANTS = {
-  success: { Icon: CheckCircle2, bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.35)', color: 'var(--success-text)' },
-  error:   { Icon: AlertCircle,  bg: 'rgba(220, 38, 38, 0.12)',  border: 'rgba(220, 38, 38, 0.35)',  color: 'var(--danger-strong)' },
-  info:    { Icon: Info,         bg: 'rgba(59, 130, 246, 0.12)', border: 'rgba(59, 130, 246, 0.35)', color: 'var(--info-text)' }
+  success: { Icon: CheckCircle2, bg: 'var(--success-bg)', border: 'rgba(16, 185, 129, 0.35)', color: 'var(--success-text)' },
+  error:   { Icon: AlertCircle,  bg: 'var(--danger-bg)',  border: 'rgba(220, 38, 38, 0.35)',  color: 'var(--danger-strong)' },
+  info:    { Icon: Info,         bg: 'var(--info-bg)',    border: 'rgba(59, 130, 246, 0.35)', color: 'var(--info-text)' }
 };
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const nextId = useRef(1);
+  const hovering = useRef(false);
 
   const dismiss = useCallback((id) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
+    setToasts((prev) => boToast(prev, id));
   }, []);
 
-  const push = useCallback((message, variant = 'info') => {
+  const push = useCallback((message, bien, opts) => {
     const id = nextId.current++;
-    setToasts(prev => [...prev, { id, message: String(message), variant }]);
-    // Errors are sticky — the user usually has to do something about them.
-    if (variant !== 'error') {
-      setTimeout(() => dismiss(id), AUTO_DISMISS_MS);
-    }
+    setToasts((prev) => themToast(prev, message, { id, bien, ms: opts && opts.ms }));
     return id;
-  }, [dismiss]);
+  }, []);
 
-  const api = useRef({
-    error: (m) => push(m, 'error'),
-    success: (m) => push(m, 'success'),
-    info: (m) => push(m, 'info')
-  });
-  // Keep the stable object's methods pointing at the current push.
-  api.current.error = (m) => push(m, 'error');
-  api.current.success = (m) => push(m, 'success');
-  api.current.info = (m) => push(m, 'info');
+  // Một đồng hồ chung (thay vì một setTimeout mỗi toast) để gộp/gia hạn không để
+  // lại timer mồ côi. Chỉ chạy khi còn toast tự tắt.
+  const canDong = canDongHo(toasts);
+  useEffect(() => {
+    if (!canDong) return undefined;
+    const h = setInterval(() => {
+      if (hovering.current) return;
+      setToasts((prev) => hetHan(prev, Date.now()));
+    }, 400);
+    return () => clearInterval(h);
+  }, [canDong]);
+
+  const api = useRef({});
+  api.current.error = (m, o) => push(m, 'error', o);
+  api.current.success = (m, o) => push(m, 'success', o);
+  api.current.info = (m, o) => push(m, 'info', o);
+  api.current.dismiss = dismiss;
+  api.current.clear = () => setToasts([]);
 
   return (
     <ToastContext.Provider value={api.current}>
       {children}
       <div
-        // aria-live so screen readers announce failures that used to arrive as a
-        // blocking dialog.
-        role="status"
-        aria-live="polite"
-        style={{
-          position: 'fixed', top: '16px', right: '16px', zIndex: 3000,
-          display: 'flex', flexDirection: 'column', gap: '10px',
-          maxWidth: 'min(420px, calc(100vw - 32px))'
-        }}
+        className="toast-stack"
+        // Vùng tin nhắn chung để trình đọc màn hình đọc; lỗi có role=alert riêng.
+        role="region"
+        aria-label="Thông báo"
+        onMouseEnter={() => { hovering.current = true; }}
+        onMouseLeave={() => { hovering.current = false; setToasts((prev) => giaHan(prev, Date.now())); }}
       >
-        {toasts.map(t => {
-          const v = VARIANTS[t.variant] || VARIANTS.info;
+        {toasts.map((t) => {
+          const v = VARIANTS[t.bien] || VARIANTS.info;
           const Icon = v.Icon;
           return (
             <div
               key={t.id}
-              className="animate-fade-in"
-              style={{
-                display: 'flex', alignItems: 'flex-start', gap: '10px',
-                padding: '12px 14px', borderRadius: 'var(--radius-md)',
-                background: v.bg, border: `1px solid ${v.border}`, color: v.color,
-                boxShadow: 'var(--shadow-md)', fontSize: '0.85rem', fontWeight: 600,
-                backdropFilter: 'blur(8px)'
-              }}
+              role={t.bien === 'error' ? 'alert' : 'status'}
+              className="animate-fade-in toast-item"
+              style={{ background: v.bg, border: `1px solid ${v.border}`, color: v.color }}
             >
               <Icon size={17} style={{ flexShrink: 0, marginTop: '1px' }} />
-              <span style={{ flex: 1, lineHeight: 1.45, wordBreak: 'break-word' }}>{t.message}</span>
+              <span style={{ flex: 1, lineHeight: 1.45, wordBreak: 'break-word' }}>
+                {t.message}
+                {t.count > 1 && <strong style={{ marginLeft: '6px' }}>×{t.count}</strong>}
+              </span>
               <button
+                type="button"
                 onClick={() => dismiss(t.id)}
                 aria-label="Đóng thông báo"
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                  color: 'inherit', opacity: 0.7, flexShrink: 0, lineHeight: 0
-                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', opacity: 0.8, flexShrink: 0, lineHeight: 0 }}
               >
                 <X size={15} />
               </button>
             </div>
           );
         })}
+        {toasts.length >= 3 && (
+          <button type="button" className="btn btn-secondary btn-sm toast-clear" onClick={() => setToasts([])}>
+            Đóng tất cả ({toasts.length})
+          </button>
+        )}
       </div>
     </ToastContext.Provider>
   );

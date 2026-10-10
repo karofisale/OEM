@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { X, Layers, RefreshCw, Zap, ClipboardPaste, Loader2, AlertTriangle, CheckCircle2, HelpCircle } from 'lucide-react';
 import * as api from '../../services/api';
 import { useToast } from '../ToastProvider';
+import Modal from '../Modal';
+import { hienNgay } from '../../utils/vnDate';
 import { parseBomDan, JOB_BOM_NUT } from '../../utils/bom';
 
 /**
@@ -26,13 +28,8 @@ const CHO_TOI_DA_MS = 3 * 60 * 1000;
 
 const tim = (ds, job) => (ds || []).find((n) => n.job === job) || null;
 
-const fmtNgay = (iso) => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return String(iso);
-  const hai = (n) => String(n).padStart(2, '0');
-  return `${hai(d.getDate())}/${hai(d.getMonth() + 1)}/${d.getFullYear()} ${hai(d.getHours())}:${hai(d.getMinutes())}`;
-};
+// Giờ Việt Nam, không phụ thuộc múi giờ của máy (utils/vnDate.js).
+const fmtNgay = (iso) => hienNgay(iso);
 
 export default function BomModal({ token, sku, materialName, canUpdate, onClose }) {
   const toast = useToast();
@@ -162,19 +159,14 @@ export default function BomModal({ token, sku, materialName, canUpdate, onClose 
   const dangCao = phaCao === 'choKhoiDong' || phaCao === 'dangChay';
   const tongSL = bom ? bom.rows.reduce((s, r) => s + (r.quantity || 0), 0) : 0;
 
+  // Khung chung Modal: Esc, focus, role=dialog. Đang cào / đang lưu thì khoá đóng; đã dán
+  // bảng chưa lưu thì bấm nền không đóng và Esc hỏi trước.
   return (
-    <div
-      onClick={(e) => { if (e.target === e.currentTarget && !dangCao && !dangLuu) onClose(); }}
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
-      }}
-    >
-      <div className="glass-card" style={{ width: '100%', maxWidth: '900px', maxHeight: '88vh', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+    <Modal ariaLabel={`BOM mã ${sku}`} width={900} style={{ maxHeight: '88vh' }} onClose={onClose} busy={dangCao || dangLuu} dirty={moCapNhat && !!vanBanDan.trim()}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
           <div>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Layers size={20} color="var(--karofi-cyan)" /> BOM — <span className="code-font" style={{ color: 'var(--karofi-cyan)' }}>{sku}</span>
+              <Layers size={20} color="var(--karofi-cyan)" /> BOM — <span className="code-font" style={{ color: 'var(--cyan-text)' }}>{sku}</span>
             </h3>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
               {bom?.materialName || materialName || ''}
@@ -234,7 +226,7 @@ export default function BomModal({ token, sku, materialName, canUpdate, onClose 
                   placeholder={'Material\tMaterial Description\tComponent\tComponent Descript\tQuantity\n1000123\tMáy lọc ...\t2000456\tLõi lọc ...\t1'}
                 />
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                  <button onClick={luuBanDan} disabled={!vanBanDan.trim() || dangLuu} className="btn btn-emerald btn-sm">
+                  <button onClick={luuBanDan} disabled={!vanBanDan.trim() || dangLuu} className="btn btn-danger btn-sm">
                     {dangLuu ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Thay BOM mã {sku}
                   </button>
                 </div>
@@ -276,7 +268,7 @@ export default function BomModal({ token, sku, materialName, canUpdate, onClose 
                 {bom.rows.map((r, i) => (
                   <tr key={`${r.component}_${i}`}>
                     <td style={{ textAlign: 'right', color: 'var(--text-dim)', fontSize: '0.75rem' }}>{i + 1}</td>
-                    <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{r.component}</td>
+                    <td className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.8rem' }}>{r.component}</td>
                     <td style={{ fontSize: '0.8rem' }}>{r.componentDesc}</td>
                     <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', fontWeight: 700 }}>
                       {(r.quantity || 0).toLocaleString('vi-VN')}
@@ -287,7 +279,6 @@ export default function BomModal({ token, sku, materialName, canUpdate, onClose 
             </table>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

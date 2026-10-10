@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { KeyRound, Lock, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import * as api from '../services/api';
+import Modal from './Modal';
+import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 
 export default function ChangePasswordModal({ token, onClose }) {
   const [oldPin, setOldPin] = useState('');
@@ -32,13 +34,12 @@ export default function ChangePasswordModal({ token, onClose }) {
     }
   };
 
+  // Đã gõ PIN thì bấm nền không đóng, Esc hỏi trước, F5 cảnh báo.
+  const dirty = !success && !!(oldPin || newPin || confirmPin);
+  useUnsavedGuard(dirty, 'Đổi mã PIN');
+
   return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-    }}>
-      <div className="glass-card animate-fade-in" style={{ width: '420px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '18px', border: '1px solid var(--karofi-cyan-border)' }}>
+    <Modal ariaLabel="Đổi mã PIN" width={420} onClose={onClose} busy={isSubmitting} dirty={dirty} style={{ gap: '18px', border: '1px solid var(--karofi-cyan-border)' }}>
 
         <div style={{ textAlign: 'center' }}>
           <div style={{
@@ -129,7 +130,6 @@ export default function ChangePasswordModal({ token, onClose }) {
           </form>
         )}
 
-      </div>
-    </div>
+    </Modal>
   );
 }

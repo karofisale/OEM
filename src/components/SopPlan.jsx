@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { CalendarClock, ClipboardList, ClipboardCheck } from 'lucide-react';
+import { CalendarClock } from 'lucide-react';
 import KeepAliveTab from './KeepAliveTab';
+import SubTabs from './SubTabs';
+import { SUBTABS } from '../utils/navMeta';
+import { usePersistentState } from '../hooks/usePersistentState';
 import SopViewPanel from './sop/SopViewPanel';
 import SopPlanPanel from './sop/SopPlanPanel';
 import SopApprovePanel from './sop/SopApprovePanel';
 import SopMyPlanPanel from './sop/SopMyPlanPanel';
 
 export default function SopPlan({ token, activeUser, materials }) {
-  const [subView, setSubView] = useState('view'); // 'view' | 'plan' | 'approve'
   // Bumped every time a plan is submitted or approved, so the "Xem SOP" panel
   // (and the approve panel's pending count) refetch instead of showing what
   // was true before the write.
@@ -16,6 +18,12 @@ export default function SopPlan({ token, activeUser, materials }) {
 
   const canPlan = ['sale', 'admin', 'creator'].includes(activeUser.role);
   const canApprove = ['admin', 'creator'].includes(activeUser.role);
+
+  // Tab con: icon riêng, nhớ tab cuối qua F5 (Đợt 2 / mục 7, 9).
+  const hien = { view: true, plan: canPlan, approve: canApprove };
+  const tabs = SUBTABS.sop.filter((t) => hien[t.id]);
+  const [subSaved, setSubView] = usePersistentState('sub.sop', 'view'); // 'view' | 'plan' | 'approve'
+  const subView = tabs.some((t) => t.id === subSaved) ? subSaved : 'view';
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -31,22 +39,9 @@ export default function SopPlan({ token, activeUser, materials }) {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button onClick={() => setSubView('view')} className={`btn ${subView === 'view' ? 'btn-primary' : 'btn-secondary'}`}>
-            <CalendarClock size={16} /> Xem SOP
-          </button>
-          {canPlan && (
-            <button onClick={() => setSubView('plan')} className={`btn ${subView === 'plan' ? 'btn-primary' : 'btn-secondary'}`}>
-              <ClipboardList size={16} /> Lập Kế Hoạch
-            </button>
-          )}
-          {canApprove && (
-            <button onClick={() => setSubView('approve')} className={`btn ${subView === 'approve' ? 'btn-primary' : 'btn-secondary'}`}>
-              <ClipboardCheck size={16} /> Chờ Duyệt
-            </button>
-          )}
-        </div>
       </div>
+
+      <SubTabs tabs={tabs} active={subView} onChange={setSubView} ariaLabel="Kế hoạch SOP" />
 
       {/* Perf (2026-08-27): cả 3 sub-tab giữ nguyên (KeepAliveTab) thay vì
           unmount khi chuyển. Mỗi panel ở đây đều gọi backend lúc mở, nên trước

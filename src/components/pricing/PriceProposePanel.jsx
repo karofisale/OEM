@@ -3,8 +3,13 @@ import { Search, Filter, Save, Users } from 'lucide-react';
 import * as api from '../../services/api';
 import Pagination, { usePagedSlice } from '../Pagination';
 import ConfirmDialog from '../ConfirmDialog';
+import SortableTh from '../SortableTh';
+import TableState from '../TableState';
 import { useToast } from '../ToastProvider';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useTableSort } from '../../hooks/useTableSort';
+import { usePersistentState } from '../../hooks/usePersistentState';
+import { useUnsavedGuard } from '../../hooks/useUnsavedGuard';
 import { dongDeXuat, soMaCoNhap, boNhapDaGui } from '../../utils/priceDraft';
 
 const PAGE_SIZE = 25;
@@ -25,7 +30,8 @@ const formatDigits = (v) => (v ? Number(v).toLocaleString('vi-VN') : '');
 export default function PriceProposePanel({ token, materials, clients, activeUser, onSubmitted }) {
   const toast = useToast();
   const [searchTerm, setSearchTerm] = useState('');
-  const [groupFilter, setGroupFilter] = useState('ALL');
+  // Nhóm SP nhớ qua F5 (Đợt 2 / mục 9). Khách KHÔNG nhớ: giá nháp gắn với khách đang chọn.
+  const [groupSaved, setGroupFilter] = usePersistentState('price.group', 'ALL');
   const [clientCode, setClientCode] = useState(''); // '' = áp dụng chung
   const [clientOverrides, setClientOverrides] = useState({});
   const [draftMap, setDraftMap] = useState({}); // sku -> { retail, promoQty, promoPrice }
@@ -66,6 +72,9 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
     return Array.from(set).sort();
   }, [materials]);
 
+  // Nhóm đã nhớ mà không còn trong danh mục -> về "Tất cả" (không để bảng trống vì bộ lọc cũ).
+  const groupFilter = groupSaved === 'ALL' || groupsList.includes(groupSaved) ? groupSaved : 'ALL';
+
   // Debounce ô tìm — nhất quán với ClientManagement/ProductManagement.
   const debouncedSearchTerm = useDebouncedValue(searchTerm);
 
@@ -78,14 +87,22 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
     });
   }, [materials, debouncedSearchTerm, groupFilter]);
 
-  const { safePage, pageItems: pagedMaterials } = usePagedSlice(filteredMaterials, page, PAGE_SIZE);
-
   // Giá hiện tại để SO SÁNH — theo khách (nếu đã có giá riêng) hoặc giá chung.
   const currentPriceFor = (m) => {
     const override = clientOverrides[m.sku];
     if (override) return { retail: override.retail, promoQty: override.promoQty, promoPrice: override.promoPrice };
     return { retail: m.suggestedPrice || 0, promoQty: m.promoQty || 0, promoPrice: m.promoPrice || 0 };
   };
+
+  // Sắp xếp theo cột (Đợt 2 / mục 3) — chỉ các cột KHÔNG sửa được. Sắp theo ô đang gõ thì dòng
+  // nhảy chỗ ngay dưới tay người nhập.
+  const cols = useMemo(() => [
+    { key: 'sku' }, { key: 'name' },
+    { key: 'retail', type: 'number', get: (m) => currentPriceFor(m).retail },
+    { key: 'promo', type: 'number', get: (m) => currentPriceFor(m).promoPrice }
+  ], [clientOverrides]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { rows: sortedMaterials, sort, onSort } = useTableSort(filteredMaterials, cols);
+  const { safePage, pageItems: pagedMaterials } = usePagedSlice(sortedMaterials, page, PAGE_SIZE);
 
   const getDraft = (m) => draftMap[m.sku] || { retail: '', promoQty: '', promoPrice: '' };
 
@@ -117,6 +134,8 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
 
   // Có ô nháp nào đang có số không (kể cả SL KM / Giá KM chưa kèm Giá lẻ).
   const draftCount = useMemo(() => soMaCoNhap(draftMap), [draftMap]);
+  // F5 / đổi tab khi còn giá nháp chưa gửi -> cảnh báo (Đợt 2 / mục 5).
+  useUnsavedGuard(draftCount > 0, 'Đề xuất giá');
 
   // Giá nháp gắn với khách ĐANG CHỌN (giá riêng hay giá chung) — đổi khách mà
   // giữ nháp là gửi nhầm giá của khách A thành giá của khách B. Còn nháp thì hỏi
@@ -199,14 +218,15 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
         </div>
       )}
 
+      <TableState isEmpty={filteredMaterials.length === 0} emptyText="Không có sản phẩm nào khớp bộ lọc.">
       <div className="table-container animate-fade-in" style={{ maxHeight: '600px', overflowY: 'auto' }}>
         <table className="custom-table">
           <thead>
             <tr>
-              <th>Mã</th>
-              <th>Tên SP</th>
-              <th style={{ textAlign: 'right', width: '130px' }}>Giá lẻ hiện tại</th>
-              <th style={{ textAlign: 'right', width: '130px' }}>Giá KM hiện tại</th>
+              <SortableTh col="sku" sort={sort} onSort={onSort}>Mã</SortableTh>
+              <SortableTh col="name" sort={sort} onSort={onSort}>Tên SP</SortableTh>
+              <SortableTh col="retail" sort={sort} onSort={onSort} align="right" style={{ width: '130px' }}>Giá lẻ hiện tại</SortableTh>
+              <SortableTh col="promo" sort={sort} onSort={onSort} align="right" style={{ width: '130px' }}>Giá KM hiện tại</SortableTh>
               <th style={{ textAlign: 'right', width: '140px' }}>Giá lẻ ĐX</th>
               <th style={{ textAlign: 'right', width: '110px' }}>SL KM ĐX</th>
               <th style={{ textAlign: 'right', width: '140px' }}>Giá KM ĐX</th>
@@ -220,7 +240,7 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
               const pct = pctChange(m);
               return (
                 <tr key={m.sku}>
-                  <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{m.sku}</td>
+                  <td className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.8rem' }}>{m.sku}</td>
                   <td style={{ fontWeight: 600 }}>{m.name}</td>
                   <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(current.retail)}</td>
                   <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', color: 'var(--text-dim)' }}>{current.promoPrice ? fmt(current.promoPrice) : '-'}</td>
@@ -254,17 +274,11 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
           </tbody>
         </table>
       </div>
-
-      {filteredMaterials.length === 0 ? (
-        <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '28px 16px' }}>
-          Không có sản phẩm nào khớp bộ lọc.
-        </div>
-      ) : (
-        <Pagination page={safePage} pageSize={PAGE_SIZE} totalItems={filteredMaterials.length} onPageChange={setPage} itemLabel="sản phẩm" />
-      )}
+      <Pagination page={safePage} pageSize={PAGE_SIZE} totalItems={filteredMaterials.length} onPageChange={setPage} itemLabel="sản phẩm" />
+      </TableState>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={() => setConfirming(true)} disabled={isSaving || !touchedRows.length} className="btn btn-emerald">
+        <button onClick={() => setConfirming(true)} disabled={isSaving || !touchedRows.length} className="btn btn-primary">
           <Save size={16} /> Gửi Đề Xuất ({touchedRows.length.toLocaleString('vi-VN')} SKU{hiddenTouchedCount ? `, ${hiddenTouchedCount.toLocaleString('vi-VN')} đang bị lọc ẩn` : ''})
         </button>
       </div>
@@ -273,7 +287,7 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
         <ConfirmDialog
           title="Gửi đề xuất giá bán?"
           message={`Sẽ tạo 1 đợt đề xuất mới cho ${touchedRows.length.toLocaleString('vi-VN')} mã SKU${hiddenTouchedCount ? ` (trong đó ${hiddenTouchedCount.toLocaleString('vi-VN')} mã đang bị bộ lọc ẩn)` : ''}${clientCode ? ' (áp dụng RIÊNG cho khách hàng đã chọn)' : ' (áp dụng chung)'}, chờ Admin/Creator duyệt.`}
-          confirmLabel="Gửi Duyệt"
+          confirmLabel="Gửi đề xuất giá"
           busy={isSaving}
           busyLabel="Đang gửi..."
           onConfirm={handleSubmit}

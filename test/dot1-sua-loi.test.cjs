@@ -94,8 +94,9 @@ const SRC = (f) => fs.readFileSync(path.join(ROOT, 'src', f), 'utf8');
   b = nut(html);
   check('busy: KHOÁ cả Hủy lẫn Xác nhận, hiện nhãn đang xử lý', b.length === 2 && b.every((x) => /disabled=""/.test(x)) && />Đang gửi\.\.\.</.test(b[1]), b);
   check('busy: aria-busy để trình đọc màn hình biết', /aria-busy="true"/.test(html));
-  const cd = SRC('components/ConfirmDialog.jsx');
-  check('busy: Esc và bấm nền không đóng', /if \(!busyRef\.current\) onCancel\(\)/.test(cd) && /e\.target === e\.currentTarget && !busy/.test(cd));
+  // Đợt 2 (10/10/2026): hành vi Esc / bấm nền chuyển sang khung chung DialogShell; ConfirmDialog dựng trên đó.
+  const cd = SRC('components/ConfirmDialog.jsx') + SRC('components/DialogShell.jsx');
+  check('busy: Esc và bấm nền không đóng', /if \(!live\.current\.busy\) live\.current\.onEscape\(\)/.test(cd) && /e\.target === e\.currentTarget && onBackdrop && !busy/.test(cd) && /DialogShell/.test(SRC('components/ConfirmDialog.jsx')));
 
   const callers = {
     'components/pricing/PriceProposePanel.jsx': ['busy={isSaving}', 'if (isSaving || !touchedRows.length) return'],

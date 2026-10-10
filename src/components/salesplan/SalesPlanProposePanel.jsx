@@ -3,10 +3,17 @@ import { Search, Filter, CheckCircle2, Save, ShieldCheck, User, UserPlus, Plus, 
 import * as api from '../../services/api';
 import Combobox from '../Combobox';
 import Pagination, { usePagedSlice } from '../Pagination';
+import SortableTh from '../SortableTh';
+import TableState from '../TableState';
 import { useToast } from '../ToastProvider';
 import { parseMonthKey, formatMonthKey } from '../../utils/period';
 import { canSeeAllSales, ownsSaleRow } from '../../utils/roles';
 import { doneTheoKhach, doneDong } from '../../utils/salesPlan';
+import { trangThai } from '../../utils/glossary';
+import { vnPlanMonthKey } from '../../utils/vnDate';
+import { useTableSort } from '../../hooks/useTableSort';
+import { usePersistentState } from '../../hooks/usePersistentState';
+import { useUnsavedGuard } from '../../hooks/useUnsavedGuard';
 
 const PAGE_SIZE = 25;
 
@@ -58,12 +65,16 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
   const canFilterAllSales = canSeeAllSales(activeUser.role);
   const isSale = String(activeUser.role || '').toLowerCase() === 'sale';
 
-  const [month, setMonth] = useState(planDefaultMonth || '');
+  // Backend chưa trả tháng mặc định thì tự tính theo giờ Việt Nam (1-24: tháng này, 25-31: tháng sau).
+  const [month, setMonth] = useState(planDefaultMonth || vnPlanMonthKey());
   const [periodConfirmed, setPeriodConfirmed] = useState(false);
   // Sale mở màn này là để lập kế hoạch cho khách CỦA MÌNH, nên mặc định lọc
   // sẵn về mình — xem của người khác thì đổi sang "Tất cả SALE". Nếu vào thẳng
   // danh sách toàn công ty thì khách của chính mình lẫn trong hàng trăm dòng.
-  const [selectedSale, setSelectedSale] = useState(isSale && activeUser.saleId ? activeUser.saleId : 'ALL');
+  // Bộ lọc SALE nhớ qua F5 (Đợt 2 / mục 9). Tháng lập KHÔNG nhớ: màn có bước xác nhận tháng chính để
+  // tránh nhập nhầm sang kỳ cũ.
+  const defaultSale = isSale && activeUser.saleId ? activeUser.saleId : 'ALL';
+  const [saleSaved, setSelectedSale] = usePersistentState('plan.propose.sale', defaultSale);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
@@ -181,6 +192,9 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'vi'));
   }, [allRows]);
 
+  // Sale đã nhớ mà không còn trong bảng -> về mặc định (khách của mình / tất cả).
+  const selectedSale = saleSaved === 'ALL' || saleSaved === activeUser.saleId || salesList.includes(saleSaved) ? saleSaved : defaultSale;
+
   // Sửa được dòng này không. Khách chưa có chủ (cột Sale trống) thì cho nhập —
   // đó là khách mới, và backend cũng cho qua đúng theo luật đó.
   const canEditRow = (r) => !r.sale || ownsSaleRow(activeUser, r.sale);
@@ -214,7 +228,16 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
     });
   }, [scopedRows, searchTerm, month, plan2026]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { safePage, pageItems: pagedRows } = usePagedSlice(filteredRows, page, PAGE_SIZE);
+  // Sắp xếp theo cột (Đợt 2 / mục 3) — chỉ các cột KHÔNG sửa được (Mã, Tên, Plan KPI, Done), vì sắp
+  // theo ô đang gõ thì dòng nhảy chỗ dưới tay người nhập. Không chọn cột nào thì giữ thứ tự mặc định
+  // (Plan KPI giảm dần, khách mới thêm ghim lên đầu).
+  const cols = useMemo(() => [
+    { key: 'codeSearch' }, { key: 'name' },
+    { key: 'planKpi', type: 'number', get: (r) => planKpiForCode(r.codeSearch) },
+    { key: 'done', type: 'number', get: (r) => doneCua(r).value }
+  ], [month, plan2026, doneByCode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { rows: sortedRows, sort, onSort } = useTableSort(filteredRows, cols);
+  const { safePage, pageItems: pagedRows } = usePagedSlice(sortedRows, page, PAGE_SIZE);
 
   const getDraft = (code) => {
     if (draftMap[code]) return draftMap[code];
@@ -238,6 +261,9 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
     () => Object.keys(draftMap).filter(code => draftSignature(draftMap[code]) !== savedMap[code]),
     [draftMap, savedMap]
   );
+
+  // F5 / đổi tab khi còn dòng đã nhập mà chưa lưu -> cảnh báo (Đợt 2 / mục 5).
+  useUnsavedGuard(pendingCodes.length > 0, 'Kế hoạch kinh doanh');
 
   /**
    * Nhả bản nhập tay khi dữ liệu từ Sheet đã đuổi kịp.
@@ -403,7 +429,7 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
         <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', borderColor: 'rgba(245, 158, 11, 0.4)' }}>
           <AlertTriangle size={18} color="var(--warning-text)" />
           <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)', flex: 1, minWidth: '260px' }}>
-            Chưa tải được KPI năm (tab Plan2026) — bảng đang hiện theo danh sách Khách hàng và cột Plan KPI để trống.
+            Chưa tải được KPI năm — bảng đang hiện theo danh sách Khách hàng và cột Plan KPI để trống.
             Vẫn nhập và lưu được bình thường.
           </span>
           <button onClick={handleReloadKpi} disabled={isReloadingKpi} className="btn btn-secondary">
@@ -466,9 +492,9 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
             renderOption={(c) => (
               <div>
                 <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>
-                  <span className="code-font" style={{ color: 'var(--karofi-cyan)' }}>{c.codeSearch}</span>
+                  <span className="code-font" style={{ color: 'var(--cyan-text)' }}>{c.codeSearch}</span>
                   {c.status && c.status !== 'Active' && (
-                    <span style={{ marginLeft: '6px', fontSize: '0.68rem', color: 'var(--danger-strong)' }}>({c.status})</span>
+                    <span style={{ marginLeft: '6px', fontSize: '0.68rem', color: 'var(--danger-strong)' }}>({trangThai(c.status).label})</span>
                   )}
                 </div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{c.name}{c.sale ? ` · ${c.sale}` : ''}</div>
@@ -484,20 +510,21 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
         </button>
       </div>
 
+      <TableState isEmpty={filteredRows.length === 0} emptyText="Không có khách hàng nào khớp bộ lọc." emptyHint="Dùng ô &quot;Bổ sung khách hàng&quot; ở trên để thêm khách vào kế hoạch.">
       <div className="table-container animate-fade-in" style={{ maxHeight: '600px', overflowY: 'auto' }}>
         <table className="custom-table">
           <thead>
             <tr>
-              <th style={{ minWidth: '130px' }}>Mã KH</th>
-              <th style={{ minWidth: '200px' }}>Tên khách hàng</th>
-              <th style={{ textAlign: 'right', width: '150px' }}>Plan KPI</th>
+              <SortableTh col="codeSearch" sort={sort} onSort={onSort} style={{ minWidth: '130px' }}>Mã KH</SortableTh>
+              <SortableTh col="name" sort={sort} onSort={onSort} style={{ minWidth: '200px' }}>Tên khách hàng</SortableTh>
+              <SortableTh col="planKpi" sort={sort} onSort={onSort} align="right" style={{ width: '150px' }}>Plan KPI</SortableTh>
               <th style={{ textAlign: 'right', width: '140px' }}>Tuần 1</th>
               <th style={{ textAlign: 'right', width: '140px' }}>Tuần 2</th>
               <th style={{ textAlign: 'right', width: '140px' }}>Tuần 3</th>
               <th style={{ textAlign: 'right', width: '140px' }}>Tuần 4</th>
               <th style={{ textAlign: 'right', width: '140px' }}>Tuần 5</th>
               <th style={{ textAlign: 'right', width: '150px' }}>Plan_Update</th>
-              <th style={{ textAlign: 'right', width: '150px' }}>Doanh thu done</th>
+              <SortableTh col="done" sort={sort} onSort={onSort} align="right" style={{ width: '150px' }}>Doanh thu done</SortableTh>
               <th style={{ minWidth: '150px' }}>Note</th>
             </tr>
           </thead>
@@ -525,10 +552,10 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
               const done = doneCua(r);
               return (
                 <tr key={code}>
-                  <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>
+                  <td className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.8rem' }}>
                     {code}
                     {r.isAdded && (
-                      <span style={{ marginLeft: '6px', fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>MỚI THÊM</span>
+                      <span style={{ marginLeft: '6px', fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-emerald-text)' }}>MỚI THÊM</span>
                     )}
                     {isJustSaved && (
                       <span style={{ marginLeft: '6px', fontSize: '0.65rem', fontWeight: 800, color: 'var(--success-text)', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
@@ -548,7 +575,7 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
                     <div style={{ fontWeight: 600 }}>{r.name}</div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
                       {canFilterAllSales && r.sale ? r.sale : ''}
-                      {r.plan ? `${canFilterAllSales && r.sale ? ' · ' : ''}${r.plan.status || 'Chờ duyệt'}` : ''}
+                      {r.plan ? `${canFilterAllSales && r.sale ? ' · ' : ''}${trangThai(r.plan.status || 'Chờ duyệt').label}` : ''}
                       {!r.inClientList ? `${(canFilterAllSales && r.sale) || r.plan ? ' · ' : ''}chưa có trong tab Khách hàng` : ''}
                     </div>
                   </td>
@@ -572,7 +599,7 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
                   ))}
                   <td style={{ textAlign: 'right', fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", fontSize: '0.825rem' }}>{sum.toLocaleString('vi-VN')}</td>
                   <td
-                    style={{ textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}
+                    style={{ textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}
                     title={done.tuGiaoDich ? 'Tính thẳng từ doanh thu thực tế tháng này (nguồn chính)' : 'Chưa có doanh thu nào trong tháng — số cũ lưu từ trước, có thể đã cũ'}
                   >
                     {done.value.toLocaleString('vi-VN')}
@@ -592,14 +619,8 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
           </tbody>
         </table>
       </div>
-
-      {filteredRows.length === 0 ? (
-        <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '28px 16px' }}>
-          Không có khách hàng nào khớp bộ lọc. Dùng ô "Bổ sung khách hàng" ở trên để thêm khách vào kế hoạch.
-        </div>
-      ) : (
-        <Pagination page={safePage} pageSize={PAGE_SIZE} totalItems={filteredRows.length} onPageChange={setPage} itemLabel="khách hàng" />
-      )}
+      <Pagination page={safePage} pageSize={PAGE_SIZE} totalItems={filteredRows.length} onPageChange={setPage} itemLabel="khách hàng" />
+      </TableState>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         <span style={{ fontSize: '0.78rem', color: pendingCodes.length ? 'var(--warning-text)' : 'var(--text-dim)' }}>
@@ -610,7 +631,7 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
         <button
           onClick={handleSubmit}
           disabled={isSaving || pendingCodes.length === 0}
-          className="btn btn-emerald"
+          className="btn btn-primary"
           title={pendingCodes.length === 0 ? 'Chưa có thay đổi nào cần lưu' : `Gửi ${pendingCodes.length} dòng lên duyệt`}
         >
           <Save size={16} /> {isSaving ? 'Đang lưu...' : `Lưu Kế Hoạch ${month}, Gửi Duyệt${pendingCodes.length ? ` (${pendingCodes.length})` : ''}`}

@@ -4,7 +4,7 @@ import * as api from '../../services/api';
 import { useToast } from '../ToastProvider';
 
 /**
- * "Có N sản phẩm chưa khai báo trong tab Products" — nằm trên màn Lịch sử
+ * "Có N sản phẩm chưa khai báo trong danh mục sản phẩm" — nằm trên màn Lịch sử
  * doanh thu, ngay dưới dòng mốc cập nhật.
  *
  * VÌ SAO CẦN: danh mục sản phẩm của app SUY RA TỪ LỊCH SỬ GIAO DỊCH, nên một
@@ -56,7 +56,7 @@ export default function SanPhamChuaCoPanel({ token, materials, activeUser, onSav
         alias: m.alias || ''
       })));
       toast.success(
-        `Đã lưu ${kq.addedCount} sản phẩm vào tab Products` +
+        `Đã lưu ${kq.addedCount} sản phẩm vào danh mục sản phẩm` +
         (kq.skippedCount ? ` (bỏ qua ${kq.skippedCount} mã đã có).` : '.')
       );
       if (onSaved) onSaved();
@@ -74,7 +74,7 @@ export default function SanPhamChuaCoPanel({ token, materials, activeUser, onSav
           <PackagePlus size={18} color="var(--warning-text)" />
           <div>
             <strong style={{ fontSize: '0.9rem' }}>
-              {thieu.length.toLocaleString('vi-VN')} sản phẩm có doanh thu nhưng chưa khai báo trong tab Products
+              {thieu.length.toLocaleString('vi-VN')} sản phẩm có doanh thu nhưng chưa khai báo trong danh mục sản phẩm
             </strong>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
               Chọn Nhóm SP cho từng mã rồi bấm Lưu. Chưa lưu thì chúng vẫn chạy được, chỉ là không có nhóm chuẩn trong báo cáo.
@@ -83,7 +83,7 @@ export default function SanPhamChuaCoPanel({ token, materials, activeUser, onSav
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button onClick={() => setAn(true)} disabled={dangLuu} className="btn btn-ghost btn-sm">Để sau</button>
-          <button onClick={luu} disabled={dangLuu} className="btn btn-emerald btn-sm">
+          <button onClick={luu} disabled={dangLuu} className="btn btn-primary btn-sm">
             {dangLuu ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             Lưu {thieu.length} sản phẩm
           </button>
@@ -103,7 +103,7 @@ export default function SanPhamChuaCoPanel({ token, materials, activeUser, onSav
           <tbody>
             {thieu.map((m) => (
               <tr key={m.sku}>
-                <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{m.sku}</td>
+                <td className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.8rem' }}>{m.sku}</td>
                 <td style={{ fontSize: '0.8rem' }}>{m.name}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                   {(m.totalQty || 0).toLocaleString('vi-VN')} {m.unit}
@@ -132,7 +132,7 @@ export default function SanPhamChuaCoPanel({ token, materials, activeUser, onSav
       </datalist>
 
       <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-        <CheckCircle2 size={12} /> Mã đã có sẵn trong tab Products sẽ được bỏ qua, không tạo dòng trùng.
+        <CheckCircle2 size={12} /> Mã đã có sẵn trong danh mục sản phẩm sẽ được bỏ qua, không tạo dòng trùng.
       </span>
     </div>
   );

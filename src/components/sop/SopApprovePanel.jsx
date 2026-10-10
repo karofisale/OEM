@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { CheckCircle2, RefreshCw, Users, TrendingUp, Pencil } from 'lucide-react';
 import * as api from '../../services/api';
-import LoadingScreen from '../LoadingScreen';
+import SortableTh from '../SortableTh';
+import TableState from '../TableState';
 import ConfirmDialog from '../ConfirmDialog';
 import { useToast } from '../ToastProvider';
+import { useTableSort } from '../../hooks/useTableSort';
+import { useUnsavedGuard } from '../../hooks/useUnsavedGuard';
 
 const fmtNum = (v) => (v || 0).toLocaleString('vi-VN');
 const fmtMoney = (v) => (v || 0).toLocaleString('vi-VN') + ' đ';
@@ -25,6 +28,8 @@ export default function SopApprovePanel({ token, refreshTick, onApproved }) {
   const [editedSl, setEditedSl] = useState({}); // sku -> [sl1..sl4]
   const [saleFilter, setSaleFilter] = useState('ALL');
   const [hideZeroRows, setHideZeroRows] = useState(false);
+  // Ảnh chụp số lúc tải: khác ảnh chụp = người duyệt đã sửa số, chưa Duyệt (Đợt 2 / mục 5).
+  const [editedInit, setEditedInit] = useState('');
 
   const fetchPending = async () => {
     setIsLoading(true);
@@ -35,6 +40,7 @@ export default function SopApprovePanel({ token, refreshTick, onApproved }) {
       const init = {};
       (result.rows || []).forEach((r) => { init[r.sku] = r.sl.slice(); });
       setEditedSl(init);
+      setEditedInit(JSON.stringify(init));
       setSaleFilter('ALL');
     } catch (err) {
       setLoadError(err.message || String(err));
@@ -89,6 +95,19 @@ export default function SopApprovePanel({ token, refreshTick, onApproved }) {
     return data.rows.filter((r) => (editedSl[r.sku] || r.sl).some((v) => v > 0));
   }, [data, editedSl, hideZeroRows]);
 
+  // Sắp xếp theo cột (Đợt 2 / mục 3) theo số GỐC đã tổng hợp, không theo ô đang sửa — để dòng không
+  // nhảy chỗ khi người duyệt gõ số.
+  const cols = useMemo(() => [
+    { key: 'sku' }, { key: 'name' }, { key: 'price', type: 'number' },
+    ...((data && data.monthLabels) || []).map((_, i) => ({ key: 'sl' + i, type: 'number', get: (r) => r.sl[i] })),
+    { key: 'contributors', get: (r) => (r.contributors || []).join(', ') }
+  ], [data]);
+  const { rows: sortedRows, sort, onSort } = useTableSort(visibleRows, cols);
+  useUnsavedGuard(!!editedInit && JSON.stringify(editedSl) !== editedInit, 'Duyệt SOP');
+
+  // Tổng số lượng từng tháng theo số ĐANG SỬA của các dòng đang hiện.
+  const totalSl = useMemo(() => ((data && data.monthLabels) || []).map((_, i) => visibleRows.reduce((sum, r) => sum + ((editedSl[r.sku] || r.sl)[i] || 0), 0)), [data, visibleRows, editedSl]);
+
   // What actually gets published to tab "SOP" on approve — backend drops any
   // SKU whose quantity is 0 across all 4 months, independent of hideZeroRows
   // (that one is display-only).
@@ -131,23 +150,19 @@ export default function SopApprovePanel({ token, refreshTick, onApproved }) {
     }
   };
 
-  if (isLoading) return <LoadingScreen label="Đang tải bảng tổng hợp chờ duyệt..." />;
-
-  if (loadError) {
+  // Tải / lỗi / rỗng dùng chung một mẫu (TableState): lỗi luôn có Thử lại, không kẹt "Đang tải…".
+  if (isLoading || loadError || !data || !data.rows.length) {
     return (
-      <div className="glass-card" style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-        <span>Lỗi tải bảng chờ duyệt: {loadError}</span>
-        <button onClick={fetchPending} className="btn btn-secondary btn-sm">Thử lại</button>
-      </div>
-    );
-  }
-
-  if (!data.rows.length) {
-    return (
-      <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-        <span style={{ color: 'var(--text-muted)' }}>Chưa có Sale nào gửi kế hoạch cho kỳ này.</span>
-        <button onClick={fetchPending} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
-      </div>
+      <TableState
+        loading={isLoading}
+        error={loadError}
+        isEmpty={!data || !data.rows.length}
+        errorPrefix="Lỗi tải bảng chờ duyệt"
+        loadingLabel="Đang tải bảng tổng hợp chờ duyệt..."
+        emptyText="Chưa có Sale nào gửi kế hoạch cho kỳ này."
+        emptyAction={<button onClick={fetchPending} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>}
+        onRetry={fetchPending}
+      />
     );
   }
 
@@ -187,7 +202,7 @@ export default function SopApprovePanel({ token, refreshTick, onApproved }) {
             {salesList.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <button onClick={fetchPending} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
-          <button onClick={() => setConfirming(true)} className="btn btn-emerald btn-sm">
+          <button onClick={() => setConfirming(true)} className="btn btn-primary btn-sm">
             <CheckCircle2 size={14} /> Duyệt Toàn Bộ Kế Hoạch
           </button>
         </div>
@@ -211,7 +226,7 @@ export default function SopApprovePanel({ token, refreshTick, onApproved }) {
               <tbody>
                 {saleContribution.lines.map((d) => (
                   <tr key={d.sku}>
-                    <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{d.sku}</td>
+                    <td className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.8rem' }}>{d.sku}</td>
                     <td style={{ fontWeight: 600 }}>{d.name}</td>
                     {d.sl.map((v, i) => (
                       <td key={i} style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmtNum(v)}</td>
@@ -234,19 +249,28 @@ export default function SopApprovePanel({ token, refreshTick, onApproved }) {
         <table className="custom-table">
           <thead>
             <tr>
-              <th>Mã</th>
-              <th>Tên SP</th>
-              <th style={{ textAlign: 'right' }}>Giá bán</th>
-              {data.monthLabels.map((label, i) => <th key={label + i} style={{ width: '110px', textAlign: 'right' }}><Pencil size={11} style={{ marginRight: '3px', verticalAlign: '-1px' }} />{label}</th>)}
-              <th>Sale đóng góp</th>
+              <SortableTh col="sku" sort={sort} onSort={onSort}>Mã</SortableTh>
+              <SortableTh col="name" sort={sort} onSort={onSort}>Tên SP</SortableTh>
+              <SortableTh col="price" sort={sort} onSort={onSort} align="right">Giá bán</SortableTh>
+              {data.monthLabels.map((label, i) => <SortableTh key={label + i} col={'sl' + i} sort={sort} onSort={onSort} align="right" style={{ width: '110px' }}><Pencil size={11} style={{ marginRight: '3px', verticalAlign: '-1px' }} />{label}</SortableTh>)}
+              <SortableTh col="contributors" sort={sort} onSort={onSort}>Sale đóng góp</SortableTh>
             </tr>
           </thead>
           <tbody>
-            {visibleRows.map(r => {
+            <tr className="top-summary-row">
+              <td style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>Σ TỔNG</td>
+              <td style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>{visibleRows.length.toLocaleString('vi-VN')} mã SKU</td>
+              <td />
+              {data.monthLabels.map((label, i) => (
+                <td key={label + i} style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900, color: 'var(--karofi-navy)' }}>{fmtNum(totalSl[i])}</td>
+              ))}
+              <td />
+            </tr>
+            {sortedRows.map(r => {
               const sl = editedSl[r.sku] || r.sl;
               return (
               <tr key={r.sku}>
-                <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{r.sku}</td>
+                <td className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.8rem' }}>{r.sku}</td>
                 <td style={{ fontWeight: 600 }}>{r.name}</td>
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmtNum(r.price)}</td>
                 {sl.map((v, i) => (
@@ -274,8 +298,8 @@ export default function SopApprovePanel({ token, refreshTick, onApproved }) {
       {confirming && (
         <ConfirmDialog
           title="Duyệt toàn bộ kế hoạch SOP kỳ này?"
-          message={`Sẽ ghi đè tab "SOP" bằng ${publishCount} mã SKU có số lượng > 0${publishCount !== data.rows.length ? ` (bỏ qua ${data.rows.length - publishCount} mã toàn số 0)` : ''}, và đánh dấu Đã duyệt cho toàn bộ ${data.pendingCount} dòng kế hoạch chờ duyệt của kỳ ${data.monthLabels[0]} → ${data.monthLabels[data.monthLabels.length - 1]}. Không thể duyệt lại từng dòng riêng sau khi xác nhận.`}
-          confirmLabel="Duyệt"
+          message={`Sẽ ghi đè kế hoạch SOP hiện hành bằng ${publishCount} mã SKU có số lượng > 0${publishCount !== data.rows.length ? ` (bỏ qua ${data.rows.length - publishCount} mã toàn số 0)` : ''}, và đánh dấu Đã duyệt cho toàn bộ ${data.pendingCount} dòng kế hoạch chờ duyệt của kỳ ${data.monthLabels[0]} → ${data.monthLabels[data.monthLabels.length - 1]}. Không thể duyệt lại từng dòng riêng sau khi xác nhận.`}
+          confirmLabel="Duyệt và ghi đè SOP"
           busy={isApproving}
           busyLabel="Đang duyệt..."
           onConfirm={handleApprove}

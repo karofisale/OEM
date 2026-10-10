@@ -6,6 +6,17 @@ import RevenueImportPanel from './transactions/RevenueImportPanel';
 import NhipDoanhThu from './transactions/NhipDoanhThu';
 import SanPhamChuaCoPanel from './transactions/SanPhamChuaCoPanel';
 import Pagination, { usePagedSlice } from './Pagination';
+import SortableTh from './SortableTh';
+import TableState from './TableState';
+import { hienNgay } from '../utils/vnDate';
+import { useTableSort } from '../hooks/useTableSort';
+import { usePersistentState } from '../hooks/usePersistentState';
+
+// Cột sắp xếp được (Đợt 2 / mục 3). Ngày so theo thời điểm, không so chữ 'dd/MM/yyyy'.
+const COLS = [
+  { key: 'date', type: 'date' }, { key: 'orderNo' }, { key: 'clientCode' }, { key: 'sku' }, { key: 'skuName' },
+  { key: 'qty', type: 'number' }, { key: 'price', type: 'number' }, { key: 'netRevenue', type: 'number' }, { key: 'sale' }
+];
 
 export default function TransactionGrid({ transactions, materials, token, activeUser, onImported }) {
   // Panel nhập ZSD450 mặc định ĐÓNG: màn này chủ yếu để tra cứu, còn nhập là
@@ -13,15 +24,16 @@ export default function TransactionGrid({ transactions, materials, token, active
   const [moNhap, setMoNhap] = useState(false);
   const coQuyenNhap = ['admin', 'creator'].includes(activeUser?.role);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSale, setSelectedSale] = useState('ALL');
-  const [selectedGroup, setSelectedGroup] = useState('ALL');
+  // Bộ lọc nhớ qua F5 (Đợt 2 / mục 9); giá trị đã nhớ mà không còn trong dữ liệu thì rơi về mặc định.
+  const [saleSaved, setSelectedSale] = usePersistentState('tx.sale', 'ALL');
+  const [groupSaved, setSelectedGroup] = usePersistentState('tx.group', 'ALL');
   // null = "user hasn't chosen yet", so the effective value can fall back to the
   // newest month once data arrives. A useState initialiser can't do that: it runs
   // once, while `transactions` is still empty. The old code sidestepped this by
   // hardcoding 'T08-2026', which meant the tab opened on an empty table from
   // September onwards.
-  const [selectedYear, setSelectedYear] = useState(null);
-  const [selectedMonth, setSelectedMonth] = useState(null);
+  const [selectedYear, setSelectedYear] = usePersistentState('tx.year', null);
+  const [selectedMonth, setSelectedMonth] = usePersistentState('tx.month', null);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 25;
   // Bơm để NhipDoanhThu đọc lại mốc sau mỗi lượt nhập/cào — nếu không thì dòng
@@ -41,6 +53,9 @@ export default function TransactionGrid({ transactions, materials, token, active
     const set = new Set(transactions.map(t => t.group).filter(Boolean));
     return Array.from(set);
   }, [transactions]);
+
+  const selectedSale = saleSaved === 'ALL' || salesList.includes(saleSaved) ? saleSaved : 'ALL';
+  const selectedGroup = groupSaved === 'ALL' || groupsList.includes(groupSaved) ? groupSaved : 'ALL';
 
   // Năm -> Tháng: chưa chọn thì năm/tháng mới nhất có dữ liệu; "Tất cả tháng" chỉ cộng trong năm đang chọn, không trộn
   // các năm vào một số (02/10/2026).
@@ -72,7 +87,9 @@ export default function TransactionGrid({ transactions, materials, token, active
   // dựa vào setCurrentPage(1) gắn thủ công ở từng ô lọc — trước đây bảng này tự
   // tính totalPages/pageData riêng, không dùng lại usePagedSlice như các bảng
   // khác nên đứng khựng ở trang trống khi số trang giảm.
-  const { safePage: currentPageSafe, totalPages, pageItems: pageData } = usePagedSlice(filteredData, currentPage, pageSize);
+  // Sắp xếp TRƯỚC khi cắt trang: bấm tiêu đề là sắp cả bộ lọc, không chỉ 25 dòng đang xem. Tổng bên dưới vẫn trên toàn bộ.
+  const { rows: sortedData, sort, onSort } = useTableSort(filteredData, COLS);
+  const { safePage: currentPageSafe, totalPages, pageItems: pageData } = usePagedSlice(sortedData, currentPage, pageSize);
 
   const totals = useMemo(() => {
     return filteredData.reduce((acc, t) => {
@@ -220,36 +237,41 @@ export default function TransactionGrid({ transactions, materials, token, active
         </div>
         <div className="glass-card" style={{ flex: '1', minWidth: '200px', padding: '12px 18px' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tổng DT Thuần (VND)</span>
-          <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: 'var(--accent-emerald)' }}>
+          <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: 'var(--accent-emerald-text)' }}>
             {totals.netRevenue.toLocaleString('vi-VN')}
           </div>
         </div>
       </div>
 
       {/* Main Table */}
+      <TableState
+        isEmpty={filteredData.length === 0}
+        emptyText="Không tìm thấy giao dịch nào khớp với bộ lọc hiện tại."
+        emptyHint={searchTerm ? `Từ khóa: "${searchTerm}"` : undefined}
+      >
       <div className="table-container" style={{ maxHeight: '580px', overflowY: 'auto' }}>
         <table className="custom-table">
           <thead>
             <tr>
-              <th style={{ width: '90px' }}>Ngày C.Từ</th>
-              <th style={{ width: '120px' }}>Order</th>
-              <th style={{ width: '130px' }}>Client</th>
-              <th style={{ width: '110px' }}>Mã Vật Tư</th>
-              <th style={{ minWidth: '340px' }}>Tên Vật Tư / Linh Kiện OEM</th>
-              <th style={{ textAlign: 'right', width: '90px' }}>Số Lượng</th>
-              <th style={{ textAlign: 'right', width: '110px' }}>Đơn Giá</th>
-              <th style={{ textAlign: 'right', width: '140px' }}>DT thuần (VND)</th>
-              <th style={{ width: '120px' }}>SALE</th>
+              <SortableTh col="date" sort={sort} onSort={onSort} style={{ width: '90px' }}>Ngày C.Từ</SortableTh>
+              <SortableTh col="orderNo" sort={sort} onSort={onSort} style={{ width: '120px' }}>Order</SortableTh>
+              <SortableTh col="clientCode" sort={sort} onSort={onSort} style={{ width: '130px' }}>Client</SortableTh>
+              <SortableTh col="sku" sort={sort} onSort={onSort} style={{ width: '110px' }}>Mã Vật Tư</SortableTh>
+              <SortableTh col="skuName" sort={sort} onSort={onSort} style={{ minWidth: '340px' }}>Tên Vật Tư / Linh Kiện OEM</SortableTh>
+              <SortableTh col="qty" sort={sort} onSort={onSort} align="right" style={{ width: '90px' }}>Số Lượng</SortableTh>
+              <SortableTh col="price" sort={sort} onSort={onSort} align="right" style={{ width: '110px' }}>Đơn Giá</SortableTh>
+              <SortableTh col="netRevenue" sort={sort} onSort={onSort} align="right" style={{ width: '140px' }}>DT thuần (VND)</SortableTh>
+              <SortableTh col="sale" sort={sort} onSort={onSort} style={{ width: '120px' }}>SALE</SortableTh>
             </tr>
           </thead>
           <tbody>
             {pageData.map((row, idx) => (
               <tr key={`${row.billingNo}_${row.sku}_${idx}`} style={{ height: '40px' }}>
-                <td style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>{row.date}</td>
-                <td className="code-font" style={{ fontWeight: 700, color: 'var(--accent-purple)', fontSize: '0.8rem' }}>
+                <td style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>{hienNgay(row.date, { gio: false })}</td>
+                <td className="code-font" style={{ fontWeight: 700, color: 'var(--purple-text)', fontSize: '0.8rem' }}>
                   {row.orderNo}
                 </td>
-                <td className="code-font" style={{ fontWeight: 800, color: 'var(--karofi-cyan)', fontSize: '0.825rem' }}>
+                <td className="code-font" style={{ fontWeight: 800, color: 'var(--cyan-text)', fontSize: '0.825rem' }}>
                   {row.clientCode}
                 </td>
                 <td className="code-font" style={{ color: 'var(--text-dim)', fontWeight: 600, fontSize: '0.775rem' }}>
@@ -264,7 +286,7 @@ export default function TransactionGrid({ transactions, materials, token, active
                 <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.775rem' }}>
                   {row.price ? row.price.toLocaleString('vi-VN') : '0'}
                 </td>
-                <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>
+                <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>
                   {row.netRevenue ? row.netRevenue.toLocaleString('vi-VN') : '0'}
                 </td>
                 <td style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
@@ -275,13 +297,7 @@ export default function TransactionGrid({ transactions, materials, token, active
           </tbody>
         </table>
       </div>
-
-      {filteredData.length === 0 && (
-        <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '32px 16px' }}>
-          Không tìm thấy giao dịch nào khớp với bộ lọc hiện tại
-          {searchTerm && <> (từ khóa "<strong>{searchTerm}</strong>")</>}.
-        </div>
-      )}
+      </TableState>
 
       <Pagination
         page={currentPageSafe}

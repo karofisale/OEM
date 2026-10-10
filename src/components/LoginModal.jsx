@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, Lock, Check, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import * as api from '../services/api';
 import LoadingScreen from './LoadingScreen';
+import Modal from './Modal';
 
 const LOGIN_TIPS = [
   'Đang tải danh sách tài khoản...',
@@ -53,13 +54,9 @@ export default function LoginModal({ onLoginSuccess, onClose, closable }) {
     setLoginError('');
   };
 
+  // Không `closable` (chưa có phiên) -> hộp không đóng được: không Esc, không bấm nền.
   return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-    }}>
-      <div className="glass-card animate-fade-in" style={{ width: '480px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid var(--karofi-cyan-border)' }}>
+    <Modal ariaLabel="Đăng nhập hệ thống Karofi OEM" width={480} onClose={closable ? onClose : undefined} busy={isSubmitting} style={{ gap: '20px', border: '1px solid var(--karofi-cyan-border)' }}>
 
         {/* Modal Header */}
         <div style={{ textAlign: 'center' }}>
@@ -177,7 +174,6 @@ export default function LoginModal({ onLoginSuccess, onClose, closable }) {
           </div>
         </form>
 
-      </div>
-    </div>
+    </Modal>
   );
 }

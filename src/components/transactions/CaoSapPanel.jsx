@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Zap, Loader2, CheckCircle2, AlertTriangle, HelpCircle } from 'lucide-react';
 import * as api from '../../services/api';
+import { vnMonth, vnRecentMonths } from '../../utils/vnDate';
 
 /**
  * Nút "Cào từ SAP" — chạy thẳng bộ script trên máy có SAP, không qua terminal.
@@ -40,21 +41,12 @@ const CHO_KHOI_DONG_MS = 25000;
 // thì đúng hơn là quay vòng mãi.
 const CHO_TOI_DA_MS = 6 * 60 * 1000;
 
-const thangHienTai = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-};
+// Tháng/ngày theo GIỜ VIỆT NAM (utils/vnDate.js): từ 0h-7h sáng mùng 1, giờ UTC vẫn còn là
+// tháng trước nên toISOString().slice(0, 7) mở nhầm tháng cũ.
+const thangHienTai = () => vnMonth();
 
 /** 12 tháng gần nhất, mới nhất trước. */
-const cacThang = () => {
-  const out = [];
-  const d = new Date();
-  for (let i = 0; i < 12; i++) {
-    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-    d.setMonth(d.getMonth() - 1);
-  }
-  return out;
-};
+const cacThang = () => vnRecentMonths(12);
 
 const tim = (ds, job) => (ds || []).find((n) => n.job === job) || null;
 

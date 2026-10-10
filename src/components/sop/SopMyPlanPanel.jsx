@@ -1,20 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, CheckCircle2, Clock } from 'lucide-react';
+import { Save } from 'lucide-react';
 import * as api from '../../services/api';
+import StatusBadge from '../StatusBadge';
 import { useToast } from '../ToastProvider';
+import { useUnsavedGuard } from '../../hooks/useUnsavedGuard';
 
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
 const fmtMoney = (v) => (v || 0).toLocaleString('vi-VN') + ' đ';
-
-function StatusBadge({ status }) {
-  if (status === 'Đã duyệt') {
-    return <span className="badge badge-emerald"><CheckCircle2 size={12} /> Đã duyệt</span>;
-  }
-  if (status === 'Chờ duyệt') {
-    return <span className="badge badge-amber"><Clock size={12} /> Chờ duyệt</span>;
-  }
-  return <span className="badge" style={{ background: 'var(--bg-input)', color: 'var(--text-dim)' }}>{status || '—'}</span>;
-}
 
 // Shown inside "Xem SOP" for whoever can plan — what THIS Sale has themselves
 // submitted, across every period, with status. The CURRENT-anchor period is
@@ -31,6 +23,9 @@ export default function SopMyPlanPanel({ token, refreshTick, onSubmitted }) {
   const [editedSl, setEditedSl] = useState({}); // sku -> [sl1..sl4], current period only
   const [hideZeroRows, setHideZeroRows] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Ảnh chụp số lúc tải: khác ảnh chụp = đã sửa số mà chưa Gửi duyệt lại (Đợt 2 / mục 5).
+  const [editedInit, setEditedInit] = useState('');
+  useUnsavedGuard(!!editedInit && JSON.stringify(editedSl) !== editedInit, 'Kế hoạch SOP của tôi');
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +37,7 @@ export default function SopMyPlanPanel({ token, refreshTick, onSubmitted }) {
         const init = {};
         (result.rows || []).forEach((r) => { if (r.period === result.anchor) init[r.sku] = r.sl.slice(); });
         setEditedSl(init);
+        setEditedInit(JSON.stringify(init));
       })
       .catch(() => { if (!cancelled) setData({ anchor: '', rows: [] }); })
       .finally(() => { if (!cancelled) setIsLoading(false); });
@@ -99,6 +95,7 @@ export default function SopMyPlanPanel({ token, refreshTick, onSubmitted }) {
       });
       const result = await api.submitSopDraft(token, data.anchor, rows);
       toast.success(`Đã gửi duyệt lại ${result.savedCount} mã SKU.`);
+      setEditedInit(JSON.stringify(editedSl)); // đã gửi -> không còn "chưa lưu" (tải lại sẽ nạp bản mới)
       if (onSubmitted) onSubmitted();
     } catch (err) {
       toast.error('Không gửi được: ' + err.message);
@@ -122,14 +119,14 @@ export default function SopMyPlanPanel({ token, refreshTick, onSubmitted }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
             <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--karofi-navy)' }}>
               Kỳ {currentGroup.monthLabels[0]} → {currentGroup.monthLabels[currentGroup.monthLabels.length - 1]}
-              <span style={{ marginLeft: '8px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--karofi-cyan)' }}>(kỳ đang mở)</span>
+              <span style={{ marginLeft: '8px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--cyan-text)' }}>(kỳ đang mở)</span>
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <input type="checkbox" checked={hideZeroRows} onChange={(e) => setHideZeroRows(e.target.checked)} style={{ width: '15px', height: '15px' }} />
                 Ẩn mã không có số lượng
               </label>
-              <button onClick={handleResubmit} disabled={isSubmitting} className="btn btn-emerald btn-sm">
+              <button onClick={handleResubmit} disabled={isSubmitting} className="btn btn-primary btn-sm">
                 <Save size={14} /> {isSubmitting ? 'Đang gửi...' : 'Gửi duyệt lại'}
               </button>
             </div>
@@ -158,7 +155,7 @@ export default function SopMyPlanPanel({ token, refreshTick, onSubmitted }) {
                   const sl = editedSl[r.sku] || r.sl;
                   return (
                     <tr key={r.sku}>
-                      <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{r.sku}</td>
+                      <td className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.8rem' }}>{r.sku}</td>
                       <td style={{ fontWeight: 600 }}>{r.name}</td>
                       <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(r.price)}</td>
                       {sl.map((v, i) => (
@@ -206,7 +203,7 @@ export default function SopMyPlanPanel({ token, refreshTick, onSubmitted }) {
               <tbody>
                 {group.rows.map((r) => (
                   <tr key={r.sku}>
-                    <td className="code-font" style={{ fontWeight: 700, color: 'var(--karofi-cyan)', fontSize: '0.8rem' }}>{r.sku}</td>
+                    <td className="code-font" style={{ fontWeight: 700, color: 'var(--cyan-text)', fontSize: '0.8rem' }}>{r.sku}</td>
                     <td style={{ fontWeight: 600 }}>{r.name}</td>
                     {r.sl.map((v, i) => (
                       <td key={i} style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{fmt(v)}</td>

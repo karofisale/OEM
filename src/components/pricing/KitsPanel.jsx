@@ -95,7 +95,7 @@ export default function KitsPanel({ token, kits, materials, onSaved }) {
           <button onClick={() => { setRows((rs) => [...rs, dongTrong()]); setDaSua(true); }} disabled={dangLuu} className="btn btn-secondary btn-sm">
             <Plus size={14} /> Thêm dòng
           </button>
-          <button onClick={() => setXacNhan(true)} disabled={!daSua || dangLuu} className="btn btn-emerald btn-sm">
+          <button onClick={() => setXacNhan(true)} disabled={!daSua || dangLuu} className="btn btn-primary btn-sm">
             {dangLuu ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Lưu
           </button>
         </div>
@@ -167,7 +167,8 @@ export default function KitsPanel({ token, kits, materials, onSaved }) {
           title="Lưu công thức bộ sản phẩm?"
           message={`Sẽ THAY TOÀN BỘ công thức bằng ${rows.length - thieu} dòng đang có trên màn hình` +
                    (thieu ? ` (${thieu} dòng thiếu Tên bộ hoặc Mã SKU sẽ bị bỏ).` : '.')}
-          confirmLabel="Lưu"
+          confirmLabel="Thay công thức bộ SP"
+          danger
           busy={dangLuu}
           busyLabel="Đang lưu..."
           onConfirm={luu}
