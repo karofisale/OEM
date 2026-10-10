@@ -58,6 +58,7 @@ export default function ProductPricing({ token, materials, clients, kits, active
             materials={materials}
             clients={clients}
             activeUser={activeUser}
+            refreshTick={refreshTick}
             onSubmitted={bumpRefresh}
           />
         </KeepAliveTab>
@@ -71,7 +72,7 @@ export default function ProductPricing({ token, materials, clients, kits, active
             refreshTick={refreshTick}
             // Ở LẠI tab Chờ duyệt (Đợt 3): duyệt xong thường còn đợt khác trong hàng đợi; trước đây bị đẩy về Danh Mục.
             // Vẫn nạp lại dữ liệu nền để giá mới hiện ở Danh Mục khi người duyệt sang xem.
-            onApproved={() => { if (onDataChanged) onDataChanged(); }}
+            onApproved={() => { if (onDataChanged) onDataChanged(['materials']); }}
           />
         </KeepAliveTab>
       )}
@@ -96,7 +97,7 @@ export default function ProductPricing({ token, materials, clients, kits, active
 
       {canApprove && (
         <KeepAliveTab isActive={subView === 'kits'}>
-          <KitsPanel token={token} kits={kits} materials={materials} onSaved={onDataChanged} />
+          <KitsPanel token={token} kits={kits} materials={materials} onSaved={() => { if (onDataChanged) onDataChanged(['kits']); }} />
         </KeepAliveTab>
       )}
     </div>

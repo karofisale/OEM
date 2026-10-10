@@ -12,6 +12,7 @@ import { hienNgay, vnDateSlug } from '../utils/vnDate';
 import { useTableSort } from '../hooks/useTableSort';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { useEnsureYears } from '../hooks/useEnsureYears';
 import { useToast } from './ToastProvider';
 import { coTrangHopLe } from '../utils/paging';
 import { dongXuatDoanhThu, tenFileDoanhThu } from '../utils/transactionsExport';
@@ -22,7 +23,7 @@ const COLS = [
   { key: 'qty', type: 'number' }, { key: 'price', type: 'number' }, { key: 'netRevenue', type: 'number' }, { key: 'sale' }
 ];
 
-export default function TransactionGrid({ transactions, materials, token, activeUser, onImported }) {
+export default function TransactionGrid({ transactions, txYears, materials, token, activeUser, onImported }) {
   const toast = useToast();
   // Panel nhập ZSD450 mặc định ĐÓNG: màn này chủ yếu để tra cứu, còn nhập là
   // việc mỗi tháng vài lần. Mở sẵn thì phần lớn lượt vào tab phải cuộn qua nó.
@@ -68,7 +69,10 @@ export default function TransactionGrid({ transactions, materials, token, active
   // Năm -> Tháng: chưa chọn thì năm/tháng mới nhất có dữ liệu; "Tất cả tháng" chỉ cộng trong năm đang chọn, không trộn
   // các năm vào một số (02/10/2026).
   const { years: yearsList, year: effectiveYear, months: monthsList, month: effectiveMonth } =
-    useMemo(() => resolvePeriod(transactions, selectedYear, selectedMonth), [transactions, selectedYear, selectedMonth]);
+    useMemo(() => resolvePeriod(transactions, selectedYear, selectedMonth, txYears && txYears.olderYears), [transactions, selectedYear, selectedMonth, txYears && txYears.olderYears]);
+  // Năm cũ (Đợt 4) tải khi chọn; đang tải / lỗi thì KHÔNG hiện tổng / số bản ghi tính từ dữ liệu thiếu.
+  const carga = useEnsureYears(txYears, [effectiveYear]);
+  const chuaDu = carga.dangTai || !!carga.loi;
 
   // Ô tìm debounce (Đợt 3): ~4.000+ dòng x 5 trường, gõ nhanh không nên lọc lại ở mỗi ký tự.
   const debouncedSearch = useDebouncedValue(searchTerm);
@@ -157,14 +161,14 @@ export default function TransactionGrid({ transactions, materials, token, active
             type="button"
             className="btn btn-secondary"
             onClick={handleExport}
-            disabled={exporting || filteredData.length === 0}
+            disabled={exporting || chuaDu || filteredData.length === 0}
             title="Xuất đúng các dòng đang lọc (và thứ tự đang sắp) ra file Excel"
           >
             {exporting ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />}
             {exporting ? 'Đang xuất...' : 'Xuất Excel'}
           </button>
           <span className="badge badge-blue" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
-            Hiển thị {filteredData.length.toLocaleString('vi-VN')} bản ghi
+            {chuaDu ? 'Đang chờ dữ liệu năm ' + effectiveYear : 'Hiển thị ' + filteredData.length.toLocaleString('vi-VN') + ' bản ghi'}
           </span>
         </div>
       </div>
@@ -271,19 +275,20 @@ export default function TransactionGrid({ transactions, materials, token, active
         <div className="glass-card" style={{ flex: '1', minWidth: '200px', padding: '12px 18px' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tổng Số Lượng</span>
           <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: 'var(--karofi-navy)' }}>
-            {totals.qty.toLocaleString('vi-VN')}
+            {chuaDu ? '…' : totals.qty.toLocaleString('vi-VN')}
           </div>
         </div>
         <div className="glass-card" style={{ flex: '1', minWidth: '200px', padding: '12px 18px' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tổng DT Thuần (VND)</span>
           <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: 'var(--accent-emerald-text)' }}>
-            {totals.netRevenue.toLocaleString('vi-VN')}
+            {chuaDu ? '…' : totals.netRevenue.toLocaleString('vi-VN')}
           </div>
         </div>
       </div>
 
       {/* Main Table */}
       <TableState
+        loading={carga.dangTai} error={carga.loi} onRetry={carga.retry} loadingLabel={carga.nhan} errorPrefix="Không tải được doanh thu năm cũ"
         isEmpty={filteredData.length === 0}
         emptyText="Không tìm thấy giao dịch nào khớp với bộ lọc hiện tại."
         emptyHint={searchTerm ? `Từ khóa: "${searchTerm}"` : undefined}
@@ -338,14 +343,16 @@ export default function TransactionGrid({ transactions, materials, token, active
       </div>
       </TableState>
 
-      <Pagination
-        page={currentPageSafe}
-        pageSize={pageSize}
-        totalItems={filteredData.length}
-        onPageChange={setCurrentPage}
-        onPageSizeChange={(n) => { setPageSize(n); setCurrentPage(1); }}
-        itemLabel="bản ghi"
-      />
+      {!chuaDu && (
+        <Pagination
+          page={currentPageSafe}
+          pageSize={pageSize}
+          totalItems={filteredData.length}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(n) => { setPageSize(n); setCurrentPage(1); }}
+          itemLabel="bản ghi"
+        />
+      )}
 
     </div>
   );

@@ -10,7 +10,7 @@ import DtThangReport from './reports/DtThangReport';
 import DtNgayReport from './reports/DtNgayReport';
 import { canSeeAllSales } from '../utils/roles';
 
-export default function RevenueReports({ transactions, clients, activeUser, baselines2025 }) {
+export default function RevenueReports({ transactions, txYears, clients, activeUser, baselines2025 }) {
   // Nhớ tab báo cáo + kiểu xem qua F5 (Đợt 2 / mục 9).
   const [reportTab, setReportTab] = usePersistentState('reports.tab', 'dt-sale', (v) => SUBTABS['revenue-reports'].some((t) => t.id === v)); // 'dt-sale' | 'dt-thang' | 'kh-date'
   const [viewMode, setViewMode] = usePersistentState('reports.view', 'table', (v) => v === 'table' || v === 'grid'); // 'table' | 'grid'
@@ -54,12 +54,13 @@ export default function RevenueReports({ transactions, clients, activeUser, base
           đây là tính lại từ đầu mỗi lần, kèm mất bộ lọc năm/tháng/tuần/sale và
           trang đang xem. */}
       <KeepAliveTab isActive={reportTab === 'dt-sale'}>
-        <DtSaleReport transactions={scopedTransactions} viewMode={viewMode} />
+        <DtSaleReport transactions={scopedTransactions} txYears={txYears} viewMode={viewMode} />
       </KeepAliveTab>
 
       <KeepAliveTab isActive={reportTab === 'dt-thang'}>
         <DtThangReport
           transactions={scopedTransactions}
+          txYears={txYears}
           salesList={salesList}
           canFilterAllSales={canFilterAllSales}
           viewMode={viewMode}
@@ -70,6 +71,7 @@ export default function RevenueReports({ transactions, clients, activeUser, base
       <KeepAliveTab isActive={reportTab === 'kh-date'}>
         <DtNgayReport
           transactions={scopedTransactions}
+          txYears={txYears}
           salesList={salesList}
           canFilterAllSales={canFilterAllSales}
           viewMode={viewMode}

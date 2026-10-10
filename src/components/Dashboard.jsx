@@ -3,6 +3,8 @@ import { monthSortValue, yearsFromTransactions } from '../utils/period';
 import { thangGiaoDich } from '../utils/salesPlan';
 import { khopSale } from '../utils/roles';
 import { vnYear } from '../utils/vnDate';
+import { useEnsureYears } from '../hooks/useEnsureYears';
+import TableState from './TableState';
 import {
   TrendingUp, 
   PackageCheck, 
@@ -27,7 +29,7 @@ function dinhDangTien(v) {
   return `${Math.round(v).toLocaleString('vi-VN')} ₫`;
 }
 
-export default function Dashboard({ transactions = [], clients = [], materials = [], plans = [] }) {
+export default function Dashboard({ transactions = [], txYears, clients = [], materials = [], plans = [] }) {
   // Bộ lọc SALE. KHÔNG phải hàng rào phân quyền: từ 14/09/2026 mọi role đều xem
   // được số của mọi Sale (utils/roles.js), nên ô chọn này hiện cho tất cả mọi
   // người và mặc định là "Tất cả SALE" — nó chỉ để thu hẹp tầm nhìn cho dễ đọc.
@@ -35,11 +37,17 @@ export default function Dashboard({ transactions = [], clients = [], materials =
   // Bộ lọc NĂM (30/09/2026): trước đây mọi thẻ cộng TOÀN BỘ bảng doanh thu (mọi năm). Mặc định năm hiện tại.
   const namHienTai = String(vnYear()); // theo giờ Việt Nam
   const [yearFilter, setYearFilter] = useState(namHienTai);
+  // Năm cũ (Đợt 4: bootstrap chỉ gửi năm nay + năm trước) vẫn chọn được; chọn xong màn tải năm đó, và "Tất cả năm" tải MỌI năm cũ
+  // — trong lúc chờ / khi lỗi KHÔNG hiện số cộng từ dữ liệu thiếu (xem `chuaDu` bên dưới).
+  const olderYears = txYears && txYears.olderYears;
   const yearsList = useMemo(() => {
     const ys = yearsFromTransactions(transactions);
+    (olderYears || []).forEach((y) => { if (!ys.includes(String(y))) ys.push(String(y)); });
     if (!ys.includes(namHienTai)) ys.unshift(namHienTai);
     return ys.sort((a, b) => Number(b) - Number(a));
-  }, [transactions, namHienTai]);
+  }, [transactions, namHienTai, olderYears]);
+  const carga = useEnsureYears(txYears, [yearFilter]);
+  const chuaDu = carga.dangTai || !!carga.loi;
 
   // Dựng từ chính giá trị Sale có thật trên tab Data, giống hệt cách
   // RevenueReports dựng danh sách của nó — hai màn luôn có cùng bộ lựa chọn.
@@ -182,6 +190,10 @@ export default function Dashboard({ transactions = [], clients = [], materials =
         )}
       </div>
 
+      {chuaDu ? (
+        <TableState loading={carga.dangTai} error={carga.loi} onRetry={carga.retry} loadingLabel={carga.nhan}
+          errorPrefix="Không tải được doanh thu năm cũ" compact={false}><span /></TableState>
+      ) : (<>
       {/* Executive KPI Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
         
@@ -334,6 +346,7 @@ export default function Dashboard({ transactions = [], clients = [], materials =
         </div>
 
       </div>
+      </>)}
     </div>
   );
 }

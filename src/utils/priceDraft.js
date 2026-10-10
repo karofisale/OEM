@@ -29,6 +29,23 @@ export function soMaCoNhap(draftMap) {
   }).length;
 }
 
+/**
+ * "Sửa & gửi lại" một đợt BỊ TỪ CHỐI (Đợt 4): biến các dòng của đợt thành bản nháp mới. `batch.rows` = [{ sku, clientCode, retail,
+ * promoQty, promoPrice }] như getMyRejectedPriceProposals trả. SKU không còn trong danh mục thì bỏ (nêu ở `thieu`).
+ * Trả { clientCode ('' = giá chung), draft (dạng draftMap), thieu [sku], soMa }.
+ */
+export function napLaiTuDotBiTuChoi(batch, materials) {
+  const co = new Set((materials || []).map((m) => m.sku));
+  const draft = {};
+  const thieu = [];
+  ((batch && batch.rows) || []).forEach((r) => {
+    if (!co.has(r.sku)) { thieu.push(r.sku); return; }
+    draft[r.sku] = { retail: r.retail || '', promoQty: r.promoQty || '', promoPrice: r.promoPrice || '' };
+  });
+  const clientCode = (((batch && batch.rows) || []).find((r) => r.clientCode) || {}).clientCode || '';
+  return { clientCode, draft, thieu, soMa: Object.keys(draft).length };
+}
+
 /** Bỏ nháp của các SKU VỪA gửi, giữ nguyên phần còn lại (nháp chưa đủ Giá lẻ thì chưa được gửi). */
 export function boNhapDaGui(draftMap, skusDaGui) {
   const sent = new Set(skusDaGui || []);

@@ -204,8 +204,19 @@ export async function login(name, pin) {
 // đọc lại từ Sheet — xem oemAppGetBootstrap_. Lần mở app bình thường KHÔNG ép,
 // để còn dùng được cache (mở app tính bằng milli giây thay vì chờ một lượt gọi
 // đo được từ 1.4s tới hàng phút).
-export async function getBootstrap(token, forceRefresh) {
-  return callApi('getBootstrap', [token, forceRefresh === true]);
+//
+// `opts` (Đợt 4, 10/10/2026) — tham số OPT-IN, server cũ bỏ qua nên gọi có hay không đều an toàn:
+//   { recent: true }    chỉ giao dịch năm nay + năm trước, kèm olderYears (xem utils/txYears.js)
+//   { parts: ['plans'] } chỉ làm mới các khối nêu (clients, transactions, materials, plans, kits)
+export async function getBootstrap(token, forceRefresh, opts) {
+  const args = [token, forceRefresh === true];
+  if (opts && typeof opts === 'object') args.push(opts);
+  return callApi('getBootstrap', args);
+}
+
+// Giao dịch của MỘT năm cũ (chưa nằm trong getBootstrap({recent:true})). Chỉ gọi khi bootstrap đã liệt kê năm đó ở olderYears.
+export async function getTransactionsByYear(token, year) {
+  return callApi('getTransactionsByYear', [token, year]);
 }
 
 // plan2026 + baselines2025. Tách khỏi getBootstrap vì mỗi khối chỉ MỘT màn hình
@@ -340,6 +351,12 @@ export async function getNhipTim(token) {
 
 export async function submitPriceProposal(token, rows) {
   return callApi('submitPriceProposal', [token, rows]);
+}
+
+// Các đợt đề xuất giá BỊ TỪ CHỐI của chính mình (Admin/Creator: tất cả) kèm lý do. Server cũ chưa có hàm này -> báo
+// "Unknown function": nơi gọi bỏ qua im lặng.
+export async function getMyRejectedPriceProposals(token) {
+  return callApi('getMyRejectedPriceProposals', [token]);
 }
 
 export async function getPendingPriceProposals(token, forceRefresh) {

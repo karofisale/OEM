@@ -7,6 +7,7 @@ import SortableTh from '../SortableTh';
 import TableState from '../TableState';
 import { useTableSort } from '../../hooks/useTableSort';
 import { usePersistentState } from '../../hooks/usePersistentState';
+import { useEnsureYears } from '../../hooks/useEnsureYears';
 import { hienNgay } from '../../utils/vnDate';
 
 const PAGE_SIZE = 50;
@@ -18,7 +19,7 @@ const COLS = [
 ];
 const SAP_MAC_DINH = { key: 'date', dir: 'desc' }; // mới nhất trước, như bản cũ
 
-export default function DtNgayReport({ transactions, salesList, canFilterAllSales, viewMode }) {
+export default function DtNgayReport({ transactions, txYears, salesList, canFilterAllSales, viewMode }) {
   // Bộ lọc nhớ qua F5 (Đợt 2 / mục 9); giá trị đã nhớ mà không còn trong dữ liệu thì rơi về mặc định.
   const [saleSaved, setNgayFilterSale] = usePersistentState('rpt.ngay.sale', 'ALL');
   const ngayFilterSale = saleSaved === 'ALL' || (salesList || []).includes(saleSaved) ? saleSaved : 'ALL';
@@ -31,7 +32,9 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
   const weeksList = useMemo(() => weeksFromTransactions(transactions), [transactions]);
   const ngayFilterWeek = weekSaved === 'ALL' || weeksList.includes(weekSaved) ? weekSaved : 'ALL';
   const { years: yearsList, year: effectiveYear, months: monthsList, month: effectiveMonth } =
-    useMemo(() => resolvePeriod(transactions, ngayFilterYear, ngayFilterMonth), [transactions, ngayFilterYear, ngayFilterMonth]);
+    useMemo(() => resolvePeriod(transactions, ngayFilterYear, ngayFilterMonth, txYears && txYears.olderYears), [transactions, ngayFilterYear, ngayFilterMonth, txYears && txYears.olderYears]);
+  // Năm cũ (Đợt 4) tải khi chọn; đang tải / lỗi thì KHÔNG hiện số cộng từ dữ liệu thiếu.
+  const carga = useEnsureYears(txYears, [effectiveYear]);
 
   const dtNgayData = useMemo(() => {
     const map = new Map();
@@ -118,7 +121,7 @@ export default function DtNgayReport({ transactions, salesList, canFilterAllSale
         </div>
       </div>
 
-      <TableState isEmpty={dtNgayData.length === 0} emptyText="Không có phát sinh doanh thu nào khớp với bộ lọc đang chọn.">
+      <TableState loading={carga.dangTai} error={carga.loi} onRetry={carga.retry} loadingLabel={carga.nhan} errorPrefix="Không tải được doanh thu năm cũ" isEmpty={dtNgayData.length === 0} emptyText="Không có phát sinh doanh thu nào khớp với bộ lọc đang chọn.">
       {viewMode === 'table' ? (
         <div className="table-container animate-fade-in" style={{ maxHeight: '520px', overflowY: 'auto' }}>
           <table className="custom-table">

@@ -27,7 +27,12 @@ const STORE = 'bootstrap';
 //
 // Quy tắc để lần sau khỏi phải suy lại: tăng khi payload THÊM hoặc ĐỔI NGHĨA
 // một khoá mà code mới cần; không cần tăng khi chỉ BỎ một khoá.
-const SCHEMA_VERSION = 1;
+//
+// ĐỢT 4 (10/10/2026): tăng lên 2 — `transactions` giờ chỉ gồm năm nay + năm trước (đổi nghĩa) và payload thêm `olderYears` /
+// `txTotal`. Bản cache v1 chứa ĐỦ giao dịch và không có olderYears nên vẫn đọc được, nhưng khoá khác đi để (a) client cũ
+// quay lại không đọc nhầm bản "chỉ gần đây" và tưởng là đủ, (b) hai bản không giẫm lên nhau. Cái giá: mỗi người mất bản cache
+// một lần, lần mở kế tiếp chờ một lượt bootstrap (nay đã nhẹ hơn nhiều).
+const SCHEMA_VERSION = 2;
 
 function openDb() {
   return new Promise((resolve, reject) => {

@@ -93,10 +93,15 @@ export function weeksFromTransactions(transactions) {
  *  year  — năm người dùng chọn (null = chưa chọn); không còn trong dữ liệu thì rơi về năm mới nhất.
  *  month — tháng người dùng chọn ('ALL' = cả năm; null = chưa chọn -> tháng mới nhất của năm đang xem);
  *          tháng không thuộc năm đang xem thì rơi về tháng mới nhất của năm đó.
+ * `extraYears`: các năm cũ có dữ liệu nhưng chưa tải — được thêm vào danh sách năm.
  * Trả { years, year, months (tháng của năm đang xem, mới nhất trước), month }.
  */
-export function resolvePeriod(transactions, year, month) {
+export function resolvePeriod(transactions, year, month, extraYears) {
   const years = yearsFromTransactions(transactions);
+  // Năm cũ CÓ dữ liệu trên server nhưng chưa tải (Đợt 4: bootstrap chỉ gửi năm nay + năm trước) vẫn phải chọn được trong ô Năm;
+  // chọn xong màn tải năm đó (hooks/useEnsureYears) rồi mới có tháng/số liệu.
+  (extraYears || []).forEach((y) => { const s = String(y); if (/^\d{4}$/.test(s) && !years.includes(s)) years.push(s); });
+  years.sort((a, b) => Number(b) - Number(a));
   const y = year && years.includes(String(year)) ? String(year) : (years[0] || '');
   const months = monthsFromTransactions(transactions).filter(m => {
     const p = parseMonthKey(m);

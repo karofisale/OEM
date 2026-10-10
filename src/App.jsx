@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import LoginModal from './components/LoginModal';
@@ -43,6 +43,7 @@ import { chayLacQuan } from './utils/optimistic';
 import { tabHopLe } from './utils/navMeta';
 import { lamSachLoi } from './utils/errorText';
 import { readUi, writeUi, setUiScope } from './utils/uiState';
+import { gopGiaoDich } from './utils/txYears';
 
 export default function App() {
   const toast = useToast();
@@ -72,7 +73,19 @@ export default function App() {
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
   const [clients, setClients] = useState([]);
+  // Giao dịch doanh thu (Đợt 4, 10/10/2026): bootstrap chỉ gửi năm nay + năm trước (`transactions`); năm cũ hơn CÓ dữ liệu được
+  // liệt kê ở `olderYears` và tải khi một màn cần (ensureYears -> getTransactionsByYear), cất ở `olderTx`. Màn dùng
+  // `allTransactions` (đã gộp phần cũ đã tải) và `txYears` để biết/ép tải năm cũ — xem utils/txYears.js + hooks/useEnsureYears.js.
+  // Server cũ không biết tham số recent -> trả đủ, olderYears rỗng, mọi thứ chạy như trước.
   const [transactions, setTransactions] = useState([]);
+  const [olderYears, setOlderYears] = useState([]);
+  const [olderTx, setOlderTx] = useState({});
+  const [yearErrors, setYearErrors] = useState({});
+  const [txTotal, setTxTotal] = useState(null);
+  const olderYearsRef = useRef([]);
+  const olderTxRef = useRef({});
+  const yearsLoadingRef = useRef(new Set());
+  const tokenRef = useRef('');
   const [materials, setMaterials] = useState([]);
   const [plans, setPlans] = useState([]);
   const [plan2026, setPlan2026] = useState({});
@@ -129,13 +142,27 @@ export default function App() {
     });
   }, [activeTab, daNapBaoCao, session?.token, napBaoCao]);
 
+  // Áp một payload bootstrap — ĐỦ khối (mở app, Đồng bộ, bản cache) hoặc MỘT PHẦN ({parts}: sau khi sửa một chỗ chỉ làm mới đúng
+  // khối đó). Khối nào payload không có thì giữ nguyên state hiện tại.
   const applyBootstrap = (data) => {
-    setClients(data.clients || []);
-    setTransactions(data.transactions || []);
-    setMaterials(data.materials || []);
-    setPlans(data.plans || []);
-    setPlanDefaultMonth(data.planDefaultMonth || '');
-    setKits(data.kits || []);
+    if ('clients' in data) setClients(data.clients || []);
+    if ('transactions' in data) {
+      setTransactions(data.transactions || []);
+      const od = Array.isArray(data.olderYears) ? data.olderYears.map(String) : [];
+      olderYearsRef.current = od;
+      setOlderYears(od);
+      setTxTotal(typeof data.txTotal === 'number' ? data.txTotal : null);
+      // Chỉ giữ các năm cũ đã tải mà server VẪN coi là cũ: năm đã nằm trong phần gần đây (qua năm mới) hoặc server trả đủ
+      // (olderYears rỗng) mà giữ thì cùng một giao dịch xuất hiện hai lần -> mọi tổng nhân đôi.
+      const giu = {};
+      Object.keys(olderTxRef.current).forEach((k) => { if (od.includes(k)) giu[k] = olderTxRef.current[k]; });
+      olderTxRef.current = giu;
+      setOlderTx(giu);
+    }
+    if ('materials' in data) setMaterials(data.materials || []);
+    if ('plans' in data) setPlans(data.plans || []);
+    if ('planDefaultMonth' in data) setPlanDefaultMonth(data.planDefaultMonth || '');
+    if ('kits' in data) setKits(data.kits || []);
     // plan2026 và baselines2025 KHÔNG nằm trong bootstrap nữa. Cố ý cũng không
     // xoá chúng ở đây: mỗi lần bấm "Đồng bộ Sheet" là một lượt applyBootstrap,
     // mà xoá thì màn đang mở sẽ mất số đang xem rồi phải tải lại.
@@ -154,10 +181,13 @@ export default function App() {
     setIsSyncing(true);
     setBootstrapError('');
     try {
-      const data = await api.getBootstrap(session.token, forceRefresh === true);
+      const daTai = Object.keys(olderTxRef.current);
+      const data = await api.getBootstrap(session.token, forceRefresh === true, { recent: true });
       applyBootstrap(data);
       setIsShowingCached(false);
       writeBootstrapCache(activeUser.name, data); // fire-and-forget
+      // Đồng bộ / vừa nhập doanh thu: các năm cũ đã tải có thể đã cũ — tải lại ở nền, số cũ vẫn hiện tới khi có số mới.
+      if (forceRefresh === true && daTai.length) daTai.forEach((y) => { if (olderYearsRef.current.includes(y)) taiNam(y, true); });
     } catch (err) {
       console.error('Error fetching backend data:', err);
       setBootstrapError(err.message || String(err));
@@ -181,6 +211,10 @@ export default function App() {
   useEffect(() => {
     if (!session?.token) return;
     let cancelled = false;
+    // Đổi người / phiên: bỏ giao dịch năm cũ của người trước.
+    olderTxRef.current = {};
+    setOlderTx({});
+    setYearErrors({});
 
     (async () => {
       const cached = await readBootstrapCache(session.user?.name);
@@ -222,6 +256,12 @@ export default function App() {
     setSession(null);
     setClients([]);
     setTransactions([]);
+    olderTxRef.current = {};
+    olderYearsRef.current = [];
+    setOlderTx({});
+    setOlderYears([]);
+    setYearErrors({});
+    setTxTotal(null);
     setMaterials([]);
     setPlans([]);
     setPlan2026({});
@@ -229,6 +269,52 @@ export default function App() {
     setKits([]);
     setHasLoadedOnce(false);
     setIsShowingCached(false);
+  };
+
+  tokenRef.current = session?.token || '';
+
+  // Tải giao dịch của MỘT năm cũ. `lamMoi` = tải lại năm đã có (giữ số cũ tới khi có số mới).
+  async function taiNam(y, lamMoi) {
+    if (yearsLoadingRef.current.has(y)) return;
+    yearsLoadingRef.current.add(y);
+    try {
+      const d = await api.getTransactionsByYear(tokenRef.current, y);
+      olderTxRef.current = { ...olderTxRef.current, [y]: (d && d.transactions) || [] };
+      setOlderTx(olderTxRef.current);
+      setYearErrors((p) => { if (!(y in p)) return p; const n = { ...p }; delete n[y]; return n; });
+    } catch (err) {
+      if (!lamMoi) setYearErrors((p) => ({ ...p, [y]: (err && err.message) || String(err) }));
+    } finally {
+      yearsLoadingRef.current.delete(y);
+    }
+  }
+  // Các màn gọi khi cần năm cũ. Ổn định (không đổi định danh giữa các lần render) để effect của màn không chạy lặp.
+  const ensureYears = useCallback((years) => {
+    (years || []).map(String)
+      .filter((y) => olderYearsRef.current.includes(y) && !olderTxRef.current[y] && !yearsLoadingRef.current.has(y))
+      .forEach((y) => { taiNam(y, false); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const retryYears = useCallback((years) => {
+    const ys = (years || []).map(String);
+    setYearErrors((p) => { const n = { ...p }; ys.forEach((y) => { delete n[y]; }); return n; });
+    ensureYears(ys);
+  }, [ensureYears]);
+  const txYears = useMemo(() => ({
+    olderYears, loaded: Object.keys(olderTx), errors: yearErrors, ensure: ensureYears, retry: retryYears
+  }), [olderYears, olderTx, yearErrors, ensureYears, retryYears]);
+  const allTransactions = useMemo(() => gopGiaoDich(transactions, olderTx), [transactions, olderTx]);
+
+  // Sau khi sửa MỘT chỗ (kế hoạch, bộ sản phẩm, giá duyệt): làm mới đúng khối đổi thay vì tải lại toàn bộ bootstrap.
+  // `parts` không phải mảng (vd Event) -> tải đủ như cũ. Máy chủ cũ không biết `parts` thì trả đủ và applyBootstrap vẫn áp đúng.
+  const lamMoiKhoi = async (parts) => {
+    if (!Array.isArray(parts) || !parts.length || !session?.token) { await fetchAllData(); return; }
+    try {
+      const data = await api.getBootstrap(session.token, false, { parts });
+      applyBootstrap(data);
+    } catch (err) {
+      await fetchAllData();   // đường đủ có banner lỗi + Thử lại
+    }
   };
 
   // All five writers below update the UI first and call the backend after, so the
@@ -305,7 +391,7 @@ export default function App() {
         onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
-        transactionCount={transactions.length}
+        transactionCount={txTotal != null ? txTotal : allTransactions.length}
         activeUser={activeUser}
       />
 
@@ -364,7 +450,7 @@ export default function App() {
             <AIOrderAgent
               clients={clients}
               materials={materials}
-              transactions={transactions}
+              transactions={allTransactions}
               kits={kits}
               token={session.token}
               onOrderSaved={() => setOrdersStale(true)}
@@ -385,7 +471,8 @@ export default function App() {
 
           <KeepAliveTab isActive={activeTab === 'revenue-reports'} hasVisited={visitedTabs.has('revenue-reports')}>
             <RevenueReports
-              transactions={transactions}
+              transactions={allTransactions}
+              txYears={txYears}
               clients={clients}
               activeUser={activeUser}
               baselines2025={baselines2025}
@@ -394,7 +481,8 @@ export default function App() {
 
           <KeepAliveTab isActive={activeTab === 'dashboard'} hasVisited={visitedTabs.has('dashboard')}>
             <Dashboard
-              transactions={transactions}
+              transactions={allTransactions}
+              txYears={txYears}
               clients={clients}
               materials={materials}
               plans={plans}
@@ -403,7 +491,8 @@ export default function App() {
 
           <KeepAliveTab isActive={activeTab === 'transactions'} hasVisited={visitedTabs.has('transactions')}>
             <TransactionGrid
-              transactions={transactions}
+              transactions={allTransactions}
+              txYears={txYears}
               materials={materials}
               token={session?.token}
               activeUser={activeUser}
@@ -423,7 +512,7 @@ export default function App() {
               activeUser={activeUser}
               onAddMaterial={handleAddMaterial}
               onEditMaterial={handleEditMaterial}
-              onDataChanged={fetchAllData}
+              onDataChanged={lamMoiKhoi}
             />
           </KeepAliveTab>
 
@@ -441,11 +530,12 @@ export default function App() {
               token={session.token}
               plans={plans}
               clients={clients}
-              transactions={transactions}
+              transactions={allTransactions}
+              txYears={txYears}
               plan2026={plan2026}
               planDefaultMonth={planDefaultMonth}
               activeUser={activeUser}
-              onDataChanged={fetchAllData}
+              onDataChanged={lamMoiKhoi}
               onReloadPlanKpi={napBaoCao}
             />
           </KeepAliveTab>

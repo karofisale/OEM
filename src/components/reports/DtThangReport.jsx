@@ -6,6 +6,7 @@ import SortableTh from '../SortableTh';
 import TableState from '../TableState';
 import { useTableSort } from '../../hooks/useTableSort';
 import { usePersistentState } from '../../hooks/usePersistentState';
+import { useEnsureYears } from '../../hooks/useEnsureYears';
 
 // Cột sắp xếp được (Đợt 2 / mục 3). `pct` = % biến động so với kỳ đối chiếu (rỗng nếu chưa có số liệu đối chiếu -> luôn nằm cuối).
 const COLS = [
@@ -17,7 +18,7 @@ const COLS = [
 // 'T07-2026' for anything else — so from September the report would silently have
 // compared September against July, and January would never have reached December.
 
-export default function DtThangReport({ transactions, salesList, canFilterAllSales, viewMode, baselines2025 }) {
+export default function DtThangReport({ transactions, txYears, salesList, canFilterAllSales, viewMode, baselines2025 }) {
   // Bộ lọc nhớ qua F5 (Đợt 2 / mục 9); giá trị đã nhớ mà không còn trong dữ liệu thì rơi về mặc định.
   const [saleSaved, setThangFilterSale] = usePersistentState('rpt.thang.sale', 'ALL');
   const thangFilterSale = saleSaved === 'ALL' || (salesList || []).includes(saleSaved) ? saleSaved : 'ALL';
@@ -29,8 +30,11 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
   const [thangFilterMonth, setThangFilterMonth] = usePersistentState('rpt.thang.month', null);
 
   const { years: yearsList, year: effectiveYear, months: monthsList, month: effectiveMonth } =
-    useMemo(() => resolvePeriod(transactions, thangFilterYear, thangFilterMonth), [transactions, thangFilterYear, thangFilterMonth]);
+    useMemo(() => resolvePeriod(transactions, thangFilterYear, thangFilterMonth, txYears && txYears.olderYears), [transactions, thangFilterYear, thangFilterMonth, txYears && txYears.olderYears]);
   const prevYear = effectiveYear ? String(Number(effectiveYear) - 1) : '';
+  // Năm cũ (Đợt 4): báo cáo này so với CẢ NĂM TRƯỚC / tháng trước (có thể rơi sang năm trước) nên cần tải cả hai năm; đang tải
+  // / lỗi thì KHÔNG hiện số (số thiếu năm trước sẽ ra "Chưa có số liệu" hoặc % sai).
+  const carga = useEnsureYears(txYears, [effectiveYear, prevYear]);
 
   const dtThangData = useMemo(() => {
     const map = new Map();
@@ -154,7 +158,7 @@ export default function DtThangReport({ transactions, salesList, canFilterAllSal
         </div>
       </div>
 
-      <TableState isEmpty={dtThangRows.length === 0} emptyText="Không có doanh thu nào khớp với bộ lọc đang chọn.">
+      <TableState loading={carga.dangTai} error={carga.loi} onRetry={carga.retry} loadingLabel={carga.nhan} errorPrefix="Không tải được doanh thu năm cũ" isEmpty={dtThangRows.length === 0} emptyText="Không có doanh thu nào khớp với bộ lọc đang chọn.">
       {viewMode === 'table' ? (
         <div className="table-container animate-fade-in" style={{ maxHeight: '560px', overflowY: 'auto' }}>
           <table className="custom-table">

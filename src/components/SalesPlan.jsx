@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { CalendarRange } from 'lucide-react';
 import KeepAliveTab from './KeepAliveTab';
 import SubTabs from './SubTabs';
@@ -8,8 +8,11 @@ import SalesPlanViewPanel from './salesplan/SalesPlanViewPanel';
 import SalesPlanProposePanel from './salesplan/SalesPlanProposePanel';
 import SalesPlanApprovePanel from './salesplan/SalesPlanApprovePanel';
 import PlanNamPanel from './salesplan/PlanNamPanel';
+import TableState from './TableState';
+import { useEnsureYears } from '../hooks/useEnsureYears';
+import { namCuaCacThang } from '../utils/txYears';
 
-export default function SalesPlan({ token, plans, clients, transactions, plan2026, planDefaultMonth, activeUser, onDataChanged, onReloadPlanKpi }) {
+export default function SalesPlan({ token, plans, clients, transactions, txYears, plan2026, planDefaultMonth, activeUser, onDataChanged, onReloadPlanKpi }) {
   const canPropose = ['sale', 'admin', 'creator'].includes(activeUser.role);
   const canApprove = ['admin', 'creator'].includes(activeUser.role);
 
@@ -18,6 +21,13 @@ export default function SalesPlan({ token, plans, clients, transactions, plan202
   const tabs = SUBTABS['sales-plan'].filter((t) => hien[t.id]);
   const [subSaved, setSubView] = usePersistentState('sub.sales-plan', 'view'); // 'view' | 'propose' | 'approve' | 'kpi'
   const subView = tabs.some((t) => t.id === subSaved) ? subSaved : 'view';
+
+  // Done của từng tháng kế hoạch tính từ giao dịch (Đợt 4: bootstrap chỉ gửi năm nay + năm trước). Kế hoạch của tháng thuộc năm CŨ
+  // hơn thì phải tải năm đó trước — nếu không Done rơi về số cũ đông cứng trong plan_thang. Thường không có tháng nào như vậy
+  // (khi đó màn này không chờ gì cả).
+  const cacNamKeHoach = useMemo(() => namCuaCacThang((plans || []).map((p) => p.month)), [plans]);
+  const carga = useEnsureYears(txYears, cacNamKeHoach);
+  const chuaDu = carga.dangTai || !!carga.loi;
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -40,6 +50,10 @@ export default function SalesPlan({ token, plans, clients, transactions, plan202
           tiết kiệm được là toàn bộ useMemo đã tính (Đề Xuất gộp kế hoạch theo
           khách/tuần trên cả danh sách) cùng bộ lọc tháng/sale và trang đang xem
           — trước đây mất hết mỗi lần bấm sang tab khác rồi quay lại. */}
+      {chuaDu ? (
+        <TableState loading={carga.dangTai} error={carga.loi} onRetry={carga.retry} loadingLabel={carga.nhan}
+          errorPrefix="Không tải được doanh thu năm cũ (cần để tính Done)"><span /></TableState>
+      ) : (<>
       <KeepAliveTab isActive={subView === 'view'}>
         <SalesPlanViewPanel plans={plans} transactions={transactions} activeUser={activeUser} />
       </KeepAliveTab>
@@ -54,7 +68,7 @@ export default function SalesPlan({ token, plans, clients, transactions, plan202
             plan2026={plan2026}
             planDefaultMonth={planDefaultMonth}
             activeUser={activeUser}
-            onSubmitted={onDataChanged}
+            onSubmitted={() => onDataChanged && onDataChanged(['plans'])}
             onReloadPlanKpi={onReloadPlanKpi}
           />
         </KeepAliveTab>
@@ -66,10 +80,11 @@ export default function SalesPlan({ token, plans, clients, transactions, plan202
             token={token}
             plans={plans}
             transactions={transactions}
-            onApproved={() => { onDataChanged(); setSubView('view'); }}
+            onApproved={() => { if (onDataChanged) onDataChanged(['plans']); setSubView('view'); }}
           />
         </KeepAliveTab>
       )}
+      </>)}
 
       {/* Unmount khi rời đi (không KeepAlive): bảng sửa dở KPI năm mà giữ lại
           ngầm thì lần quay lại dễ bấm Lưu đè lên số người khác vừa sửa. */}

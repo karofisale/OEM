@@ -13,6 +13,8 @@
 //  - Mỗi lỗi đã dịch kèm "Mã tham chiếu: E-XXXX" (băm của câu gốc) để người dùng báo admin. Câu gốc
 //    ghi vào console + sessionStorage('oem_loi_gan_day', 20 lỗi gần nhất) để admin tra lại.
 //  - Idempotent: câu đã có "Mã tham chiếu" hoặc đã là tiếng Việt thì chạy lại không đổi gì.
+//  - Đợt 4 (10/10/2026): lỗi bất ngờ từ oem-api đến SẴN dạng "...(Mã tham chiếu: E-3F9A)" — mã do máy chủ sinh và ghi vào log của hàm
+//    cùng lỗi gốc; client giữ nguyên câu, không băm lại.
 
 const DAU_VIET = /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i;
 
@@ -98,7 +100,12 @@ const kemMa = (text, ma) => `${text} (Mã tham chiếu: ${ma})`;
 export function lamSachLoi(input) {
   const goc = input && typeof input === 'object' && 'message' in input ? input.message : input;
   const s = String(goc == null ? '' : goc);
-  if (!s || /Mã tham chiếu: E-/.test(s)) return s;
+  if (!s) return s;
+  // Máy chủ (oem-api, Đợt 4) đã che lỗi bất ngờ và gắn sẵn "Mã tham chiếu: E-XXXX" khớp với dòng log của hàm: dùng ĐÚNG mã đó,
+  // không băm lại câu gốc (không có câu gốc ở đây — nó chỉ nằm trong log của máy chủ). Chỉ ghi nhớ mã để admin tra lại.
+  const daCoMa = /Mã tham chiếu: (E-[0-9A-F]{4})/.exec(s);
+  if (daCoMa) { ghiNho(daCoMa[1], s); return s; }
+  if (/Mã tham chiếu: E-/.test(s)) return s;
 
   const caNau = mauLoiTho(s);
   if (caNau) {

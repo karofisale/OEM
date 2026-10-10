@@ -5,6 +5,7 @@ import SortableTh from '../SortableTh';
 import TableState from '../TableState';
 import { useTableSort } from '../../hooks/useTableSort';
 import { usePersistentState } from '../../hooks/usePersistentState';
+import { useEnsureYears } from '../../hooks/useEnsureYears';
 
 // Cột sắp xếp được (Đợt 2 / mục 3).
 const COLS = [
@@ -12,7 +13,7 @@ const COLS = [
   { key: 'totalRevenue', type: 'number' }, { key: 'share', type: 'number', get: (r) => r.totalRevenue }
 ];
 
-export default function DtSaleReport({ transactions, viewMode }) {
+export default function DtSaleReport({ transactions, txYears, viewMode }) {
   // null = chưa chọn: năm rơi về năm mới nhất có dữ liệu, tháng rơi về tháng mới nhất CỦA NĂM đó (không phải tháng theo
   // đồng hồ máy: mùng 1-3 đợt đổ dữ liệu SAP chưa về thì màn sẽ rỗng). "Tất cả tháng" chỉ cộng trong năm đang chọn —
   // không còn mục "Tất cả năm" trộn các năm vào một số (02/10/2026).
@@ -24,7 +25,9 @@ export default function DtSaleReport({ transactions, viewMode }) {
   const weeksList = useMemo(() => weeksFromTransactions(transactions), [transactions]);
   const saleFilterWeek = weekSaved === 'ALL' || weeksList.includes(weekSaved) ? weekSaved : 'ALL';
   const { years: yearsList, year: effectiveYear, months: monthsList, month: effectiveMonth } =
-    useMemo(() => resolvePeriod(transactions, saleFilterYear, saleFilterMonth), [transactions, saleFilterYear, saleFilterMonth]);
+    useMemo(() => resolvePeriod(transactions, saleFilterYear, saleFilterMonth, txYears && txYears.olderYears), [transactions, saleFilterYear, saleFilterMonth, txYears && txYears.olderYears]);
+  // Năm cũ (Đợt 4) tải khi chọn; đang tải / lỗi thì KHÔNG hiện số cộng từ dữ liệu thiếu.
+  const carga = useEnsureYears(txYears, [effectiveYear]);
 
   const dtSaleData = useMemo(() => {
     const map = new Map();
@@ -86,7 +89,7 @@ export default function DtSaleReport({ transactions, viewMode }) {
         </div>
       </div>
 
-      <TableState isEmpty={dtSaleData.length === 0} emptyText="Không có doanh thu nào khớp với bộ lọc đang chọn.">
+      <TableState loading={carga.dangTai} error={carga.loi} onRetry={carga.retry} loadingLabel={carga.nhan} errorPrefix="Không tải được doanh thu năm cũ" isEmpty={dtSaleData.length === 0} emptyText="Không có doanh thu nào khớp với bộ lọc đang chọn.">
       {viewMode === 'table' ? (
         <div className="table-container animate-fade-in" style={{ maxHeight: '560px', overflowY: 'auto' }}>
           <table className="custom-table">

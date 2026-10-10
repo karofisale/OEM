@@ -167,7 +167,7 @@ const khongCmt = (s) => s.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l
     /<ReasonDialog/.test(pa) && /handleReject = async \(lyDo\)/.test(pa) && /api\.rejectPriceBatch\(token, currentBatch\.batchId, String\(lyDo \|\| ''\)\.trim\(\)\)/.test(pa) && !/rejectPriceBatch\(token, currentBatch\.batchId, ''\)/.test(pa));
   check('Ô giá/SL ở màn duyệt: min=0 và kẹp số âm về 0', (pa.match(/type="number" min="0"/g) || []).length === 3 && /Math\.max\(0, parseFloat\(value\) \|\| 0\)/.test(pa));
   const ppr = SRC('components/ProductPricing.jsx');
-  check('Duyệt xong KHÔNG đẩy về tab Danh Mục (onApproved không setSubView), vẫn nạp lại dữ liệu nền', /onApproved=\{\(\) => \{ if \(onDataChanged\) onDataChanged\(\); \}\}/.test(ppr) && !/onApproved=\{[^}]*setSubView\('catalog'\)/.test(ppr));
+  check('Duyệt xong KHÔNG đẩy về tab Danh Mục (onApproved không setSubView), vẫn nạp lại dữ liệu nền', /onApproved=\{\(\) => \{ if \(onDataChanged\) onDataChanged\(\['materials'\]\); \}\}/.test(ppr) && !/onApproved=\{[^}]*setSubView\('catalog'\)/.test(ppr));
   check('ProductPricing import useState (trước Đợt 3 thiếu -> mở "Sản phẩm & Bảng giá" là lỗi ReferenceError)', /import React, \{ useState \} from 'react'/.test(ppr));
 
   const E = require('esbuild');

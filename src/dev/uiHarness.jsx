@@ -9,8 +9,24 @@
  *   &failwrite=1   mọi lệnh GHI báo lỗi Postgres thô (xem lớp dịch lỗi errorText: tiếng Việt + mã tham chiếu)
  *   &failrow=11    chỉ updateOrderLine của dòng rowIndex=11 báo lỗi thô (thử "Lưu cả đơn" một phần)
  *   &big=1         4.000+ dòng doanh thu (thử phân trang Đầu/Cuối/nhảy trang/cỡ trang + xuất Excel)
+ *   Đợt 4 (tải giao dịch theo năm): máy chủ giả có doanh thu 2024 + 2025 + 2026. Như máy chủ thật, getBootstrap({recent:true}) chỉ trả
+ *   2025 + 2026 kèm olderYears=[2024]; năm 2024 tải bằng getTransactionsByYear.
+ *   &legacy=1      "máy chủ cũ": bỏ qua tham số của getBootstrap, trả ĐỦ cả 3 năm, không có olderYears (thử client mới + server cũ)
+ *   &failyear=1    getTransactionsByYear báo lỗi (thử trạng thái lỗi + Thử lại ở màn báo cáo/Dashboard)
+ *   &slowyear=1    getTransactionsByYear chậm 2,5 giây (thử trạng thái "Đang tải doanh thu năm ...")
+ *   &norej=1       không có đề xuất giá bị từ chối (mặc định có 2 đợt, kèm lý do)
+ * Lỗi/cảnh báo console: window.__consoleErrors (phải rỗng sau khi duyệt hết các tab).
+ * Nhật ký lệnh ĐỌC: window.__harnessReads (mảng { fn, args }) — để soát client có gọi getTransactionsByYear đúng lúc không.
  * Nhật ký lệnh ghi: window.__harnessLog (mảng { fn, args }) — để soát gửi gì lên máy chủ (vd lý do từ chối).
  */
+// Gom MỌI lỗi/cảnh báo console + lỗi chưa bắt từ lúc tải trang -> window.__consoleErrors (soát "console sạch" khi duyệt các tab).
+window.__consoleErrors = [];
+['error', 'warn'].forEach((k) => {
+  const goc = console[k].bind(console);
+  console[k] = (...a) => { window.__consoleErrors.push(k + ': ' + a.map((x) => (x && x.message) || String(x)).join(' ').slice(0, 400)); goc(...a); };
+});
+window.addEventListener('error', (e) => window.__consoleErrors.push('onerror: ' + e.message));
+window.addEventListener('unhandledrejection', (e) => window.__consoleErrors.push('unhandledrejection: ' + ((e.reason && e.reason.message) || e.reason)));
 const q = new URLSearchParams(window.location.search);
 const role = q.get('role') || 'admin';
 
@@ -58,6 +74,26 @@ for (let m = 0; m < 3; m++) for (let i = 0; i < (q.get('big') ? 1400 : 70); i++)
     sku: mat.sku, skuName: mat.name, qty, price: mat.suggestedPrice, netRevenue: qty * mat.suggestedPrice, sale: c.sale, group: mat.group
   });
 }
+// Đợt 4: doanh thu năm cũ. Mỗi năm 12 tháng x 24 dòng; số tiền dễ tính nhẩm (mỗi dòng 1.000.000) để soát tổng trên màn hình:
+// 2024 = 12 x 24 = 288 dòng = 288.000.000 ₫; 2025 cùng như vậy. (Số dòng 2026 theo vòng lặp phía trên.)
+const txNamCu = { 2024: [], 2025: [] };
+[2024, 2025].forEach((y) => {
+  for (let m = 1; m <= 12; m++) for (let i = 0; i < 24; i++) {
+    const c = clients[i % 25]; const mat = materials[(i * 3) % 60];
+    txNamCu[y].push({
+      month: 'T' + String(m).padStart(2, '0') + '-' + y, week: 'W' + (1 + (i % 4)), date: `${String(1 + (i % 28)).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`,
+      orderNo: 'SO' + y + m + i, billingNo: 'B' + y + m + i, clientCode: c.codeSearch, clientName: c.name, clientAlias: c.alias,
+      sku: mat.sku, skuName: mat.name, qty: 10, price: 100000, netRevenue: 1000000, sale: c.sale, group: mat.group
+    });
+  }
+});
+const NAM_CU_NHAT = 2025;   // cắt: năm >= 2025 là "gần đây" (server thật: năm nay - 1)
+const rejected = q.get('norej') ? [] : [
+  { batchId: '20261008-101500-aa11', sale: 'Luyến', submittedAt: '08/10/2026 10:15', rejectedAt: '09/10/2026 08:30', rejectedBy: 'hai', note: 'Giá thấp hơn giá vốn, đề xuất lại.',
+    rows: [{ sku: materials[0].sku, name: materials[0].name, clientCode: '', retail: 41000, promoQty: 0, promoPrice: 0 }, { sku: materials[1].sku, name: materials[1].name, clientCode: '', retail: 52000, promoQty: 5, promoPrice: 50000 }] },
+  { batchId: '20261005-090000-bb22', sale: 'Luyến', submittedAt: '05/10/2026 09:00', rejectedAt: '05/10/2026 15:00', rejectedBy: 'hai', note: '',
+    rows: [{ sku: materials[2].sku, name: materials[2].name, clientCode: clients[0].codeSearch, retail: 61000, promoQty: 0, promoPrice: 0 }] }
+];
 const plans = clients.slice(0, 12).flatMap((c, i) => ['T10-2026', 'T09-2026'].map((mo, k) => ({
   month: mo, searchCode: c.codeSearch, clientName: c.name, sale: c.sale, planKpi: 1e9 * (i + 1), planUpdate: 8e8 * (i + 1), done: 0,
   w1: 2e8 * (i + 1), w2: 2e8 * (i + 1), w3: 2e8 * (i + 1), w4: 2e8 * (i + 1), w5: 0, note: i % 3 ? '' : 'Ghi chú', status: k && i % 2 ? 'Đã duyệt' : 'Chờ duyệt'
@@ -79,11 +115,13 @@ const pendingProposals = materials.slice(0, 6).map((m) => ({
 
 const RAW_PG = 'duplicate key value violates unique constraint "products_sku_key"';
 window.__harnessLog = [];
+window.__harnessReads = [];
 let nextId = 500;
 
 function doc(fn, args) {
   if (q.get('fail') && /^get|^ping/.test(fn) && fn !== 'getBootstrap') throw new Error('Mô phỏng lỗi mạng (fail=1)');
   if (!/^get|^ping|^login/.test(fn)) window.__harnessLog.push({ fn, args: args.slice(1) });
+  else window.__harnessReads.push({ fn, args: args.slice(1) });
   if (q.get('failwrite') && !/^get|^ping|^login/.test(fn)) throw new Error(RAW_PG);
   if (q.get('failrow') && fn === 'updateOrderLine' && String(args[1]) === q.get('failrow')) throw new Error(RAW_PG);
   switch (fn) {
@@ -94,7 +132,26 @@ function doc(fn, args) {
       orders.splice(args[2] === 'above' ? i : i + 1, 0, nu); return { ok: true, insertedRowIndex: nu.rowIndex };
     }
     case 'deleteOrderLine': { const i = orders.findIndex((x) => x.rowIndex === Number(args[1])); if (i >= 0) orders.splice(i, 1); return { ok: true }; }
-    case 'getBootstrap': return { clients, transactions, materials, plans, planDefaultMonth: '', kits: [] };
+    case 'getBootstrap': {
+      const opts = q.get('legacy') ? null : (args[2] && typeof args[2] === 'object' ? args[2] : null);
+      const tatCa = txNamCu[2024].concat(txNamCu[2025], transactions);
+      const day = { clients, transactions: tatCa, materials, plans, planDefaultMonth: '', kits: [] };
+      if (!opts) return day;
+      if (Array.isArray(opts.parts) && opts.parts.length) {
+        const out = { planDefaultMonth: '' };
+        opts.parts.forEach((p) => { if (p in day) out[p] = day[p]; });
+        if (out.transactions) out.transactions = opts.recent ? txNamCu[2025].concat(transactions) : tatCa;
+        return out;
+      }
+      if (opts.recent) return { ...day, transactions: txNamCu[2025].concat(transactions), olderYears: [2024], txRecentFromYear: NAM_CU_NHAT, txTotal: tatCa.length };
+      return day;
+    }
+    case 'getTransactionsByYear': {
+      if (q.get('failyear')) throw new Error('Mô phỏng lỗi tải năm cũ (failyear=1)');
+      const y = Number(args[1]);
+      return { year: y, transactions: (txNamCu[y] || []).slice() };
+    }
+    case 'getMyRejectedPriceProposals': return { batches: rejected };
     case 'getReportContext': return { plan2026: {}, baselines2025: {} };
     case 'getOrders': return orders;
     case 'getDebtView': return { rows: debtRows, lastUpdated: '2026-10-09T08:00:00Z' };
@@ -115,7 +172,7 @@ window.fetch = async (url, opts) => {
   try {
     const body = opts && opts.body ? JSON.parse(opts.body) : null;
     if (body && body.fn) {
-      await new Promise((r) => setTimeout(r, 120));
+      await new Promise((r) => setTimeout(r, body.fn === 'getTransactionsByYear' && q.get('slowyear') ? 2500 : 120));
       try { return new Response(JSON.stringify({ result: doc(body.fn, body.args || []) }), { status: 200 }); }
       catch (e) { return new Response(JSON.stringify({ error: e.message }), { status: 200 }); }
     }

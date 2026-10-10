@@ -11,7 +11,8 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useTableSort } from '../../hooks/useTableSort';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { useUnsavedGuard } from '../../hooks/useUnsavedGuard';
-import { dongDeXuat, soMaCoNhap, boNhapDaGui } from '../../utils/priceDraft';
+import { dongDeXuat, soMaCoNhap, boNhapDaGui, napLaiTuDotBiTuChoi } from '../../utils/priceDraft';
+import RejectedProposals from './RejectedProposals';
 import { chuanTim } from '../../utils/searchText';
 
 const PAGE_SIZE = 25;
@@ -32,7 +33,7 @@ const formatDigits = (v) => (v ? Number(v).toLocaleString('vi-VN') : '');
 // thì gửi đợt mới, Admin tự chọn duyệt đúng đợt hoặc từ chối đợt sai).
 // Chọn "Khách hàng" cụ thể thay vì "Áp dụng chung" biến đây thành đề xuất
 // giá RIÊNG chỉ cho khách đó (không đụng giá chung trên Products).
-export default function PriceProposePanel({ token, materials, clients, activeUser, onSubmitted }) {
+export default function PriceProposePanel({ token, materials, clients, activeUser, onSubmitted, refreshTick }) {
   const toast = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   // Nhóm SP nhớ qua F5 (Đợt 2 / mục 9). Khách KHÔNG nhớ: giá nháp gắn với khách đang chọn.
@@ -45,6 +46,9 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
   const [confirming, setConfirming] = useState(false);
   // Khách đang chờ xác nhận đổi sang (null = không chờ) — đổi khách khi còn giá nháp thì hỏi trước.
   const [pendingClientCode, setPendingClientCode] = useState(null);
+  // Đợt bị từ chối đang chờ xác nhận nạp lại (khi còn giá nháp chưa gửi) + bơm để danh sách "bị từ chối" tải lại sau khi gửi.
+  const [pendingResubmit, setPendingResubmit] = useState(null);
+  const [rejectedTick, setRejectedTick] = useState(0);
 
   // Perf (2026-08-27): nhớ lại giá riêng của từng khách đã tra trong phiên này.
   // Trước đây mỗi lần đổi ô chọn khách là một lượt gọi backend mới, nên xem qua
@@ -178,6 +182,27 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
     setPendingClientCode(null);
   };
 
+  // "Sửa & gửi lại" một đợt bị từ chối: nạp các dòng của đợt làm bản nháp (đúng khách / giá chung của đợt đó) để Sale sửa rồi gửi đợt MỚI.
+  // Còn nháp chưa gửi thì hỏi trước — nạp lại sẽ thay nháp hiện tại.
+  const applyResubmit = (batch) => {
+    const kq = napLaiTuDotBiTuChoi(batch, materials);
+    if (kq.clientCode && !clientOptions.some((c) => c.codeSearch === kq.clientCode)) {
+      toast.error(`Khách ${kq.clientCode} không còn trong danh bạ nên chưa nạp lại được đợt này.`);
+      return;
+    }
+    if (!kq.soMa) { toast.error('Các sản phẩm của đợt này không còn trong danh mục nên chưa nạp lại được.'); return; }
+    setClientCode(kq.clientCode);
+    setDraftMap(kq.draft);
+    setSearchTerm('');
+    setGroupFilter('ALL');
+    setPage(1);
+    toast.success(`Đã nạp lại ${kq.soMa} mã SKU từ đợt bị từ chối${kq.thieu.length ? ` (bỏ ${kq.thieu.length} mã không còn trong danh mục)` : ''} — sửa giá rồi bấm Gửi đề xuất.`);
+  };
+  const requestResubmit = (batch) => {
+    if (draftCount > 0) { setPendingResubmit(batch); return; }
+    applyResubmit(batch);
+  };
+
   const handleSubmit = async () => {
     if (isSaving || !touchedRows.length) return;
     setIsSaving(true);
@@ -198,6 +223,7 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
       const daGui = rows.map((r) => r.sku);
       setDraftMap((prev) => boNhapDaGui(prev, daGui));
       setConfirming(false);
+      setRejectedTick((t) => t + 1);
       if (onSubmitted) onSubmitted();
     } catch (err) {
       toast.error('Không gửi được đề xuất: ' + err.message);
@@ -208,6 +234,8 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <RejectedProposals token={token} refreshTick={(refreshTick || 0) + rejectedTick} onResubmit={requestResubmit} />
+
       <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
           <Search size={16} color="var(--text-dim)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
@@ -339,6 +367,18 @@ export default function PriceProposePanel({ token, materials, clients, activeUse
           busyLabel="Đang gửi..."
           onConfirm={handleSubmit}
           onCancel={() => setConfirming(false)}
+        />
+      )}
+
+      {pendingResubmit && (
+        <ConfirmDialog
+          title="Nạp lại đợt bị từ chối?"
+          message={`Đang có giá nháp cho ${draftCount.toLocaleString('vi-VN')} mã SKU chưa gửi. Nạp lại đợt bị từ chối sẽ THAY các giá nháp này bằng giá của đợt đã bị từ chối (${pendingResubmit.rows.length.toLocaleString('vi-VN')} mã). Bấm "Ở lại" nếu muốn gửi nháp hiện tại trước.`}
+          confirmLabel="Thay nháp bằng đợt này"
+          cancelLabel="Ở lại"
+          destructive
+          onConfirm={() => { const b = pendingResubmit; setPendingResubmit(null); applyResubmit(b); }}
+          onCancel={() => setPendingResubmit(null)}
         />
       )}
 

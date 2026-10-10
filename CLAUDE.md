@@ -95,6 +95,15 @@ làm nháy tab đang xem. Gói đầu tiên ~200 KB; thêm import tĩnh một m�
 `getReportContext`, nạp khi mở màn cần. Endpoint mới **phải giữ nguyên việc ép
 phạm vi theo sale**; bỏ sót là mở rộng quyền đọc cho mọi người.
 
+**Giao dịch theo năm (Đợt 4, 10/10/2026).** Client xin `getBootstrap(token, false, { recent: true })`: `transactions` chỉ gồm
+năm nay + năm trước, kèm `olderYears` (năm cũ có dữ liệu), `txRecentFromYear`, `txTotal`; `materials` vẫn tính từ toàn bộ lịch sử.
+Năm cũ tải bằng `getTransactionsByYear`. Màn nào cộng số theo năm (Báo cáo doanh thu, Tổng quan, Lịch sử doanh thu, Kế hoạch KD)
+**phải** gọi `useEnsureYears(txYears, [năm cần])` và dùng `TableState` loading/error — không bao giờ hiện số cộng từ dữ liệu thiếu.
+Server cũ không biết tham số này nên trả đủ, `olderYears` rỗng, mọi thứ vẫn chạy. `getBootstrap` còn nhận `{ parts: [...] }` để làm mới
+đúng khối vừa sửa (kế hoạch, bộ sản phẩm, giá) thay vì tải lại tất cả. **Triển khai: server (`oem-api`) trước, client sau**; chạy
+`Karofi-ID/supabase/chay-dot4-oem-2026-10-10.sql` (chỉ mục) trước khi deploy server. `npm test` có thêm bước soát định danh chưa
+khai báo (`test/khai-bao-dinh-danh.test.cjs`) vì OEM không có lint.
+
 `SCHEMA_VERSION` trong `services/dataCache.js`: tăng khi payload **thêm** hoặc
 **đổi nghĩa** một khoá, không cần tăng khi chỉ **bỏ** một khoá.
 
