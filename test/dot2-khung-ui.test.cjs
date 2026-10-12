@@ -280,7 +280,7 @@ const rel = (f) => path.relative(path.join(ROOT, 'src'), f).replace(/\\/g, '/');
   check('hộp xoá luôn kiểu danger (đỏ)', xoaKhongDo.length === 0, xoaKhongDo);
   const doKhiGhiDe = ['components/debt/DebtImportPanel.jsx', 'components/pricing/CostImportPanel.jsx', 'components/pricing/KitsPanel.jsx', 'components/salesplan/PlanNamPanel.jsx', 'components/transactions/RevenueImportPanel.jsx', 'components/sop/SopPlanPanel.jsx'];
   check('hộp GHI ĐÈ / thay toàn bộ (công nợ, giá vốn, bộ SP, KPI năm, doanh thu, SOP) kiểu danger', doKhiGhiDe.every((f) => /\n\s+(danger|destructive)\n/.test(SRC(f))));
-  const labels = ['Ghi đè công nợ', 'Thay công thức bộ SP', 'Thay KPI năm', 'Xoá số đang nhập', 'Gửi đề xuất giá', 'Xoá dòng', 'Xoá cả đơn'];
+  const labels = ['Ghi đè công nợ', 'Thay công thức bộ SP', 'Thay KPI năm', 'Xoá toàn bộ kế hoạch đang soạn', 'Gửi đề xuất giá', 'Xoá dòng', 'Xoá cả đơn'];
   check('nhãn đúng hành động xuất hiện: ' + labels.join(' / '), labels.every((l) => jsxFiles.some((f) => fs.readFileSync(f, 'utf8').includes(l))));
 
   html = ve.SubTabs({ tabs: [{ id: 'a', label: 'Xem', icon: 'Eye' }, { id: 'b', label: 'Duyệt', icon: 'CheckCheck' }], active: 'b', onChange: noop });

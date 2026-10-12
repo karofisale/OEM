@@ -884,3 +884,52 @@ body {
   backdrop-filter: blur(8px);
 }
 .toast-clear { align-self: flex-end; }
+
+/* Kế hoạch SOP — Lập kế hoạch: chọn nhiều dòng, hộp thêm sản phẩm, dải hoàn tác (12/10/2026). */
+.sop-pick-list {
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+}
+.sop-pick-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  cursor: pointer;
+}
+.sop-pick-row:hover { background: var(--row-hover); }
+.sop-pick-row.is-picked { background: var(--karofi-cyan-light); }
+.sop-pick-row:focus-within { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.custom-table tr.sop-row-selected td { background: var(--karofi-cyan-light); }
+/* Dòng vừa thêm: nền + vạch bên trái nổi bật vài giây rồi mờ dần. */
+.custom-table tr.sop-row-flash td { background: var(--karofi-cyan-light); animation: sop-flash 4s ease-out forwards; }
+.custom-table tr.sop-row-flash td:first-child { box-shadow: inset 3px 0 0 var(--karofi-cyan); }
+@keyframes sop-flash { 0%, 70% { background: var(--karofi-cyan-light); } 100% { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .custom-table tr.sop-row-flash td { animation: none; } }
+.sop-undo-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--info-bg);
+  border: 1px solid var(--karofi-cyan-border);
+  color: var(--info-text);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.sop-empty-plan {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 36px 20px;
+}

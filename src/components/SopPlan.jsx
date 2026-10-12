@@ -9,7 +9,7 @@ import SopPlanPanel from './sop/SopPlanPanel';
 import SopApprovePanel from './sop/SopApprovePanel';
 import SopMyPlanPanel from './sop/SopMyPlanPanel';
 
-export default function SopPlan({ token, activeUser, materials }) {
+export default function SopPlan({ token, activeUser, materials, onAddMaterial }) {
   // Bumped every time a plan is submitted or approved, so the "Xem SOP" panel
   // (and the approve panel's pending count) refetch instead of showing what
   // was true before the write.
@@ -68,6 +68,7 @@ export default function SopPlan({ token, activeUser, materials }) {
             materials={materials}
             refreshTick={refreshTick}
             onSubmitted={bumpRefresh}
+            onAddMaterial={onAddMaterial}
           />
         </KeepAliveTab>
       )}

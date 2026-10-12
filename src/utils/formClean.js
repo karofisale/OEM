@@ -39,3 +39,38 @@ export function kiemGia(v, nhan = 'Giá') {
   if (n < 0) return `${nhan} không được âm.`;
   return '';
 }
+
+/**
+ * Dựng bản ghi SẢN PHẨM MỚI từ ô nhập của form (dùng ở "Thêm sản phẩm vào kế hoạch" của Kế hoạch SOP) — CÙNG quy tắc với
+ * form Thêm sản phẩm của Danh mục (ProductManagement): cắt khoảng trắng, SKU + Tên bắt buộc, giá không âm (trống = 0,
+ * server cũng nhận trống/0), trùng mã không phân biệt hoa/thường, alias mặc định = từ đầu của tên, đơn vị PC.
+ * Trả { error } (câu tiếng Việt) hoặc { mat }. `nhomCoSan` (mảng) để gộp nhóm gõ khác hoa/thường về đúng chữ đã có.
+ */
+export function dungSanPhamMoi(f, materials, nhomCoSan) {
+  const sku = catKhoangTrang(f && f.sku);
+  const name = catKhoangTrang(f && f.name);
+  if (!sku || !name) return { error: 'Nhập đủ Mã SKU và Tên sản phẩm (khoảng trắng đơn thuần không tính).' };
+  const loiGia = kiemGia(f.price, 'Giá bán');
+  if (loiGia) return { error: loiGia };
+  const trung = timMaTrung(materials, (m) => m.sku, sku);
+  if (trung) return { error: `Mã SKU "${trung.sku}" đã có trong danh mục (${trung.name}).`, trung };
+  let group = catKhoangTrang(f.group);
+  const khop = (nhomCoSan || []).find((g) => khoaMa(g) === khoaMa(group));
+  if (khop) group = khop;
+  if (!group) return { error: 'Chọn hoặc gõ Nhóm SP.' };
+  const gia = parseFloat(f.price) || 0;
+  return {
+    mat: {
+      sku, name,
+      alias: catKhoangTrang(f.alias) || name.split(' ')[0],
+      group,
+      unit: 'PC',
+      exclusiveTo: catKhoangTrang(f.exclusiveTo),
+      suggestedPrice: gia,
+      avgPrice: gia,
+      latestPrice: 0,
+      latestPriceVat: 0,
+      totalQty: 0
+    }
+  };
+}

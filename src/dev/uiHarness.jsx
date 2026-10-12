@@ -15,6 +15,10 @@
  *   &failyear=1    getTransactionsByYear báo lỗi (thử trạng thái lỗi + Thử lại ở màn báo cáo/Dashboard)
  *   &slowyear=1    getTransactionsByYear chậm 2,5 giây (thử trạng thái "Đang tải doanh thu năm ...")
  *   &norej=1       không có đề xuất giá bị từ chối (mặc định có 2 đợt, kèm lý do)
+ *   Kế hoạch SOP (Lập Kế Hoạch): &sop=carry (mặc định: 12 mã mang sang từ kỳ đã duyệt) | draft (kèm bản nháp đã gửi: 5 mã) | empty (kế hoạch trống)
+ *   &failsubmit=1  submitSopDraft báo lỗi;  &failadd=1  addMaterial báo lỗi thô;  &slowadd=1  addMaterial chậm 2 giây.
+ *   addMaterial giả kiểm trùng SKU (không phân biệt hoa/thường) + giá âm như máy chủ thật rồi GHI vào danh mục giả.
+ *   Lần gửi SOP gần nhất: window.__lastSopSubmit ({ anchor, rows }).
  * Lỗi/cảnh báo console: window.__consoleErrors (phải rỗng sau khi duyệt hết các tab).
  * Nhật ký lệnh ĐỌC: window.__harnessReads (mảng { fn, args }) — để soát client có gọi getTransactionsByYear đúng lúc không.
  * Nhật ký lệnh ghi: window.__harnessLog (mảng { fn, args }) — để soát gửi gì lên máy chủ (vd lý do từ chối).
@@ -113,6 +117,11 @@ const pendingProposals = materials.slice(0, 6).map((m) => ({
   currentRetail: m.suggestedPrice, currentPromo: 0, retailPropose: m.suggestedPrice + 2000, promoQtyPropose: 0, promoPricePropose: 0, pctChange: 0.04
 }));
 
+// Kế hoạch SOP giả: carry = số mang sang từ kỳ đã duyệt; draft = bản đã gửi của kỳ này (cập nhật khi submitSopDraft).
+const sopMode = q.get('sop') || 'carry';
+const sopCarry = sopMode === 'empty' ? {} : Object.fromEntries(materials.slice(0, 12).map((m, i) => [m.sku, [10 + i, 20 + i, 30 + i, 0]]));
+let sopDraft = sopMode === 'draft' ? materials.slice(20, 25).map((m, i) => ({ sku: m.sku, sl1: 5 + i, sl2: 6, sl3: 0, sl4: 1 })) : [];
+
 const RAW_PG = 'duplicate key value violates unique constraint "products_sku_key"';
 window.__harnessLog = [];
 window.__harnessReads = [];
@@ -123,6 +132,7 @@ function doc(fn, args) {
   if (!/^get|^ping|^login/.test(fn)) window.__harnessLog.push({ fn, args: args.slice(1) });
   else window.__harnessReads.push({ fn, args: args.slice(1) });
   if (q.get('failwrite') && !/^get|^ping|^login/.test(fn)) throw new Error(RAW_PG);
+  if (q.get('failadd') && fn === 'addMaterial') throw new Error(RAW_PG);
   if (q.get('failrow') && fn === 'updateOrderLine' && String(args[1]) === q.get('failrow')) throw new Error(RAW_PG);
   switch (fn) {
     case 'updateOrderLine': { const o = orders.find((x) => x.rowIndex === Number(args[1])); if (o) Object.assign(o, args[2]); return { ok: true }; }
@@ -157,7 +167,25 @@ function doc(fn, args) {
     case 'getDebtView': return { rows: debtRows, lastUpdated: '2026-10-09T08:00:00Z' };
     case 'getSopView': return { rows: sopRows, monthLabels: labels };
     case 'getMySopPlan': return { anchor: '', rows: [] };
-    case 'getSopPlanningContext': return { anchor: '2026-10', monthLabels: labels, myDraft: [], carryForwardBySku: {}, priorApprovedBySku: Object.fromEntries(materials.map((m) => [m.sku, 5])) };
+    case 'getSopPlanningContext': return { anchor: '2026-10', monthLabels: labels, myDraft: sopDraft.map((d) => ({ ...d })), carryForwardBySku: sopMode === 'draft' ? Object.fromEntries(materials.slice(0, 12).map((m, i) => [m.sku, [10 + i, 20 + i, 30 + i, 0]])) : sopCarry, priorApprovedBySku: {} };
+    case 'submitSopDraft': {
+      if (q.get('failsubmit')) throw new Error('Mô phỏng lỗi gửi kế hoạch (failsubmit=1)');
+      const rows = (args[2] || []).filter((r) => r.sl1 > 0 || r.sl2 > 0 || r.sl3 > 0 || r.sl4 > 0);
+      if (!rows.length) throw new Error('Không có dòng nào để lưu.');
+      window.__lastSopSubmit = { anchor: args[1], rows: JSON.parse(JSON.stringify(args[2] || [])) };
+      sopDraft = rows.map((r) => ({ ...r }));
+      return { ok: true, savedCount: rows.length, skippedZeroCount: (args[2] || []).length - rows.length, removedCount: 0 };
+    }
+    case 'addMaterial': {
+      const m = args[1] || {};
+      const sku = String(m.sku || '').trim();
+      if (!sku) throw new Error('Thiếu mã SKU.');
+      const trung = materials.find((x) => x.sku.toLowerCase() === sku.toLowerCase());
+      if (trung) throw new Error('Mã SKU ' + trung.sku + ' đã có trong danh mục sản phẩm — dùng nút "Sửa" của sản phẩm đó để cập nhật.');
+      if (Number(m.suggestedPrice) < 0) throw new Error('Giá bán đề xuất không được là số âm.');
+      materials.unshift({ ...m, sku });
+      return { ok: true };
+    }
     case 'getSopPendingReview': return { rows: sopRows, detail: sopRows.map((r) => ({ ...r, sale: 'Luyến' })), monthLabels: labels, pendingCount: 20, anchor: '2026-10' };
     case 'getPendingPriceProposals': return { rows: pendingProposals, costBySku: {} };
     case 'getClientPriceOverrides': return { overrides: {} };
@@ -172,7 +200,7 @@ window.fetch = async (url, opts) => {
   try {
     const body = opts && opts.body ? JSON.parse(opts.body) : null;
     if (body && body.fn) {
-      await new Promise((r) => setTimeout(r, body.fn === 'getTransactionsByYear' && q.get('slowyear') ? 2500 : 120));
+      await new Promise((r) => setTimeout(r, (body.fn === 'getTransactionsByYear' && q.get('slowyear')) || (body.fn === 'addMaterial' && q.get('slowadd')) ? 2500 : 120));
       try { return new Response(JSON.stringify({ result: doc(body.fn, body.args || []) }), { status: 200 }); }
       catch (e) { return new Response(JSON.stringify({ error: e.message }), { status: 200 }); }
     }
