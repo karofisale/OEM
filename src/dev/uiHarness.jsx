@@ -22,6 +22,12 @@
  *   Cài đặt cá nhân (14/10/2026): máy chủ giả có getMyPrefs/setMyPrefs trong bộ nhớ (cất ở window.__prefsDb).
  *   &prefs={"st.theme":"dark"}  gieo sẵn bản "trên máy chủ" (JSON, nhớ mã hoá URL);  &noprefs=1  giả máy chủ CHƯA có bảng (cả hai hàm báo lỗi);
  *   &sso=1  phiên đăng nhập qua cổng VHKD (fromPortal) -> "Đổi PIN" hiện hướng dẫn thay vì form.
+ *   Cài đặt HỆ THỐNG (14/10/2026): máy chủ giả có getSystemValues / getSystemSettings / setSystemSetting (lịch sử cất ở sessionStorage 'harness_sys' + window.__sysDb).
+ *   &role=creator mới mở được trang (vai khác nhận đúng câu lỗi của máy chủ thật).
+ *   &sysseed=1     gieo sẵn lịch sử: VAT đặt 10% (hiệu lực 01/10/2026, bởi "master"), kèm một thay đổi sắp hiệu lực (8% từ 01/11/2026);  &sysseed=reset xoá.
+ *   &systable=missing  giả bảng cài đặt hệ thống CHƯA có (getSystemSettings báo tableMissing, getSystemValues trả mặc định, setSystemSetting báo lỗi)
+ *   &syserr=1      getSystemSettings báo lỗi;  &nosys=1  getSystemValues báo lỗi (client phải im lặng dùng mặc định 8% / 20)
+ *   &sysfail=1     setSystemSetting luôn báo một câu lỗi tiếng Việt (thử hiện lỗi ngay trong trang)
  * Lỗi/cảnh báo console: window.__consoleErrors (phải rỗng sau khi duyệt hết các tab).
  * Nhật ký lệnh ĐỌC: window.__harnessReads (mảng { fn, args }) — để soát client có gọi getTransactionsByYear đúng lúc không.
  * Nhật ký lệnh ghi: window.__harnessLog (mảng { fn, args }) — để soát gửi gì lên máy chủ (vd lý do từ chối).
@@ -136,6 +142,34 @@ try {
 } catch { prefsDb = {}; }
 window.__prefsDb = prefsDb;
 
+// Cài đặt hệ thống giả. Lịch sử mỗi khoá: [{ giaTri | null, hieuLucTu, nguoiSua, ghiChu, lucSua }]. Giá trị hiệu lực hôm nay tính như máy chủ thật:
+// bản có hieuLucTu <= hôm nay, ngày lớn nhất, cùng ngày thì bản ghi sau thắng; null = về mặc định; chưa có bản nào = mặc định.
+const SYS_DEFS = [
+  { khoa: 'oem.vatRate', nhom: 'Thuế & giá', nhan: 'Thuế VAT', ghiChu: 'Thuế suất VAT dùng cho tổng giá trị đơn hàng và giá vốn đã gồm VAT.', kieu: 'number', min: 0, max: 0.2, buoc: 0.005, donVi: '', fmt: 'percent', macDinh: 0.08 },
+  { khoa: 'oem.defaultMargin', nhom: 'Thuế & giá', nhan: '% LNG mặc định của máy tính giá', ghiChu: 'Điền sẵn vào ô % LNG khi người dùng chưa chọn số riêng.', kieu: 'integer', min: 1, max: 60, buoc: 1, donVi: '%', fmt: '', macDinh: 20 },
+  { khoa: 'oem.demoDays', nhom: 'Công nợ (thử)', nhan: 'Số ngày cảnh báo công nợ (khoá thử)', ghiChu: 'Khoá chỉ có ở harness — để kiểm tra trang dựng tổng quát theo nhóm.', kieu: 'integer', min: 0, max: 365, buoc: 1, donVi: 'ngày', fmt: '', macDinh: 30 }
+];
+const homNayVN = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+let sysDb = {};
+try {
+  const gs = q.get('sysseed');
+  if (gs === 'reset') sessionStorage.removeItem('harness_sys');
+  sysDb = JSON.parse(sessionStorage.getItem('harness_sys') || '{}');
+  if (gs === '1' && !Object.keys(sysDb).length) {
+    sysDb = { 'oem.vatRate': [
+      { giaTri: 0.1, hieuLucTu: '2026-10-01', nguoiSua: 'master', ghiChu: 'Theo thông báo thuế mới', lucSua: '2026-09-28T03:00:00Z' },
+      { giaTri: 0.08, hieuLucTu: '2026-11-01', nguoiSua: 'master', ghiChu: 'Hết ưu đãi', lucSua: '2026-10-10T08:15:00Z' }
+    ] };
+  }
+} catch { sysDb = {}; }
+window.__sysDb = sysDb;
+const sysLuu = () => { try { sessionStorage.setItem('harness_sys', JSON.stringify(sysDb)); } catch { /* không sao */ } };
+function sysHieuLuc(d, today) {
+  const ds = (sysDb[d.khoa] || []).map((e, i) => ({ ...e, i })).filter((e) => e.hieuLucTu <= today).sort((a, b) => (b.hieuLucTu < a.hieuLucTu ? -1 : b.hieuLucTu > a.hieuLucTu ? 1 : b.i - a.i));
+  const e = ds[0];
+  return { giaTri: e && e.giaTri !== null ? e.giaTri : d.macDinh, daDat: !!(e && e.giaTri !== null), hieuLucTu: e ? e.hieuLucTu : '' };
+}
+
 const RAW_PG = 'duplicate key value violates unique constraint "products_sku_key"';
 window.__harnessLog = [];
 window.__harnessReads = [];
@@ -184,6 +218,47 @@ function doc(fn, args) {
       Object.keys(ch).forEach((k) => { if (ch[k] === null) delete prefsDb[k]; else prefsDb[k] = ch[k]; });
       try { sessionStorage.setItem('harness_prefs', JSON.stringify(prefsDb)); } catch { /* không sao */ }
       return { ok: true };
+    }
+    case 'getSystemValues': {
+      if (q.get('nosys')) throw new Error('relation "oem.system_settings" does not exist');
+      const today = homNayVN();
+      const missing = q.get('systable') === 'missing';
+      const values = {};
+      SYS_DEFS.slice(0, 2).forEach((d) => { values[d.khoa] = missing ? d.macDinh : sysHieuLuc(d, today).giaTri; });
+      return { values };
+    }
+    case 'getSystemSettings': {
+      if (role !== 'creator') throw new Error('Chỉ master mới xem được cài đặt hệ thống.');
+      if (q.get('syserr')) throw new Error('Mô phỏng lỗi tải cài đặt hệ thống (syserr=1)');
+      const today = homNayVN();
+      const missing = q.get('systable') === 'missing';
+      return {
+        app: 'oem', canEdit: true, today, tableMissing: missing,
+        settings: SYS_DEFS.map((d) => {
+          const h = missing ? { giaTri: d.macDinh, daDat: false, hieuLucTu: '' } : sysHieuLuc(d, today);
+          const ls = missing ? [] : (sysDb[d.khoa] || []);
+          return { ...d, giaTri: h.giaTri, daDat: h.daDat, hieuLucTu: h.hieuLucTu, choHieuLuc: ls.filter((e) => e.hieuLucTu > today), lichSu: ls.slice().reverse() };
+        })
+      };
+    }
+    case 'setSystemSetting': {
+      if (role !== 'creator') throw new Error('Chỉ master mới đổi được cài đặt hệ thống.');
+      if (q.get('systable') === 'missing') throw new Error('Chưa chạy SQL đợt 8 — chưa lưu được cài đặt hệ thống.');
+      if (q.get('sysfail')) throw new Error('Không lưu được: cài đặt này đang được khoá để bảo trì (sysfail=1).');
+      const p = args[1] || {};
+      const d = SYS_DEFS.find((x) => x.khoa === p.khoa);
+      if (!d) throw new Error('Không có cài đặt "' + p.khoa + '".');
+      const today = homNayVN();
+      const hl = p.hieuLucTu || today;
+      if (hl < today) throw new Error('Ngày hiệu lực không được trước hôm nay.');
+      if (p.giaTri !== null) {
+        if (typeof p.giaTri !== 'number' || !Number.isFinite(p.giaTri)) throw new Error('Giá trị phải là một con số.');
+        if (p.giaTri < d.min || p.giaTri > d.max) throw new Error(d.nhan + ' phải nằm trong khoảng ' + d.min + ' … ' + d.max + '.');
+        if (d.kieu === 'integer' && !Number.isInteger(p.giaTri)) throw new Error(d.nhan + ' phải là số nguyên.');
+      }
+      (sysDb[d.khoa] = sysDb[d.khoa] || []).push({ giaTri: p.giaTri, hieuLucTu: hl, nguoiSua: 'hai', ghiChu: p.ghiChu || '', lucSua: new Date().toISOString() });
+      sysLuu();
+      return { ok: true, khoa: d.khoa, hieuLucTu: hl };
     }
     case 'getMyRejectedPriceProposals': return { batches: rejected };
     case 'getReportContext': return { plan2026: {}, baselines2025: {} };

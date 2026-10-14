@@ -3,7 +3,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  SlidersHorizontal
 } from 'lucide-react';
 import { NAV, ACCOUNT_TAB_IDS, iconOf } from '../utils/navMeta';
 import { nhanVaiTro } from '../utils/glossary';
@@ -15,7 +16,7 @@ import { version as APP_VERSION } from '../../package.json';
 // tiết hơn (view-only, ai được sửa gì) nằm trong từng trang, không phải ở đây.
 // Danh sách id + icon + nhãn nằm ở utils/navMeta.js (mỗi mục một icon riêng).
 
-export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, transactionCount = 0, activeUser, onOpenSettings }) {
+export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, transactionCount = 0, activeUser, onOpenSettings, onOpenSystemSettings, systemActive }) {
   // The mobile drawer always shows full labels — icon-only collapse is a
   // desktop-only space-saving mode, not something worth doing in an overlay.
   const effectiveCollapsed = isMobileOpen ? false : isCollapsed;
@@ -208,6 +209,12 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
             // Lối vào Cài đặt thứ hai: trên điện thoại thanh trên không đủ chỗ cho nút "Cài đặt" (14/10/2026).
             <button type="button" onClick={() => { onOpenSettings(); if (onCloseMobile) onCloseMobile(); }} className="btn btn-secondary btn-sm" style={{ width: '100%', margin: '6px 0' }}>
               <SettingsIcon size={14} /> Cài đặt
+            </button>
+          )}
+          {onOpenSystemSettings && (
+            // Chỉ master (creator): App chỉ truyền onOpenSystemSettings cho vai đó.
+            <button type="button" onClick={() => { onOpenSystemSettings(); if (onCloseMobile) onCloseMobile(); }} className="btn btn-secondary btn-sm" style={{ width: '100%', margin: '0 0 6px' }} aria-current={systemActive ? 'page' : undefined}>
+              <SlidersHorizontal size={14} /> Cài đặt hệ thống
             </button>
           )}
           <div>OEM Portal · v{APP_VERSION}</div>

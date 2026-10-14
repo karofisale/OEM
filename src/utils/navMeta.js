@@ -54,6 +54,13 @@ export const TAB_DEFAULT = 'ai-agent';
  *  mọi vai trò đều vào được, kể cả 'account'. Không có trong TAB_IDS nên không thể chọn làm "Trang đầu". */
 export const TAB_SETTINGS = 'settings';
 
+/** Trang Cài đặt HỆ THỐNG (14/10/2026): cùng kiểu với TAB_SETTINGS (tab thật của App, ngoài NAV, không nhớ làm "tab cuối") nhưng CHỈ vai trò
+ *  `creator` (master) được vào — `tabHopLe` chặn mọi vai khác (kể cả khi id này lọt vào tab đã nhớ), App không dựng trang cho họ. */
+export const TAB_SYSTEM = 'system-settings';
+export const VAI_TRO_HE_THONG = ['creator'];
+/** Vai trò này có được mở trang Cài đặt hệ thống không. */
+export const coQuyenHeThong = (role) => VAI_TRO_HE_THONG.includes(String(role || '').toLowerCase());
+
 /** Vai trò làm việc chính là XEM báo cáo / duyệt (không phải lên đơn): mặc định vào Báo cáo doanh thu (Đợt 3). */
 export const VAI_TRO_BAO_CAO = ['admin', 'leader', 'lead'];
 export const TAB_BAO_CAO = 'revenue-reports';
@@ -73,6 +80,7 @@ export function tabMacDinh(role) {
 export function tabHopLe(tab, role) {
   const mac = tabMacDinh(role);
   if (tab === TAB_SETTINGS) return tab;
+  if (tab === TAB_SYSTEM) return coQuyenHeThong(role) ? tab : mac;
   if (!TAB_IDS.includes(tab)) return mac;
   if (role === 'account' && !ACCOUNT_TAB_IDS.includes(tab)) return mac;
   return tab;

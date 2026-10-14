@@ -273,6 +273,24 @@ export async function setMyPrefs(token, changes) {
   return callApi('setMyPrefs', [token, changes], 15000);
 }
 
+// Cài đặt HỆ THỐNG (14/10/2026, oem-api getSystemValues / getSystemSettings / setSystemSetting) — xem services/systemValues.js + components/SystemSettings.jsx.
+//  - getSystemValues -> { values: { 'oem.vatRate': 0.08, 'oem.defaultMargin': 20 } }: giá trị HIỆU LỰC hôm nay, mọi vai trò đã đăng nhập. Chỉ ĐỌC (thử lại được);
+//    hạn giờ ngắn vì là tải nền: nơi gọi nuốt lỗi và dùng mặc định có sẵn (bảng sản xuất có thể chưa tồn tại).
+//  - getSystemSettings -> { app, canEdit, today, tableMissing, settings: [...] }: CHỈ vai trò master (creator), vai khác nhận lỗi tiếng Việt.
+//  - setSystemSetting({ khoa, giaTri (số | null = về mặc định), hieuLucTu?, ghiChu? }) -> { ok, khoa, hieuLucTu }: master. Là lệnh GHI nhưng
+//    upsert theo (khoá, ngày hiệu lực) nên gửi lại cùng payload ra đúng cùng kết quả -> CỐ Ý không nằm trong NON_IDEMPOTENT_FNS.
+export async function getSystemValues(token) {
+  return callApi('getSystemValues', [token], 15000);
+}
+
+export async function getSystemSettings(token) {
+  return callApi('getSystemSettings', [token], 30000);
+}
+
+export async function setSystemSetting(token, payload) {
+  return callApi('setSystemSetting', [token, payload], 30000);
+}
+
 export async function saveOrder(token, orderResult) {
   return callApi('saveOrder', [token, orderResult]);
 }

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Bot,
   Sparkles,
@@ -27,7 +27,8 @@ import {
   getHistoricalUnitPrice,
   isNewAliasWorthLearning,
   parseOrderTextToSAP,
-  VAT_RATE
+  tinhThanhTien,
+  tinhLaiDonTheoVat
 } from '../services/aiAgent';
 import { chuanBiDinhKem, moTaKichThuoc } from '../utils/orderInput';
 import * as api from '../services/api';
@@ -37,6 +38,8 @@ import ClientPickerCell from './ClientPickerCell';
 import RowActionButtons from './RowActionButtons';
 import { vnTimestamp } from '../utils/vnDate';
 import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
+import { useSystemValue } from '../hooks/useSystemValue';
+import { KHOA_VAT, chuVatPhanTram } from '../utils/systemSettings';
 
 const createBlankItem = () => ({
   id: 'ITEM-' + Math.random().toString(36).substr(2, 6),
@@ -126,6 +129,12 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
   const [bangLui, setBangLui] = useState('');
 
   const [orderResult, setOrderResult] = useState(null);
+  // Thuế VAT là cài đặt hệ thống (oem.vatRate, mặc định 8%): giá trị có thể về SAU khi đơn đã dựng (tải nền sau bootstrap) hoặc master
+  // vừa đổi — tính lại thành tiền + tổng của đơn chưa lưu theo thuế suất mới để số trên màn luôn khớp nhãn "đã gồm VAT x%".
+  const vatRate = useSystemValue(KHOA_VAT);
+  useEffect(() => {
+    setOrderResult((cu) => (cu ? tinhLaiDonTheoVat(cu, 1 + vatRate) : cu));
+  }, [vatRate]);
   // Đơn AI đã phân tích mà chưa Lưu thì F5 / đổi tab sẽ mất (kèm một lượt gọi Gemini tốn thời gian) -> cảnh báo (Đợt 2 / mục 5).
   useUnsavedGuard(!!orderResult && !saved, 'Đơn AI chưa lưu');
 
@@ -185,7 +194,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
       unit: unit || (mat && mat.unit) || 'PC',
       qty,
       price,
-      total: qty * price * VAT_RATE,
+      total: tinhThanhTien(qty, price),
       confidence,
       sourceQuery: sourceText || '',
       matchedAlias: mat && isNewAliasWorthLearning(sourceText, mat) ? sourceText : '',
@@ -299,7 +308,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
       if (item.id !== id) return item;
       const val = parseFloat(value) || 0;
       const updated = { ...item, [field]: val };
-      updated.total = updated.qty * updated.price * VAT_RATE;
+      updated.total = tinhThanhTien(updated.qty, updated.price);
       return updated;
     }));
   };
@@ -310,7 +319,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
     if (!orderResult) return;
     const updatedItems = orderResult.items.map((item) => {
       const price = getHistoricalUnitPrice(client.name, item.sku, transactions, item.price);
-      return { ...item, price, total: item.qty * price * VAT_RATE };
+      return { ...item, price, total: tinhThanhTien(item.qty, price) };
     });
     setOrderResult((cu) => ({ ...cu, client, items: updatedItems, grandTotal: tinhTong(updatedItems) }));
   };
@@ -328,7 +337,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
         name: material.name,
         unit: material.unit || 'PC',
         price,
-        total: item.qty * price * VAT_RATE,
+        total: tinhThanhTien(item.qty, price),
         confidence: 'Đã sửa thủ công',
         matchedAlias: isNewAliasWorthLearning(item.sourceQuery, material) ? item.sourceQuery : '',
         doiChieu: null
@@ -711,7 +720,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
                 borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)'
               }}>
                 <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                  Tổng giá trị đơn hàng (đã gồm VAT 8%):
+                  Tổng giá trị đơn hàng (đã gồm VAT {chuVatPhanTram(vatRate)}%):
                 </span>
                 <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-emerald-text)' }}>
                   {Math.round(orderResult.grandTotal).toLocaleString('vi-VN')} ₫

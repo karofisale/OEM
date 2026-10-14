@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut, Menu, KeyRound, Sun, Moon, Monitor, ArrowLeft, Settings } from 'lucide-react';
+import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut, Menu, KeyRound, Sun, Moon, Monitor, ArrowLeft, Settings, SlidersHorizontal } from 'lucide-react';
 import { setSetting } from '../services/prefsSync';
 import { useSetting } from '../hooks/useSetting';
 import { appKhacDungDuoc } from '../services/karofiSession';
 import { nhanVaiTro, TONE_CLASS } from '../utils/glossary';
 
-export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSyncing, onRefreshData, onOpenMobileMenu, onOpenChangePassword, onOpenSettings }) {
+export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSyncing, onRefreshData, onOpenMobileMenu, onOpenChangePassword, onOpenSettings, onOpenSystemSettings, systemActive }) {
   // Đọc một lần khi dựng: khối quyền nằm trong token, không đổi giữa các lần vẽ.
   const [appKhac] = useState(() => appKhacDungDuoc('OEM'));
 
@@ -204,6 +204,18 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
             title="Cài đặt cá nhân"
           >
             <Settings size={14} /> <span className="hide-mobile-xs">Cài đặt</span>
+          </button>
+        )}
+
+        {/* Cài đặt HỆ THỐNG: chỉ master (creator) — App chỉ truyền onOpenSystemSettings cho vai đó. */}
+        {onOpenSystemSettings && (
+          <button
+            onClick={onOpenSystemSettings}
+            className="btn btn-secondary btn-sm"
+            title="Cài đặt hệ thống (dùng chung cho mọi người dùng)"
+            aria-current={systemActive ? 'page' : undefined}
+          >
+            <SlidersHorizontal size={14} /> <span className="hide-mobile-xs">Hệ thống</span>
           </button>
         )}
 

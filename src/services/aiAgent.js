@@ -34,9 +34,29 @@
 // and checks each candidate independently.
 
 // Thành Tiền / Tổng Giá Trị are shown VAT-inclusive per request; Đơn Giá stays pre-VAT.
-import { vnTimestamp } from '../utils/vnDate';
+import { vnTimestamp } from '../utils/vnDate.js';
+import { getVatFactor } from './systemValues.js';
 
-export const VAT_RATE = 1.08;
+// Hệ số VAT KHÔNG còn là hằng số 1.08: thuế suất là cài đặt hệ thống `oem.vatRate` (master đặt, xem services/systemValues.js; mặc định 8%).
+// Hàm thuần nhận hệ số qua tham số `heSo` (test truyền thẳng); bỏ trống thì đọc kho giá trị hệ thống (mặc định 1.08 khi chưa tải được).
+/** Thành tiền đã gồm VAT của một dòng: số lượng x đơn giá (chưa VAT) x hệ số VAT. */
+export function tinhThanhTien(qty, price, heSo) {
+  return qty * price * (heSo == null ? getVatFactor() : heSo);
+}
+
+/** Tính lại thành tiền + tổng của một đơn đã dựng theo hệ số VAT mới. Không đổi gì thì trả NGUYÊN đối tượng cũ (khỏi vẽ lại). */
+export function tinhLaiDonTheoVat(order, heSo) {
+  if (!order || !Array.isArray(order.items)) return order;
+  let doi = false;
+  const items = order.items.map((it) => {
+    const total = tinhThanhTien(it.qty, it.price, heSo);
+    if (total === it.total) return it;
+    doi = true;
+    return { ...it, total };
+  });
+  if (!doi) return order;
+  return { ...order, items, grandTotal: items.reduce((s, i) => s + i.total, 0) };
+}
 
 // "Bộ cốc ĐL, Bộ cốc Đài Loan" -> ["Bộ cốc ĐL", "Bộ cốc Đài Loan"] — several
 // alternative names/aliases packed into one Sheet cell, comma-separated.
@@ -354,7 +374,8 @@ function expandKit_(line, qty, materialsCatalog, kits, warnings) {
 // `kits` (optional, from getBootstrap) enables deterministic "Bộ sản phẩm"
 // expansion — see expandKit_. Without a matching recipe, "bộ"/"combo"
 // wording is just stripped and the line matches as one ordinary product.
-export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, transactions, kits }) {
+export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, transactions, kits, vatFactor }) {
+  const heSoVat = vatFactor == null ? getVatFactor() : vatFactor;
   const lines = textInput.split(/\n|,|;/).map(l => l.trim()).filter(Boolean);
   const warnings = [];
 
@@ -378,7 +399,7 @@ export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, t
     const existing = orderItems.find(item => item.sku === matchedMaterial.sku);
     if (existing) {
       existing.qty += qty;
-      existing.total = existing.qty * existing.price * VAT_RATE;
+      existing.total = tinhThanhTien(existing.qty, existing.price, heSoVat);
     } else {
       orderItems.push({
         id: 'ITEM-' + Math.random().toString(36).substr(2, 6),
@@ -387,7 +408,7 @@ export function parseOrderTextToSAP({ textInput, clientList, materialsCatalog, t
         unit: matchedMaterial.unit || 'PC',
         qty: qty,
         price: price,
-        total: qty * price * VAT_RATE,
+        total: tinhThanhTien(qty, price, heSoVat),
         confidence: confidence,
         sourceQuery: sourceQuery,
         matchedAlias: isNewAliasWorthLearning(sourceQuery, matchedMaterial) ? sourceQuery : ''

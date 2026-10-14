@@ -31,6 +31,7 @@ const SalesPlan = React.lazy(() => import('./components/SalesPlan'));
 const SopPlan = React.lazy(() => import('./components/SopPlan'));
 const DebtManagement = React.lazy(() => import('./components/DebtManagement'));
 const Settings = React.lazy(() => import('./components/Settings'));
+const SystemSettings = React.lazy(() => import('./components/SystemSettings'));
 
 import KeepAliveTab from './components/KeepAliveTab';
 import { RefreshCw } from 'lucide-react';
@@ -41,9 +42,10 @@ import { readBootstrapCache, writeBootstrapCache, clearBootstrapCache } from './
 import { useToast } from './components/ToastProvider';
 import { useNavGuard } from './components/NavGuard';
 import { chayLacQuan } from './utils/optimistic';
-import { tabHopLe, TAB_SETTINGS } from './utils/navMeta';
+import { tabHopLe, tabMacDinh, TAB_SETTINGS, TAB_SYSTEM, coQuyenHeThong } from './utils/navMeta';
 import { tabMoDau } from './utils/settings';
 import * as prefs from './services/prefsSync';
+import * as sysvals from './services/systemValues';
 import { useSetting, useApplyDensity } from './hooks/useSetting';
 import { lamSachLoi } from './utils/errorText';
 import { readUi, writeUi, setUiScope } from './utils/uiState';
@@ -62,10 +64,11 @@ export default function App() {
     setUiScope(session && session.user && session.user.name);
     return tabMoDau({ landing: prefs.getSetting('st.landing'), saved: readUi('tab', null), role: session && session.user && session.user.role, tabHopLe });
   });
-  // Trang Cài đặt không được nhớ làm "tab cuối": F5 ở đó quay về tab làm việc gần nhất.
-  const setActiveTab = (id) => { navigatedRef.current = true; setActiveTabRaw(id); if (id !== TAB_SETTINGS) writeUi('tab', id); };
+  // Trang Cài đặt (cá nhân và hệ thống) không được nhớ làm "tab cuối": F5 ở đó quay về tab làm việc gần nhất.
+  const setActiveTab = (id) => { navigatedRef.current = true; setActiveTabRaw(id); if (id !== TAB_SETTINGS && id !== TAB_SYSTEM) writeUi('tab', id); };
   // Chuyển tab đi qua hộp thoại chung "còn thay đổi chưa lưu" (NavGuard).
-  const requestTab = (id) => { if (id !== activeTab) guard(() => setActiveTab(id)); };
+  // Cài đặt hệ thống chỉ dành cho master (creator): vai khác bấm/gọi vào cũng bị bỏ qua (máy chủ cũng từ chối getSystemSettings).
+  const requestTab = (id) => { if (id === TAB_SYSTEM && !coQuyenHeThong(session && session.user && session.user.role)) return; if (id !== activeTab) guard(() => setActiveTab(id)); };
   // Which tabs have ever been opened. Tabs mount on first visit and then stay
   // mounted (hidden) — see KeepAliveTab for why.
   const [visitedTabs, setVisitedTabs] = useState(() => new Set([activeTab]));
@@ -164,8 +167,17 @@ export default function App() {
   useEffect(() => {
     if (!session?.token || !hasLoadedOnce) return undefined;
     prefs.attach({ token: session.token, api });
-    return () => prefs.detach();
+    // Cài đặt hệ thống (VAT, % LNG mặc định...): cùng lúc, tải MỘT lần; lỗi thì im lặng dùng mặc định có sẵn (services/systemValues.js).
+    sysvals.attach({ token: session.token, api });
+    return () => { prefs.detach(); sysvals.detach(); };
   }, [session?.token, hasLoadedOnce]);
+
+  // Đang đứng ở trang Cài đặt hệ thống mà vai trò không (còn) là master (vd đổi người dùng): về tab mặc định của vai trò.
+  useEffect(() => {
+    if (session && activeTab === TAB_SYSTEM && !coQuyenHeThong(session.user && session.user.role)) {
+      setActiveTabRaw(tabMacDinh(session.user && session.user.role));
+    }
+  }, [session, activeTab]);
 
   // Áp một payload bootstrap — ĐỦ khối (mở app, Đồng bộ, bản cache) hoặc MỘT PHẦN ({parts}: sau khi sửa một chỗ chỉ làm mới đúng
   // khối đó). Khối nào payload không có thì giữ nguyên state hiện tại.
@@ -422,6 +434,8 @@ export default function App() {
         transactionCount={txTotal != null ? txTotal : allTransactions.length}
         activeUser={activeUser}
         onOpenSettings={() => requestTab(TAB_SETTINGS)}
+        onOpenSystemSettings={coQuyenHeThong(activeUser.role) ? () => requestTab(TAB_SYSTEM) : undefined}
+        systemActive={activeTab === TAB_SYSTEM}
       />
 
       {/* Main Container */}
@@ -435,6 +449,8 @@ export default function App() {
           onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
           onOpenChangePassword={() => setShowChangePasswordModal(true)}
           onOpenSettings={() => requestTab(TAB_SETTINGS)}
+          onOpenSystemSettings={coQuyenHeThong(activeUser.role) ? () => requestTab(TAB_SYSTEM) : undefined}
+          systemActive={activeTab === TAB_SYSTEM}
         />
 
         {/* isSyncing with no error yet showing (first attempt, or right after
@@ -590,6 +606,13 @@ export default function App() {
               onOpenChangePassword={() => setShowChangePasswordModal(true)}
             />
           </KeepAliveTab>
+
+          {/* Cài đặt hệ thống: CHỈ dựng cho master — vai khác không có phần tử này trong cây, dù activeTab có bị đặt thế nào. */}
+          {coQuyenHeThong(activeUser.role) && (
+            <KeepAliveTab isActive={activeTab === TAB_SYSTEM} hasVisited={visitedTabs.has(TAB_SYSTEM)}>
+              <SystemSettings token={session.token} activeUser={activeUser} isActive={activeTab === TAB_SYSTEM} />
+            </KeepAliveTab>
+          )}
 
         </main>
         )}

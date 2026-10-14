@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Palette, Rocket, Wrench, ShieldCheck, Monitor, Sun, Moon, KeyRound, RotateCcw, CheckCircle2, CloudOff, Loader2 } from 'lucide-react';
 import { setSetting, resetSettings } from '../services/prefsSync';
 import { useSetting, useSyncStatus } from '../hooks/useSetting';
+import { useCalcMargin } from '../hooks/useSystemValue';
 import { NAV, ACCOUNT_TAB_IDS } from '../utils/navMeta';
 import { CO_TRANG } from '../utils/paging';
 import { nhanVaiTro } from '../utils/glossary';
@@ -60,10 +61,12 @@ function Section({ icon: Icon, title, children }) {
 
 /** Ô nhập "Biên lợi nhuận": gõ tự do, lưu khi rời ô / Enter (kẹp 1–60, số lẻ làm tròn), gõ rác thì trả về số đang lưu. */
 function LngInput() {
-  const saved = useSetting('st.calcMargin');
+  // Chưa chọn thì ô hiện MẶC ĐỊNH HỆ THỐNG (oem.defaultMargin); gõ số khác mặc định hệ thống mới thành lựa chọn cá nhân.
+  const { value: saved } = useCalcMargin();
   const [draft, setDraft] = useState(String(saved));
   useEffect(() => { setDraft(String(saved)); }, [saved]);
   const commit = () => {
+    if (draft === String(saved)) return;   // chưa sửa gì (kể cả khi mặc định hệ thống là số lẻ) -> không biến nó thành lựa chọn cá nhân
     const n = chuanLng(draft);
     if (n == null) { setDraft(String(saved)); return; }
     setDraft(String(n));
@@ -99,6 +102,7 @@ export default function Settings({ activeUser, sso = false, onOpenChangePassword
   const reportSale = useSetting('st.reportSale');
   const toastSec = useSetting('st.toastSec');
   const status = useSyncStatus();
+  const margin = useCalcMargin();
   const [confirmReset, setConfirmReset] = useState(false);
 
   const role = String(activeUser.role || '').toLowerCase();
@@ -170,7 +174,7 @@ export default function Settings({ activeUser, sso = false, onOpenChangePassword
 
       <Section icon={Wrench} title="Công cụ">
         {coMayTinhGia && (
-          <Row title="Biên lợi nhuận mặc định của máy tính giá" hint={'Điền sẵn vào ô "% LNG" ở Sản phẩm & Bảng giá › Tính Giá. Từ ' + BIEN_LNG.min + ' đến ' + BIEN_LNG.max + '%.'}>
+          <Row title="Biên lợi nhuận mặc định của máy tính giá" hint={'Điền sẵn vào ô "% LNG" ở Sản phẩm & Bảng giá › Tính Giá. Từ ' + BIEN_LNG.min + ' đến ' + BIEN_LNG.max + '%. Mặc định của hệ thống hiện là ' + String(margin.heThong).replace('.', ',') + '% — bạn chưa chọn số riêng thì dùng số này.'}>
             <LngInput />
           </Row>
         )}

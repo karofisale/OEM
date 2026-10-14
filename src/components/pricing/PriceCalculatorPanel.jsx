@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Search, Calculator, AlertTriangle } from 'lucide-react';
 import * as api from '../../services/api';
 import { useToast } from '../ToastProvider';
-import { useSetting, useOnSettingChange } from '../../hooks/useSetting';
+import { useOnSettingChange } from '../../hooks/useSetting';
+import { useCalcMargin } from '../../hooks/useSystemValue';
 
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
 
@@ -13,9 +14,10 @@ export default function PriceCalculatorPanel({ token, materials }) {
   const toast = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSku, setSelectedSku] = useState('');
-  // % LNG điền sẵn lấy từ Cài đặt cá nhân (st.calcMargin, mặc định 20). `marginGo` = số người dùng đang gõ trên máy tính giá
-  // (null = chưa gõ -> theo cài đặt); đổi cài đặt thì bỏ số đang gõ để cài đặt mới có hiệu lực ngay.
-  const marginMacDinh = useSetting('st.calcMargin');
+  // % LNG điền sẵn: Cài đặt cá nhân (st.calcMargin) nếu người dùng đã chọn, không thì mặc định HỆ THỐNG (oem.defaultMargin, mặc định 20 —
+  // master đặt ở "Cài đặt hệ thống"). `marginGo` = số người dùng đang gõ trên máy tính giá (null = chưa gõ -> theo cài đặt);
+  // đổi cài đặt cá nhân thì bỏ số đang gõ để cài đặt mới có hiệu lực ngay.
+  const { value: marginMacDinh } = useCalcMargin();
   const [marginGo, setMarginPct] = useState(null);
   useOnSettingChange('st.calcMargin', () => setMarginPct(null));
   const marginPct = marginGo == null ? String(marginMacDinh) : marginGo;
