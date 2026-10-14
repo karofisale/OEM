@@ -9,6 +9,7 @@ import DtSaleReport from './reports/DtSaleReport';
 import DtThangReport from './reports/DtThangReport';
 import DtNgayReport from './reports/DtNgayReport';
 import { canSeeAllSales } from '../utils/roles';
+import { useReportDefaults } from '../hooks/useSetting';
 
 export default function RevenueReports({ transactions, txYears, clients, activeUser, baselines2025 }) {
   // Nhớ tab báo cáo + kiểu xem qua F5 (Đợt 2 / mục 9).
@@ -26,6 +27,9 @@ export default function RevenueReports({ transactions, txYears, clients, activeU
     const set = new Set(transactions.map(t => t.sale).filter(Boolean));
     return Array.from(set).sort();
   }, [transactions]);
+
+  // Năm / Sale mặc định theo Cài đặt cá nhân — chỉ khi người dùng chưa tự chọn ở từng báo cáo.
+  const macDinh = useReportDefaults(activeUser, salesList);
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -54,7 +58,7 @@ export default function RevenueReports({ transactions, txYears, clients, activeU
           đây là tính lại từ đầu mỗi lần, kèm mất bộ lọc năm/tháng/tuần/sale và
           trang đang xem. */}
       <KeepAliveTab isActive={reportTab === 'dt-sale'}>
-        <DtSaleReport transactions={scopedTransactions} txYears={txYears} viewMode={viewMode} />
+        <DtSaleReport transactions={scopedTransactions} txYears={txYears} viewMode={viewMode} macDinhNam={macDinh.nam} />
       </KeepAliveTab>
 
       <KeepAliveTab isActive={reportTab === 'dt-thang'}>
@@ -65,6 +69,8 @@ export default function RevenueReports({ transactions, txYears, clients, activeU
           canFilterAllSales={canFilterAllSales}
           viewMode={viewMode}
           baselines2025={baselines2025}
+          macDinhNam={macDinh.nam}
+          macDinhSale={macDinh.sale}
         />
       </KeepAliveTab>
 
@@ -75,6 +81,8 @@ export default function RevenueReports({ transactions, txYears, clients, activeU
           salesList={salesList}
           canFilterAllSales={canFilterAllSales}
           viewMode={viewMode}
+          macDinhNam={macDinh.nam}
+          macDinhSale={macDinh.sale}
         />
       </KeepAliveTab>
     </div>

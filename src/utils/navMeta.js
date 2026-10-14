@@ -50,6 +50,10 @@ export const ACCOUNT_TAB_IDS = ['products', 'clients', 'debt-importer'];
 
 export const TAB_DEFAULT = 'ai-agent';
 
+/** Trang Cài đặt cá nhân (14/10/2026): là một tab THẬT của App nhưng KHÔNG nằm trong NAV (vào từ nút "Cài đặt" ở thanh trên) và
+ *  mọi vai trò đều vào được, kể cả 'account'. Không có trong TAB_IDS nên không thể chọn làm "Trang đầu". */
+export const TAB_SETTINGS = 'settings';
+
 /** Vai trò làm việc chính là XEM báo cáo / duyệt (không phải lên đơn): mặc định vào Báo cáo doanh thu (Đợt 3). */
 export const VAI_TRO_BAO_CAO = ['admin', 'leader', 'lead'];
 export const TAB_BAO_CAO = 'revenue-reports';
@@ -68,6 +72,7 @@ export function tabMacDinh(role) {
 /** Tab mở đầu hợp lệ cho vai trò: tab đã nhớ nếu còn hợp lệ, không thì mặc định của vai trò. */
 export function tabHopLe(tab, role) {
   const mac = tabMacDinh(role);
+  if (tab === TAB_SETTINGS) return tab;
   if (!TAB_IDS.includes(tab)) return mac;
   if (role === 'account' && !ACCOUNT_TAB_IDS.includes(tab)) return mac;
   return tab;

@@ -261,6 +261,18 @@ export async function changePassword(token, oldPin, newPin) {
   return callApi('changePassword', [token, oldPin, newPin]);
 }
 
+// Cài đặt cá nhân theo tài khoản (14/10/2026, oem-api getMyPrefs/setMyPrefs) — xem services/prefsSync.js.
+// getMyPrefs -> { prefs: { khoá: giá trị } }. setMyPrefs(changes) với changes = { khoá: giá trị | null } (null = xoá khoá).
+// Cả hai là nền, hạn giờ ngắn (15s): máy chủ chưa có bảng / chưa có hàm thì báo lỗi ngay, nơi gọi nuốt lỗi và dùng bản cục bộ.
+// setMyPrefs CỐ Ý không nằm trong NON_IDEMPOTENT_FNS: gửi lại cùng payload cho ra đúng cùng kết quả (upsert theo khoá).
+export async function getMyPrefs(token) {
+  return callApi('getMyPrefs', [token], 15000);
+}
+
+export async function setMyPrefs(token, changes) {
+  return callApi('setMyPrefs', [token, changes], 15000);
+}
+
 export async function saveOrder(token, orderResult) {
   return callApi('saveOrder', [token, orderResult]);
 }

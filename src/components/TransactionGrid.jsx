@@ -15,6 +15,7 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { useEnsureYears } from '../hooks/useEnsureYears';
 import { useToast } from './ToastProvider';
 import { coTrangHopLe } from '../utils/paging';
+import { useDefaultPageSize, useOnSettingChange } from '../hooks/useSetting';
 import { dongXuatDoanhThu, tenFileDoanhThu } from '../utils/transactionsExport';
 
 // Cột sắp xếp được (Đợt 2 / mục 3). Ngày so theo thời điểm, không so chữ 'dd/MM/yyyy'.
@@ -42,8 +43,11 @@ export default function TransactionGrid({ transactions, txYears, materials, toke
   const [selectedMonth, setSelectedMonth] = usePersistentState('tx.month', null);
   const [currentPage, setCurrentPage] = useState(1);
   // Cỡ trang chọn được + nhớ qua F5 (Đợt 3): ~160 trang x 25 dòng là quá nhiều để bấm Sau từng trang.
-  const [pageSizeSaved, setPageSize] = usePersistentState('tx.pageSize', 25, (v) => coTrangHopLe(v, 0) !== 0);
-  const pageSize = coTrangHopLe(pageSizeSaved);
+  // null = chưa tự chọn cỡ trang ở đây -> theo Cài đặt cá nhân (st.pageSize) hoặc 25. Đổi cài đặt thì bỏ lựa chọn cũ để cài đặt mới thắng.
+  const pageSizeMacDinh = useDefaultPageSize(25);
+  const [pageSizeSaved, setPageSize] = usePersistentState('tx.pageSize', null, (v) => coTrangHopLe(v, 0) !== 0);
+  useOnSettingChange('st.pageSize', () => setPageSize(null));
+  const pageSize = coTrangHopLe(pageSizeSaved, pageSizeMacDinh);
   const [exporting, setExporting] = useState(false);
   // Bơm để NhipDoanhThu đọc lại mốc sau mỗi lượt nhập/cào — nếu không thì dòng
   // "cập nhật lần cuối" vẫn là mốc cũ ngay sau khi người dùng vừa cập nhật xong.

@@ -19,6 +19,9 @@
  *   &failsubmit=1  submitSopDraft báo lỗi;  &failadd=1  addMaterial báo lỗi thô;  &slowadd=1  addMaterial chậm 2 giây.
  *   addMaterial giả kiểm trùng SKU (không phân biệt hoa/thường) + giá âm như máy chủ thật rồi GHI vào danh mục giả.
  *   Lần gửi SOP gần nhất: window.__lastSopSubmit ({ anchor, rows }).
+ *   Cài đặt cá nhân (14/10/2026): máy chủ giả có getMyPrefs/setMyPrefs trong bộ nhớ (cất ở window.__prefsDb).
+ *   &prefs={"st.theme":"dark"}  gieo sẵn bản "trên máy chủ" (JSON, nhớ mã hoá URL);  &noprefs=1  giả máy chủ CHƯA có bảng (cả hai hàm báo lỗi);
+ *   &sso=1  phiên đăng nhập qua cổng VHKD (fromPortal) -> "Đổi PIN" hiện hướng dẫn thay vì form.
  * Lỗi/cảnh báo console: window.__consoleErrors (phải rỗng sau khi duyệt hết các tab).
  * Nhật ký lệnh ĐỌC: window.__harnessReads (mảng { fn, args }) — để soát client có gọi getTransactionsByYear đúng lúc không.
  * Nhật ký lệnh ghi: window.__harnessLog (mảng { fn, args }) — để soát gửi gì lên máy chủ (vd lý do từ chối).
@@ -37,7 +40,8 @@ const role = q.get('role') || 'admin';
 // ---- phiên giả (api.loadSession đọc khoá này) --------------------------------
 localStorage.setItem('oem_session_v1', JSON.stringify({
   token: 'harness', expiresAt: Date.UTC(2030, 0, 1), // xa, để đồng hồ giả (&gio=) không làm phiên hết hạn
-  user: { name: role === 'sale' ? 'luyen' : 'hai', role, saleId: role === 'sale' ? 'Luyến' : 'Hải' }
+  user: { name: role === 'sale' ? 'luyen' : 'hai', role, saleId: role === 'sale' ? 'Luyến' : 'Hải' },
+  ...(q.get('sso') ? { fromPortal: true } : {})
 }));
 if (q.get('theme')) localStorage.setItem('oem_theme_v1', q.get('theme'));
 
@@ -122,6 +126,16 @@ const sopMode = q.get('sop') || 'carry';
 const sopCarry = sopMode === 'empty' ? {} : Object.fromEntries(materials.slice(0, 12).map((m, i) => [m.sku, [10 + i, 20 + i, 30 + i, 0]]));
 let sopDraft = sopMode === 'draft' ? materials.slice(20, 25).map((m, i) => ({ sku: m.sku, sl1: 5 + i, sl2: 6, sl3: 0, sl4: 1 })) : [];
 
+// Cài đặt cá nhân giả (getMyPrefs/setMyPrefs): bản "trên máy chủ" cất ở sessionStorage của tab (sống qua F5, mất khi đóng tab);
+// &prefs=... gieo đè bản đó, &prefs=reset xoá. Dùng sessionStorage để thử được "tải lại -> cài đặt còn" mà không cần backend thật.
+let prefsDb = {};
+try {
+  const gieo = q.get('prefs');
+  if (gieo === 'reset') sessionStorage.removeItem('harness_prefs');
+  prefsDb = gieo && gieo !== 'reset' ? JSON.parse(gieo) : JSON.parse(sessionStorage.getItem('harness_prefs') || '{}');
+} catch { prefsDb = {}; }
+window.__prefsDb = prefsDb;
+
 const RAW_PG = 'duplicate key value violates unique constraint "products_sku_key"';
 window.__harnessLog = [];
 window.__harnessReads = [];
@@ -160,6 +174,16 @@ function doc(fn, args) {
       if (q.get('failyear')) throw new Error('Mô phỏng lỗi tải năm cũ (failyear=1)');
       const y = Number(args[1]);
       return { year: y, transactions: (txNamCu[y] || []).slice() };
+    }
+    case 'getMyPrefs':
+      if (q.get('noprefs')) throw new Error('relation "oem.user_prefs" does not exist');
+      return { prefs: { ...prefsDb } };
+    case 'setMyPrefs': {
+      if (q.get('noprefs')) throw new Error('relation "oem.user_prefs" does not exist');
+      const ch = args[1] || {};
+      Object.keys(ch).forEach((k) => { if (ch[k] === null) delete prefsDb[k]; else prefsDb[k] = ch[k]; });
+      try { sessionStorage.setItem('harness_prefs', JSON.stringify(prefsDb)); } catch { /* không sao */ }
+      return { ok: true };
     }
     case 'getMyRejectedPriceProposals': return { batches: rejected };
     case 'getReportContext': return { plan2026: {}, baselines2025: {} };

@@ -15,7 +15,10 @@ import { dongDeXuat, soMaCoNhap, boNhapDaGui, napLaiTuDotBiTuChoi } from '../../
 import RejectedProposals from './RejectedProposals';
 import { chuanTim } from '../../utils/searchText';
 
-const PAGE_SIZE = 25;
+import { useDefaultPageSize } from '../../hooks/useSetting';
+
+// Cỡ trang mặc định của màn này; Cài đặt cá nhân (st.pageSize) nếu đã chọn thì thắng.
+const PAGE_SIZE_MAC_DINH = 25;
 // Lựa chọn "không chọn khách" trong ô tìm khách: đề xuất giá CHUNG.
 const KHACH_CHUNG = { codeSearch: '', name: 'Áp dụng chung (mọi khách hàng)' };
 const nhanKhach = (c) => (c.codeSearch ? `${c.codeSearch} — ${c.name}` : c.name);
@@ -34,6 +37,7 @@ const formatDigits = (v) => (v ? Number(v).toLocaleString('vi-VN') : '');
 // Chọn "Khách hàng" cụ thể thay vì "Áp dụng chung" biến đây thành đề xuất
 // giá RIÊNG chỉ cho khách đó (không đụng giá chung trên Products).
 export default function PriceProposePanel({ token, materials, clients, activeUser, onSubmitted, refreshTick }) {
+  const PAGE_SIZE = useDefaultPageSize(PAGE_SIZE_MAC_DINH);
   const toast = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   // Nhóm SP nhớ qua F5 (Đợt 2 / mục 9). Khách KHÔNG nhớ: giá nháp gắn với khách đang chọn.

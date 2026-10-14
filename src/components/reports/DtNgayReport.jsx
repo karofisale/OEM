@@ -9,8 +9,10 @@ import { useTableSort } from '../../hooks/useTableSort';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { useEnsureYears } from '../../hooks/useEnsureYears';
 import { hienNgay } from '../../utils/vnDate';
+import { useDefaultPageSize, useOnSettingChange } from '../../hooks/useSetting';
 
-const PAGE_SIZE = 50;
+// Cỡ trang mặc định của màn này; Cài đặt cá nhân (st.pageSize) nếu đã chọn thì thắng.
+const PAGE_SIZE_MAC_DINH = 50;
 // Cột sắp xếp được (Đợt 2 / mục 3). Ngày so theo THỜI ĐIỂM (đọc được cả dd/MM/yyyy lẫn ISO): so chữ
 // 'dd/MM/yyyy' sẽ xếp 31/08 sau 01/10.
 const COLS = [
@@ -19,15 +21,21 @@ const COLS = [
 ];
 const SAP_MAC_DINH = { key: 'date', dir: 'desc' }; // mới nhất trước, như bản cũ
 
-export default function DtNgayReport({ transactions, txYears, salesList, canFilterAllSales, viewMode }) {
+export default function DtNgayReport({ transactions, txYears, salesList, canFilterAllSales, viewMode, macDinhNam, macDinhSale }) {
+  const PAGE_SIZE = useDefaultPageSize(PAGE_SIZE_MAC_DINH);
   // Bộ lọc nhớ qua F5 (Đợt 2 / mục 9); giá trị đã nhớ mà không còn trong dữ liệu thì rơi về mặc định.
-  const [saleSaved, setNgayFilterSale] = usePersistentState('rpt.ngay.sale', 'ALL');
+  const [saleRaw, setNgayFilterSale] = usePersistentState('rpt.ngay.sale', null);   // null = chưa chọn -> theo Cài đặt cá nhân (st.reportSale)
+  const saleSaved = saleRaw == null ? macDinhSale : saleRaw;
   const ngayFilterSale = saleSaved === 'ALL' || (salesList || []).includes(saleSaved) ? saleSaved : 'ALL';
   // null = chưa chọn -> năm / tháng mới nhất có dữ liệu. "Tất cả tháng" chỉ cộng trong năm đang chọn (02/10/2026).
-  const [ngayFilterYear, setNgayFilterYear] = usePersistentState('rpt.ngay.year', null);
+  const [ngayYearSaved, setNgayFilterYear] = usePersistentState('rpt.ngay.year', null);
+  const ngayFilterYear = ngayYearSaved || macDinhNam || null;   // chưa chọn -> Cài đặt cá nhân st.reportYear (null = năm mới nhất có dữ liệu)
   const [ngayFilterMonth, setNgayFilterMonth] = usePersistentState('rpt.ngay.month', null);
   const [weekSaved, setNgayFilterWeek] = usePersistentState('rpt.ngay.week', 'ALL');
   const [page, setPage] = useState(1);
+  // Đổi mặc định trong Cài đặt cá nhân -> bỏ bộ lọc năm/tháng/Sale đã nhớ để mặc định mới có hiệu lực ngay.
+  useOnSettingChange('st.reportYear', () => { setNgayFilterYear(null); setNgayFilterMonth(null); });
+  useOnSettingChange('st.reportSale', () => setNgayFilterSale(null));
 
   const weeksList = useMemo(() => weeksFromTransactions(transactions), [transactions]);
   const ngayFilterWeek = weekSaved === 'ALL' || weeksList.includes(weekSaved) ? weekSaved : 'ALL';

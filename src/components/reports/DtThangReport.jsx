@@ -6,6 +6,7 @@ import SortableTh from '../SortableTh';
 import TableState from '../TableState';
 import { useTableSort } from '../../hooks/useTableSort';
 import { usePersistentState } from '../../hooks/usePersistentState';
+import { useOnSettingChange } from '../../hooks/useSetting';
 import { useEnsureYears } from '../../hooks/useEnsureYears';
 
 // Cột sắp xếp được (Đợt 2 / mục 3). `pct` = % biến động so với kỳ đối chiếu (rỗng nếu chưa có số liệu đối chiếu -> luôn nằm cuối).
@@ -18,16 +19,21 @@ const COLS = [
 // 'T07-2026' for anything else — so from September the report would silently have
 // compared September against July, and January would never have reached December.
 
-export default function DtThangReport({ transactions, txYears, salesList, canFilterAllSales, viewMode, baselines2025 }) {
+export default function DtThangReport({ transactions, txYears, salesList, canFilterAllSales, viewMode, baselines2025, macDinhNam, macDinhSale }) {
   // Bộ lọc nhớ qua F5 (Đợt 2 / mục 9); giá trị đã nhớ mà không còn trong dữ liệu thì rơi về mặc định.
-  const [saleSaved, setThangFilterSale] = usePersistentState('rpt.thang.sale', 'ALL');
+  const [saleRaw, setThangFilterSale] = usePersistentState('rpt.thang.sale', null);   // null = chưa chọn -> theo Cài đặt cá nhân (st.reportSale)
+  const saleSaved = saleRaw == null ? macDinhSale : saleRaw;
   const thangFilterSale = saleSaved === 'ALL' || (salesList || []).includes(saleSaved) ? saleSaved : 'ALL';
   // null = người dùng CHƯA chọn gì: năm rơi về năm mới nhất có dữ liệu, tháng rơi về tháng mới nhất CỦA NĂM đó. Không đặt
   // cứng "tháng theo đồng hồ máy": mùng 1-3 hàng tháng đợt đổ dữ liệu SAP chưa về thì báo cáo sẽ rỗng — đúng cái bẫy mà ghi
   // chú đầu file này đã kể. "Tất cả các tháng" CHỈ cộng trong năm đang chọn (trước đây cộng gộp mọi tháng của mọi năm rồi
   // so với nền 2025) và so với CẢ NĂM TRƯỚC (02/10/2026).
-  const [thangFilterYear, setThangFilterYear] = usePersistentState('rpt.thang.year', null);
+  const [thangYearSaved, setThangFilterYear] = usePersistentState('rpt.thang.year', null);
+  const thangFilterYear = thangYearSaved || macDinhNam || null;   // chưa chọn -> Cài đặt cá nhân st.reportYear (null = năm mới nhất có dữ liệu)
   const [thangFilterMonth, setThangFilterMonth] = usePersistentState('rpt.thang.month', null);
+  // Đổi mặc định trong Cài đặt cá nhân -> bỏ bộ lọc năm/tháng/Sale đã nhớ để mặc định mới có hiệu lực ngay.
+  useOnSettingChange('st.reportYear', () => { setThangFilterYear(null); setThangFilterMonth(null); });
+  useOnSettingChange('st.reportSale', () => setThangFilterSale(null));
 
   const { years: yearsList, year: effectiveYear, months: monthsList, month: effectiveMonth } =
     useMemo(() => resolvePeriod(transactions, thangFilterYear, thangFilterMonth, txYears && txYears.olderYears), [transactions, thangFilterYear, thangFilterMonth, txYears && txYears.olderYears]);

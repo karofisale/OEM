@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Settings as SettingsIcon
 } from 'lucide-react';
 import { NAV, ACCOUNT_TAB_IDS, iconOf } from '../utils/navMeta';
 import { nhanVaiTro } from '../utils/glossary';
@@ -14,7 +15,7 @@ import { version as APP_VERSION } from '../../package.json';
 // tiết hơn (view-only, ai được sửa gì) nằm trong từng trang, không phải ở đây.
 // Danh sách id + icon + nhãn nằm ở utils/navMeta.js (mỗi mục một icon riêng).
 
-export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, transactionCount = 0, activeUser }) {
+export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, transactionCount = 0, activeUser, onOpenSettings }) {
   // The mobile drawer always shows full labels — icon-only collapse is a
   // desktop-only space-saving mode, not something worth doing in an overlay.
   const effectiveCollapsed = isMobileOpen ? false : isCollapsed;
@@ -202,6 +203,12 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
         <div style={{ marginTop: 'auto', padding: '8px 10px', borderTop: '1px solid var(--border-color)', fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
           {activeUser && activeUser.role && (
             <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{nhanVaiTro(activeUser.role, activeUser.saleId).text}</div>
+          )}
+          {onOpenSettings && (
+            // Lối vào Cài đặt thứ hai: trên điện thoại thanh trên không đủ chỗ cho nút "Cài đặt" (14/10/2026).
+            <button type="button" onClick={() => { onOpenSettings(); if (onCloseMobile) onCloseMobile(); }} className="btn btn-secondary btn-sm" style={{ width: '100%', margin: '6px 0' }}>
+              <SettingsIcon size={14} /> Cài đặt
+            </button>
           )}
           <div>OEM Portal · v{APP_VERSION}</div>
         </div>

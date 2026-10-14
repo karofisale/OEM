@@ -15,7 +15,10 @@ import { usePersistentState } from '../hooks/usePersistentState';
 import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 
 const fmtPrice = (v) => (v ? v.toLocaleString('vi-VN') : '-');
-const PAGE_SIZE = 25;
+import { useDefaultPageSize } from '../hooks/useSetting';
+
+// Cỡ trang mặc định của màn này; Cài đặt cá nhân (st.pageSize) nếu đã chọn thì thắng.
+const PAGE_SIZE_MAC_DINH = 25;
 // Cột sắp xếp được (Đợt 2 / mục 3).
 const COLS = [
   { key: 'sku' }, { key: 'name' }, { key: 'group' },
@@ -26,6 +29,7 @@ const COLS = [
 // `transactions` used to be passed in and destructured here but was never read —
 // dropped, so this component no longer re-renders when the transaction list changes.
 export default function ProductManagement({ materials, token, activeUser, onAddMaterial, onEditMaterial }) {
+  const PAGE_SIZE = useDefaultPageSize(PAGE_SIZE_MAC_DINH);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = usePersistentState('products.view', 'table', (v) => v === 'table' || v === 'grid');

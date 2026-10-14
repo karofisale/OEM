@@ -16,7 +16,10 @@ import { useTableSort } from '../../hooks/useTableSort';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { useUnsavedGuard } from '../../hooks/useUnsavedGuard';
 
-const PAGE_SIZE = 25;
+import { useDefaultPageSize } from '../../hooks/useSetting';
+
+// Cỡ trang mặc định của màn này; Cài đặt cá nhân (st.pageSize) nếu đã chọn thì thắng.
+const PAGE_SIZE_MAC_DINH = 25;
 
 function monthKeyToInputValue(key) {
   const p = parseMonthKey(key);
@@ -62,6 +65,7 @@ const draftFromPlanRow = (p) => ({
 // (2) mọi khách đã có dòng kế hoạch của đúng tháng này (kể cả khách không có
 // KPI năm), (3) khách Sale tự bổ sung bằng ô tìm + nút "Thêm KH vào kế hoạch".
 export default function SalesPlanProposePanel({ token, clients, plans, transactions, plan2026, planDefaultMonth, activeUser, onSubmitted, onReloadPlanKpi }) {
+  const PAGE_SIZE = useDefaultPageSize(PAGE_SIZE_MAC_DINH);
   const toast = useToast();
   const canFilterAllSales = canSeeAllSales(activeUser.role);
   const isSale = String(activeUser.role || '').toLowerCase() === 'sale';

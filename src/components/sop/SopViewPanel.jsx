@@ -8,13 +8,17 @@ import { useToast } from '../ToastProvider';
 import { vnDateSlug } from '../../utils/vnDate';
 import { useTableSort } from '../../hooks/useTableSort';
 
-const PAGE_SIZE = 25;
+import { useDefaultPageSize } from '../../hooks/useSetting';
+
+// Cỡ trang mặc định của màn này; Cài đặt cá nhân (st.pageSize) nếu đã chọn thì thắng.
+const PAGE_SIZE_MAC_DINH = 25;
 const fmtNum = (v) => (v || 0).toLocaleString('vi-VN');
 const fmtMoney = (v) => (v || 0).toLocaleString('vi-VN') + ' đ';
 
 // Read-facing forecast: tab "SOP" after the latest approval. Anyone logged in
 // can see it (same tier as Orders/Products), only Admin/Creator can change it.
 export default function SopViewPanel({ token, refreshTick }) {
+  const PAGE_SIZE = useDefaultPageSize(PAGE_SIZE_MAC_DINH);
   const toast = useToast();
   const [rows, setRows] = useState([]);
   const [monthLabels, setMonthLabels] = useState([]);

@@ -555,6 +555,13 @@ body {
   background: var(--summary-row-bg) !important;
 }
 
+/* Mật độ bảng "Gọn" (Cài đặt cá nhân st.density = compact; class gắn lên <html> bởi hooks/useSetting.js#useApplyDensity).
+   Chỉ thu hẹp đệm của tiêu đề + ô; cỡ chữ giữ nguyên để không làm khó đọc. Dòng tổng dính (top-summary-row) dính ngay dưới
+   tiêu đề nên `top` phải theo chiều cao tiêu đề mới. */
+.density-compact .custom-table th { padding: 7px 12px; }
+.density-compact .custom-table td { padding: 5px 12px; }
+.density-compact .top-summary-row td { top: 31px; }
+
 /* Tiêu đề cột bấm được để sắp xếp (SortableTh). */
 .th-sort {
   display: inline-flex;

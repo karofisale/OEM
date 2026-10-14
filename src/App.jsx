@@ -30,6 +30,7 @@ const ClientManagement = React.lazy(() => import('./components/ClientManagement'
 const SalesPlan = React.lazy(() => import('./components/SalesPlan'));
 const SopPlan = React.lazy(() => import('./components/SopPlan'));
 const DebtManagement = React.lazy(() => import('./components/DebtManagement'));
+const Settings = React.lazy(() => import('./components/Settings'));
 
 import KeepAliveTab from './components/KeepAliveTab';
 import { RefreshCw } from 'lucide-react';
@@ -40,7 +41,10 @@ import { readBootstrapCache, writeBootstrapCache, clearBootstrapCache } from './
 import { useToast } from './components/ToastProvider';
 import { useNavGuard } from './components/NavGuard';
 import { chayLacQuan } from './utils/optimistic';
-import { tabHopLe } from './utils/navMeta';
+import { tabHopLe, TAB_SETTINGS } from './utils/navMeta';
+import { tabMoDau } from './utils/settings';
+import * as prefs from './services/prefsSync';
+import { useSetting, useApplyDensity } from './hooks/useSetting';
 import { lamSachLoi } from './utils/errorText';
 import { readUi, writeUi, setUiScope } from './utils/uiState';
 import { gopGiaoDich } from './utils/txYears';
@@ -53,11 +57,13 @@ export default function App() {
   // admin/leader vào báo cáo doanh thu, Sale vào AI Nhận Đơn Hàng, kế toán vào Sản phẩm. tabHopLe() chặn tab đã nhớ mà vai trò hiện tại
   // không được vào (vd kế toán chỉ có 3 mục). Phạm vi theo tên người đăng nhập:
   // máy dùng chung thì người sau không thừa hưởng tab/bộ lọc của người trước.
+  // Cài đặt "Trang đầu" (st.landing, 14/10/2026): 'auto' giữ đúng hành vi trên; chọn một tab cụ thể thì mở tab đó mỗi lần vào app.
   const [activeTab, setActiveTabRaw] = useState(() => {
     setUiScope(session && session.user && session.user.name);
-    return tabHopLe(readUi('tab', null), session && session.user && session.user.role);
+    return tabMoDau({ landing: prefs.getSetting('st.landing'), saved: readUi('tab', null), role: session && session.user && session.user.role, tabHopLe });
   });
-  const setActiveTab = (id) => { setActiveTabRaw(id); writeUi('tab', id); };
+  // Trang Cài đặt không được nhớ làm "tab cuối": F5 ở đó quay về tab làm việc gần nhất.
+  const setActiveTab = (id) => { navigatedRef.current = true; setActiveTabRaw(id); if (id !== TAB_SETTINGS) writeUi('tab', id); };
   // Chuyển tab đi qua hộp thoại chung "còn thay đổi chưa lưu" (NavGuard).
   const requestTab = (id) => { if (id !== activeTab) guard(() => setActiveTab(id)); };
   // Which tabs have ever been opened. Tabs mount on first visit and then stay
@@ -67,7 +73,18 @@ export default function App() {
   // refetches just because the user came back to the tab. This flag is how it
   // learns it genuinely needs to: set when the AI agent saves a new order.
   const [ordersStale, setOrdersStale] = useState(true);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  // Menu thu gọn: cài đặt cá nhân (st.sidebarCollapsed) là mặc định lúc mở app; bấm mũi tên chỉ đổi tạm trong phiên.
+  const sidebarMacDinh = useSetting('st.sidebarCollapsed');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(sidebarMacDinh);
+  useEffect(() => { setIsSidebarCollapsed(sidebarMacDinh); }, [sidebarMacDinh]);
+  useApplyDensity(!!session);
+  // Người dùng đã tự chuyển tab chưa — chưa thì "Trang đầu" về muộn từ máy chủ (máy mới) vẫn áp được.
+  const navigatedRef = useRef(false);
+  const landing = useSetting('st.landing');
+  useEffect(() => {
+    if (!session || navigatedRef.current) return;
+    setActiveTabRaw(tabMoDau({ landing, saved: readUi('tab', null), role: session.user && session.user.role, tabHopLe }));
+  }, [landing]); // eslint-disable-line react-hooks/exhaustive-deps
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -141,6 +158,14 @@ export default function App() {
       // hiện được, chỉ thiếu cột so sánh — không chặn việc.
     });
   }, [activeTab, daNapBaoCao, session?.token, napBaoCao]);
+
+  // Cài đặt cá nhân theo tài khoản (14/10/2026): sau khi dữ liệu đã lên màn (không tranh đường mạng với bootstrap) tải một lần
+  // từ máy chủ rồi gộp vào bản cục bộ — xem services/prefsSync.js. Máy chủ lỗi / chưa có bảng thì im lặng dùng bản cục bộ.
+  useEffect(() => {
+    if (!session?.token || !hasLoadedOnce) return undefined;
+    prefs.attach({ token: session.token, api });
+    return () => prefs.detach();
+  }, [session?.token, hasLoadedOnce]);
 
   // Áp một payload bootstrap — ĐỦ khối (mở app, Đồng bộ, bản cache) hoặc MỘT PHẦN ({parts}: sau khi sửa một chỗ chỉ làm mới đúng
   // khối đó). Khối nào payload không có thì giữ nguyên state hiện tại.
@@ -233,15 +258,18 @@ export default function App() {
   const handleLoginSuccess = (newSession) => {
     // Đổi người dùng: bộ lọc/tab nhớ được tính theo người MỚI.
     setUiScope(newSession && newSession.user && newSession.user.name);
+    navigatedRef.current = false;
     setSession(newSession);
     setShowLoginModal(false);
     // Đã có tab được nhớ (của người này, phạm vi theo tên) thì giữ; CHƯA có thì mặc định THEO VAI TRÒ (tabMacDinh:
     // admin/leader -> báo cáo, Sale -> AI, kế toán -> Sản phẩm), không thừa hưởng tab của người đăng nhập trước.
     // Dùng Raw: tab mặc định chưa phải lựa chọn của người dùng nên chưa ghi vào bộ nhớ.
-    setActiveTabRaw(tabHopLe(readUi('tab', null), newSession?.user?.role));
+    // "Trang đầu" (st.landing) của người MỚI được đọc sau khi setUiScope ở trên đã đổi phạm vi.
+    setActiveTabRaw(tabMoDau({ landing: prefs.getSetting('st.landing'), saved: readUi('tab', null), role: newSession?.user?.role, tabHopLe }));
   };
 
   const handleLogout = () => {
+    prefs.flushNow();   // đẩy nốt cài đặt còn chờ (nuốt lỗi) trước khi mất token
     api.clearSession();
     clearBootstrapCache(); // don't leave business data on a shared machine
 
@@ -393,6 +421,7 @@ export default function App() {
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
         transactionCount={txTotal != null ? txTotal : allTransactions.length}
         activeUser={activeUser}
+        onOpenSettings={() => requestTab(TAB_SETTINGS)}
       />
 
       {/* Main Container */}
@@ -405,6 +434,7 @@ export default function App() {
           onRefreshData={() => fetchAllData(true)}
           onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
           onOpenChangePassword={() => setShowChangePasswordModal(true)}
+          onOpenSettings={() => requestTab(TAB_SETTINGS)}
         />
 
         {/* isSyncing with no error yet showing (first attempt, or right after
@@ -553,6 +583,14 @@ export default function App() {
             <DebtManagement token={session.token} activeUser={activeUser} clients={clients} />
           </KeepAliveTab>
 
+          <KeepAliveTab isActive={activeTab === TAB_SETTINGS} hasVisited={visitedTabs.has(TAB_SETTINGS)}>
+            <Settings
+              activeUser={activeUser}
+              sso={!!session.fromPortal}
+              onOpenChangePassword={() => setShowChangePasswordModal(true)}
+            />
+          </KeepAliveTab>
+
         </main>
         )}
       </div>
@@ -569,6 +607,7 @@ export default function App() {
       {showChangePasswordModal && (
         <ChangePasswordModal
           token={session.token}
+          sso={!!session.fromPortal}
           onClose={() => setShowChangePasswordModal(false)}
         />
       )}

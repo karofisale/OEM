@@ -7,7 +7,10 @@ import TableState from '../TableState';
 import { hienNgay } from '../../utils/vnDate';
 import { useTableSort } from '../../hooks/useTableSort';
 
-const PAGE_SIZE = 25;
+import { useDefaultPageSize } from '../../hooks/useSetting';
+
+// Cỡ trang mặc định của màn này; Cài đặt cá nhân (st.pageSize) nếu đã chọn thì thắng.
+const PAGE_SIZE_MAC_DINH = 25;
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
 // Cột sắp xếp được (Đợt 2 / mục 3).
 const COLS = [
@@ -20,6 +23,7 @@ const COLS = [
 // (oemAppScopeOf_/oemAppMatchesSale_ on the PIC column), so a Sale only sees
 // their own clients' debt while Admin/Creator/Leader see everyone.
 export default function DebtViewPanel({ token, refreshTick }) {
+  const PAGE_SIZE = useDefaultPageSize(PAGE_SIZE_MAC_DINH);
   const [rows, setRows] = useState([]);
   // Ngày giờ lần tải công nợ gần nhất (backend đóng dấu mỗi lần nhập Excel / skill cong-no-oem, 29/09/2026)
   const [lastUpdated, setLastUpdated] = useState('');

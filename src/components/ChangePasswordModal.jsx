@@ -4,8 +4,11 @@ import * as api from '../services/api';
 import Modal from './Modal';
 import { lamSachLoi } from '../utils/errorText';
 import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
+import { kiemTraPin, GHI_CHU_PIN, HUONG_DAN_PIN_SSO } from '../utils/pinRule';
 
-export default function ChangePasswordModal({ token, onClose }) {
+// `sso` = phiên đăng nhập qua cổng VHKD (Karofi ID): máy chủ từ chối đổi PIN ở đây ("Đổi PIN tại cổng VHKD"),
+// nên không hiện form mà chỉ chỉ đường về cổng.
+export default function ChangePasswordModal({ token, onClose, sso = false }) {
   const [oldPin, setOldPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -16,8 +19,9 @@ export default function ChangePasswordModal({ token, onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (newPin.length < 4) {
-      setError('Mã PIN mới phải có ít nhất 4 ký tự.');
+    const loiPin = kiemTraPin(newPin);   // luật PIN chung (utils/pinRule.js): >= 6 chữ số, không toàn số giống nhau, không dãy liên tiếp
+    if (loiPin) {
+      setError(loiPin);
       return;
     }
     if (newPin !== confirmPin) {
@@ -56,7 +60,17 @@ export default function ChangePasswordModal({ token, onClose }) {
           </h2>
         </div>
 
-        {success ? (
+        {sso ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
+              {HUONG_DAN_PIN_SSO}
+            </div>
+            <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+              <button type="button" onClick={onClose} className="btn btn-secondary" style={{ flex: 1 }}>Đóng</button>
+              <a href="/VHKD/" className="btn btn-primary" style={{ flex: 2, textDecoration: 'none', justifyContent: 'center' }}>Mở cổng VHKD</a>
+            </div>
+          </div>
+        ) : success ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', textAlign: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-emerald-text)', fontWeight: 700 }}>
               <CheckCircle2 size={20} /> Đổi mã PIN thành công!
@@ -91,11 +105,14 @@ export default function ChangePasswordModal({ token, onClose }) {
                   type="password"
                   className="input-field"
                   style={{ paddingLeft: '38px' }}
-                  placeholder="Ít nhất 4 ký tự"
+                  placeholder="Ít nhất 6 chữ số"
+                  inputMode="numeric"
+                  autoComplete="new-password"
                   value={newPin}
                   onChange={(e) => setNewPin(e.target.value)}
                 />
               </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>{GHI_CHU_PIN}</div>
             </div>
 
             <div className="form-group" style={{ margin: 0 }}>

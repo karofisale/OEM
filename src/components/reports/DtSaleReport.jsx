@@ -5,6 +5,7 @@ import SortableTh from '../SortableTh';
 import TableState from '../TableState';
 import { useTableSort } from '../../hooks/useTableSort';
 import { usePersistentState } from '../../hooks/usePersistentState';
+import { useOnSettingChange } from '../../hooks/useSetting';
 import { useEnsureYears } from '../../hooks/useEnsureYears';
 
 // Cột sắp xếp được (Đợt 2 / mục 3).
@@ -13,13 +14,16 @@ const COLS = [
   { key: 'totalRevenue', type: 'number' }, { key: 'share', type: 'number', get: (r) => r.totalRevenue }
 ];
 
-export default function DtSaleReport({ transactions, txYears, viewMode }) {
+export default function DtSaleReport({ transactions, txYears, viewMode, macDinhNam }) {
   // null = chưa chọn: năm rơi về năm mới nhất có dữ liệu, tháng rơi về tháng mới nhất CỦA NĂM đó (không phải tháng theo
   // đồng hồ máy: mùng 1-3 đợt đổ dữ liệu SAP chưa về thì màn sẽ rỗng). "Tất cả tháng" chỉ cộng trong năm đang chọn —
   // không còn mục "Tất cả năm" trộn các năm vào một số (02/10/2026).
   // Bộ lọc năm/tháng/tuần nhớ qua F5 (Đợt 2 / mục 9); giá trị đã nhớ mà không còn trong dữ liệu thì rơi về mặc định.
-  const [saleFilterYear, setSaleFilterYear] = usePersistentState('rpt.sale.year', null);
+  const [saleYearSaved, setSaleFilterYear] = usePersistentState('rpt.sale.year', null);
+  const saleFilterYear = saleYearSaved || macDinhNam || null;   // chưa chọn -> Cài đặt cá nhân st.reportYear (null = năm mới nhất có dữ liệu)
   const [saleFilterMonth, setSaleFilterMonth] = usePersistentState('rpt.sale.month', null);
+  // Đổi mặc định trong Cài đặt cá nhân -> bỏ bộ lọc năm/tháng đã nhớ để mặc định mới có hiệu lực ngay.
+  useOnSettingChange('st.reportYear', () => { setSaleFilterYear(null); setSaleFilterMonth(null); });
   const [weekSaved, setSaleFilterWeek] = usePersistentState('rpt.sale.week', 'ALL');
 
   const weeksList = useMemo(() => weeksFromTransactions(transactions), [transactions]);

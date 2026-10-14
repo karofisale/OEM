@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut, Menu, KeyRound, Sun, Moon, Monitor, ArrowLeft } from 'lucide-react';
-import { loadTheme, applyTheme } from '../services/theme';
+import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut, Menu, KeyRound, Sun, Moon, Monitor, ArrowLeft, Settings } from 'lucide-react';
+import { setSetting } from '../services/prefsSync';
+import { useSetting } from '../hooks/useSetting';
 import { appKhacDungDuoc } from '../services/karofiSession';
 import { nhanVaiTro, TONE_CLASS } from '../utils/glossary';
 
-export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSyncing, onRefreshData, onOpenMobileMenu, onOpenChangePassword }) {
+export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSyncing, onRefreshData, onOpenMobileMenu, onOpenChangePassword, onOpenSettings }) {
   // Đọc một lần khi dựng: khối quyền nằm trong token, không đổi giữa các lần vẽ.
   const [appKhac] = useState(() => appKhacDungDuoc('OEM'));
 
@@ -20,7 +21,8 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
 
   // Cycles system -> light -> dark. 'system' is the default and follows the OS,
   // which is why it is a three-way toggle rather than a two-way switch.
-  const [theme, setTheme] = React.useState(loadTheme);
+  // Theme là một Cài đặt cá nhân (st.theme): đổi ở đây hay ở trang Cài đặt đều lưu cục bộ + đồng bộ lên máy chủ.
+  const theme = useSetting('st.theme');
   const THEME_UI = {
     system: { Icon: Monitor, label: 'Giao diện: theo hệ thống', next: 'light' },
     light:  { Icon: Sun,     label: 'Giao diện: sáng',          next: 'dark' },
@@ -28,9 +30,7 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
   };
   const themeUi = THEME_UI[theme] || THEME_UI.system;
   const cycleTheme = () => {
-    const next = themeUi.next;
-    setTheme(next);
-    applyTheme(next);
+    setSetting('st.theme', themeUi.next);
   };
 
   return (
@@ -196,6 +196,16 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
         >
           <themeUi.Icon size={14} />
         </button>
+
+        {onOpenSettings && (
+          <button
+            onClick={onOpenSettings}
+            className="btn btn-secondary btn-sm"
+            title="Cài đặt cá nhân"
+          >
+            <Settings size={14} /> <span className="hide-mobile-xs">Cài đặt</span>
+          </button>
+        )}
 
         <button
           onClick={onOpenChangePassword}

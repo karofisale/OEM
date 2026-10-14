@@ -16,7 +16,10 @@ import {
   trangThaiChonTatCa, chonTatCa, giuChonConHien, khopLoc, dongKeHoach, datLenDau, doanhThuTheoThang, coSL
 } from '../../utils/sopPlan';
 
-const PAGE_SIZE = 25;
+import { useDefaultPageSize } from '../../hooks/useSetting';
+
+// Cỡ trang mặc định của màn này; Cài đặt cá nhân (st.pageSize) nếu đã chọn thì thắng.
+const PAGE_SIZE_MAC_DINH = 25;
 const UNDO_MS = 15000;   // dải Hoàn tác tự hết hiệu lực sau ~15 giây
 const FLASH_MS = 4500;   // dòng vừa thêm nổi bật chừng này rồi mờ
 
@@ -25,6 +28,7 @@ const FLASH_MS = 4500;   // dòng vừa thêm nổi bật chừng này rồi m�
 // Server thay thế hoàn toàn theo (kỳ, sale): mã không gửi lên bị xoá khỏi kỳ đó — nên "bỏ mã" ở đây chỉ là không gửi mã đó.
 // Logic thuần nằm ở utils/sopPlan.js (có test).
 export default function SopPlanPanel({ token, materials, refreshTick, onSubmitted, onAddMaterial }) {
+  const PAGE_SIZE = useDefaultPageSize(PAGE_SIZE_MAC_DINH);
   const toast = useToast();
   const [context, setContext] = useState(null); // { anchor, monthLabels, myDraft, carryForwardBySku }
   const [isLoading, setIsLoading] = useState(true);

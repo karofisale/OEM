@@ -14,13 +14,17 @@ import { useTableSort } from '../hooks/useTableSort';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 
-const PAGE_SIZE = 25;
+import { useDefaultPageSize } from '../hooks/useSetting';
+
+// Cỡ trang mặc định của màn này; Cài đặt cá nhân (st.pageSize) nếu đã chọn thì thắng.
+const PAGE_SIZE_MAC_DINH = 25;
 // Cột sắp xếp được (Đợt 2 / mục 3). Khai báo ngoài component để mảng ổn định.
 const COLS = [
   { key: 'code' }, { key: 'codeSearch' }, { key: 'name' }, { key: 'sale' }, { key: 'address' }, { key: 'status' }
 ];
 
 export default function ClientManagement({ clients, activeUser, onAddClient, onEditClient }) {
+  const PAGE_SIZE = useDefaultPageSize(PAGE_SIZE_MAC_DINH);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   // Kiểu xem + bộ lọc nhớ qua F5 (Đợt 2 / mục 9).

@@ -218,7 +218,7 @@ const khongCmt = (s) => s.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l
   check('kế toán không bị đẩy vào báo cáo; tab AI đã nhớ của kế toán vẫn bị chặn', nm.tabHopLe(null, 'account') === 'products' && nm.tabHopLe('ai-agent', 'account') === 'products' && nm.tabHopLe('revenue-reports', 'account') === 'products');
   const app = SRC('App.jsx');
   check('App: đăng nhập xong dùng tab đã nhớ của NGƯỜI MỚI (readUi null) hoặc mặc định vai trò — không thừa hưởng activeTab của người trước, và không ghi mặc định vào bộ nhớ',
-    /setActiveTabRaw\(tabHopLe\(readUi\('tab', null\), newSession\?\.user\?\.role\)\)/.test(app) && !/readUi\('tab', activeTab\)/.test(app) && !/setActiveTab\('products'\)/.test(app));
+    /setActiveTabRaw\(tabMoDau\(\{ landing: prefs\.getSetting\('st\.landing'\), saved: readUi\('tab', null\), role: newSession\?\.user\?\.role, tabHopLe \}\)\)/.test(app) && !/readUi\('tab', activeTab\)/.test(app) && !/setActiveTab\('products'\)/.test(app));
   const sb = SRC('components/Sidebar.jsx');
   check('Sidebar: bỏ thẻ "Karofi AI Engine" + Sparkles; thay bằng vai trò + phiên bản (nhanVaiTro, version trong package.json)', !/Karofi AI Engine/.test(sb) && !/Sparkles/.test(sb) && /nhanVaiTro\(activeUser\.role/.test(sb) && /version as APP_VERSION/.test(sb));
   html = ve.Sidebar({ activeTab: 'ai-agent', setActiveTab: noop, isCollapsed: false, onToggleCollapse: noop, isMobileOpen: false, onCloseMobile: noop, transactionCount: 0, activeUser: { name: 'hai', role: 'admin', saleId: '' } });

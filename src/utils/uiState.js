@@ -43,8 +43,14 @@ export function readUi(key, fallback, validate) {
   }
 }
 
-/** Ghi giá trị; trả true nếu ghi được. Không bao giờ ném lỗi. */
-export function writeUi(key, value) {
+// Bộ lắng nghe ghi (services/prefsSync.js): được báo mỗi khi nơi KHÁC (không phải chính bộ đồng bộ) ghi một khoá,
+// để đẩy các khoá sở thích lên máy chủ. Lỗi trong bộ lắng nghe không bao giờ làm hỏng việc ghi.
+let writeListener = null;
+export function setUiWriteListener(fn) { writeListener = typeof fn === 'function' ? fn : null; }
+
+/** Ghi giá trị; trả true nếu ghi được. Không bao giờ ném lỗi. `silent` = đừng báo bộ lắng nghe (bộ đồng bộ tự ghi). */
+export function writeUi(key, value, silent) {
+  if (!silent && writeListener) { try { writeListener(key, value); } catch { /* không ảnh hưởng việc ghi */ } }
   try {
     const s = store();
     if (!s) return false;
@@ -56,6 +62,6 @@ export function writeUi(key, value) {
   }
 }
 
-export function clearUi(key) {
-  return writeUi(key, undefined);
+export function clearUi(key, silent) {
+  return writeUi(key, undefined, silent);
 }

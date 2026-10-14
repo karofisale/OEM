@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useRef, useEff
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 import { themToast, boToast, hetHan, giaHan, canDongHo } from '../utils/toastQueue';
 import { lamSachLoi } from '../utils/errorText';
+import { getSetting } from '../services/prefsSync';
 
 // Thông báo trong app, thay 15 lệnh alert() gốc.
 //
@@ -33,7 +34,10 @@ export function ToastProvider({ children }) {
 
   const push = useCallback((message, bien, opts) => {
     const id = nextId.current++;
-    setToasts((prev) => themToast(prev, message, { id, bien, ms: opts && opts.ms }));
+    // Thời gian tự tắt của toast thường lấy từ cài đặt cá nhân st.toastSec (mặc định 4s); toast lỗi vẫn không tự tắt (ms = 0 do themToast
+    // quyết). Truyền { ms } thì ưu tiên giá trị truyền.
+    const ms = opts && opts.ms != null ? opts.ms : (bien === 'error' ? undefined : (getSetting('st.toastSec') || 4) * 1000);
+    setToasts((prev) => themToast(prev, message, { id, bien, ms }));
     return id;
   }, []);
 

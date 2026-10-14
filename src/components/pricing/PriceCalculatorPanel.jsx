@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Search, Calculator, AlertTriangle } from 'lucide-react';
 import * as api from '../../services/api';
 import { useToast } from '../ToastProvider';
+import { useSetting, useOnSettingChange } from '../../hooks/useSetting';
 
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
 
@@ -12,7 +13,12 @@ export default function PriceCalculatorPanel({ token, materials }) {
   const toast = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSku, setSelectedSku] = useState('');
-  const [marginPct, setMarginPct] = useState('20');
+  // % LNG điền sẵn lấy từ Cài đặt cá nhân (st.calcMargin, mặc định 20). `marginGo` = số người dùng đang gõ trên máy tính giá
+  // (null = chưa gõ -> theo cài đặt); đổi cài đặt thì bỏ số đang gõ để cài đặt mới có hiệu lực ngay.
+  const marginMacDinh = useSetting('st.calcMargin');
+  const [marginGo, setMarginPct] = useState(null);
+  useOnSettingChange('st.calcMargin', () => setMarginPct(null));
+  const marginPct = marginGo == null ? String(marginMacDinh) : marginGo;
   const [result, setResult] = useState(null);
   const [isCalculating, setIsCalculating] = useState(false);
 

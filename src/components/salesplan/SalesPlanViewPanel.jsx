@@ -10,7 +10,10 @@ import { monthSortValue } from '../../utils/period';
 import { canSeeAllSales } from '../../utils/roles';
 import { doneMoiThang, dtCuaThang, doneDong } from '../../utils/salesPlan';
 
-const PAGE_SIZE = 25;
+import { useDefaultPageSize } from '../../hooks/useSetting';
+
+// Cỡ trang mặc định của màn này; Cài đặt cá nhân (st.pageSize) nếu đã chọn thì thắng.
+const PAGE_SIZE_MAC_DINH = 25;
 
 const fmt = (v) => (v || 0).toLocaleString('vi-VN');
 
@@ -20,6 +23,7 @@ const TUAN = ['w1', 'w2', 'w3', 'w4', 'w5'];
 // Read-only table over whatever tab Plan_Thang currently holds — filterable by
 // month (now a real per-row field) and, for Admin/Creator/Leader, by Sale.
 export default function SalesPlanViewPanel({ plans, transactions, activeUser }) {
+  const PAGE_SIZE = useDefaultPageSize(PAGE_SIZE_MAC_DINH);
   const canFilterAllSales = canSeeAllSales(activeUser.role);
   const monthsList = useMemo(() => {
     const set = new Set(plans.map(p => p.month).filter(Boolean));
