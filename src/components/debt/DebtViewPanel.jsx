@@ -19,6 +19,8 @@ const COLS = [
   { key: 'updatedAt', type: 'date' }
 ];
 
+const SAP_XEP_MAC_DINH = { key: 'balance', dir: 'desc' };
+
 // Read-facing view of tab "Debt" — same per-Sale scoping as everywhere else
 // (oemAppScopeOf_/oemAppMatchesSale_ on the PIC column), so a Sale only sees
 // their own clients' debt while Admin/Creator/Leader see everyone.
@@ -54,14 +56,16 @@ export default function DebtViewPanel({ token, refreshTick }) {
 
   const normalize = (s) => String(s || '').normalize('NFC').toLowerCase();
 
+  // 15/10/2026: bỏ khách có số dư = 0 (không còn công nợ); mặc định sắp số dư lớn → nhỏ (bấm tiêu đề cột để đổi).
+  const coNo = useMemo(() => rows.filter((r) => (Number(r.balance) || 0) !== 0), [rows]);
   const filteredRows = useMemo(() => {
     const q = normalize(searchTerm.trim());
-    if (!q) return rows;
-    return rows.filter((r) => normalize(r.code).includes(q) || normalize(r.name).includes(q) || normalize(r.pic).includes(q));
-  }, [rows, searchTerm]);
+    if (!q) return coNo;
+    return coNo.filter((r) => normalize(r.code).includes(q) || normalize(r.name).includes(q) || normalize(r.pic).includes(q));
+  }, [coNo, searchTerm]);
 
   // Sắp xếp TRƯỚC khi cắt trang; dòng tổng vẫn tính trên toàn bộ danh sách đang lọc.
-  const { rows: sortedRows, sort, onSort } = useTableSort(filteredRows, COLS);
+  const { rows: sortedRows, sort, onSort } = useTableSort(filteredRows, COLS, SAP_XEP_MAC_DINH);
   const { safePage, pageItems: pagedRows } = usePagedSlice(sortedRows, page, PAGE_SIZE);
 
   const totals = useMemo(() => filteredRows.reduce((acc, r) => {
@@ -97,7 +101,7 @@ export default function DebtViewPanel({ token, refreshTick }) {
         <button onClick={() => fetchView(true)} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
       </div>
 
-      <TableState isEmpty={filteredRows.length === 0} emptyText={rows.length ? 'Không có khách hàng nào khớp bộ lọc.' : 'Chưa có dữ liệu công nợ.'}>
+      <TableState isEmpty={filteredRows.length === 0} emptyText={coNo.length ? 'Không có khách hàng nào khớp bộ lọc.' : (rows.length ? 'Không có khách hàng nào còn số dư công nợ.' : 'Chưa có dữ liệu công nợ.')}>
       <div className="table-container animate-fade-in" style={{ maxHeight: '600px', overflowY: 'auto' }}>
         <table className="custom-table">
           <thead>
