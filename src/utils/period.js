@@ -72,7 +72,7 @@ export function latestMonthKey(transactions) {
   return months.length ? months[0] : null;
 }
 
-// Distinct weeks present, ordered W1..W5.
+// Distinct weeks present, ordered W1..W6. Tuần theo lịch thứ 2–CN, do server (oem-api) gán: W1 là từ ngày 1 đến Chủ nhật đầu tiên.
 export function weeksFromTransactions(transactions) {
   const set = new Set();
   (transactions || []).forEach(t => { if (t && t.week) set.add(t.week); });
