@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Filter } from 'lucide-react';
 import { resolvePeriod } from '../../utils/period';
 import { khopSale } from '../../utils/roles';
-import { gopTheoKhach, ngayTrongThang, tuanLichCuaGiaoDich, sapTuan, khoangTuanThang, nhanTuan, thuCuaNgay, NHAN_THU } from '../../utils/revenuePivot';
+import { gopTheoKhach, ngayTrongThang, tuanLichCuaGiaoDich, sapTuan, khoangTuanThang, nhanTuan, thuCuaNgay, tongTheoSale, NHAN_THU } from '../../utils/revenuePivot';
 import Pagination, { usePagedSlice } from '../Pagination';
 import SortableTh from '../SortableTh';
 import TableState from '../TableState';
@@ -22,12 +22,14 @@ const SAP_MAC_DINH = { key: 'totalRevenue', dir: 'desc' }; // khách doanh thu l
 
 const hai = (n) => String(n).padStart(2, '0');
 const fmt = (v) => Number(v || 0).toLocaleString('vi-VN');
+// Cột Client (mã), Client (tên) và SALE đủ rộng để không xuống dòng
+const W_MA = { minWidth: '140px', whiteSpace: 'nowrap' }, W_TEN = { minWidth: '240px', whiteSpace: 'nowrap' }, W_SALE = { minWidth: '140px', whiteSpace: 'nowrap' };
 const sMono = { textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', whiteSpace: 'nowrap' };
 
 /**
- * DT Ngày (20/10/2026): Client (mã chữ) là DÒNG, mỗi NGÀY có doanh thu là một CỘT (xếp 1–31, ngày không phát sinh thì không hiện), cột "Sum lũy kế" đứng
+ * DT Ngày (20/10/2026): Client (mã chữ) là DÒNG, mỗi NGÀY có doanh thu là một CỘT (xếp 1–31, ngày không phát sinh thì không hiện), cột "Tổng lũy kế" đứng
  * trước các cột ngày. Chỉ xem được TỪNG THÁNG (không còn mục gộp mọi tháng cho đỡ nhiễu). Chọn một tuần (tuần lịch thứ 2–CN) thì chỉ hiện các ngày của
- * tuần đó và Sum lũy kế là của tuần đó.
+ * tuần đó và Tổng lũy kế là của tuần đó.
  */
 export default function DtNgayReport({ transactions, txYears, salesList, canFilterAllSales, viewMode, macDinhNam, macDinhSale }) {
   const PAGE_SIZE = useDefaultPageSize(PAGE_SIZE_MAC_DINH);
@@ -41,6 +43,8 @@ export default function DtNgayReport({ transactions, txYears, salesList, canFilt
   const [ngayFilterMonth, setNgayFilterMonth] = usePersistentState('rpt.ngay.month', null);
   const [weekSaved, setNgayFilterWeek] = usePersistentState('rpt.ngay.week', 'ALL');
   const [page, setPage] = useState(1);
+  // 20/10/2026: khi xem "Tất cả SALE" có nút hiện thêm các dòng tổng theo từng Sale (mặc định tắt).
+  const [hienTongSale, setHienTongSale] = usePersistentState('rpt.ngay.tongSale', false, (v) => typeof v === 'boolean');
   // Đổi mặc định trong Cài đặt cá nhân -> bỏ bộ lọc năm/tháng/Sale đã nhớ để mặc định mới có hiệu lực ngay.
   useOnSettingChange('st.reportYear', () => { setNgayFilterYear(null); setNgayFilterMonth(null); });
   useOnSettingChange('st.reportSale', () => setNgayFilterSale(null));
@@ -73,7 +77,9 @@ export default function DtNgayReport({ transactions, txYears, salesList, canFilt
   const { rows: sortedNgay, sort, onSort } = useTableSort(dtNgayRows, cols, SAP_MAC_DINH);
   const { safePage, pageItems: pagedRows } = usePagedSlice(sortedNgay, page, PAGE_SIZE);
 
-  const nhanTong = ngayFilterWeek === 'ALL' ? 'Sum lũy kế tháng' : 'Sum lũy kế ' + nhanTuan(ngayFilterWeek, khoangTuan).split(' (')[0].toLowerCase();
+  const nhanTong = ngayFilterWeek === 'ALL' ? 'Tổng lũy kế tháng' : 'Tổng lũy kế ' + nhanTuan(ngayFilterWeek, khoangTuan).split(' (')[0].toLowerCase();
+  const coTheTongSale = canFilterAllSales && ngayFilterSale === 'ALL';
+  const tongSaleRows = useMemo(() => (coTheTongSale && hienTongSale ? tongTheoSale(dtNgayRows) : []), [coTheTongSale, hienTongSale, dtNgayRows]);
   const thuNgay = (d) => (d ? NHAN_THU[thuCuaNgay(effectiveMonth, d)] : '');
   const mm = /^T(\d{1,2})-/.exec(effectiveMonth);
   const nhanNgay = (d) => (d ? `${hai(d)}/${mm ? hai(mm[1]) : '--'}` : 'Chưa rõ ngày');
@@ -114,6 +120,13 @@ export default function DtNgayReport({ transactions, txYears, salesList, canFilt
             {weeksList.map(w => <option key={w} value={w}>{nhanTuan(w, khoangTuan)}</option>)}
           </select>
         </div>
+
+        {viewMode === 'table' && coTheTongSale && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={hienTongSale} onChange={(e) => setHienTongSale(e.target.checked)} />
+            Hiện tổng theo Sale
+          </label>
+        )}
       </div>
 
       <TableState loading={carga.dangTai} error={carga.loi} onRetry={carga.retry} loadingLabel={carga.nhan} errorPrefix="Không tải được doanh thu năm cũ" isEmpty={dtNgayRows.length === 0} emptyText="Không có phát sinh doanh thu nào khớp với bộ lọc đang chọn.">
@@ -122,9 +135,9 @@ export default function DtNgayReport({ transactions, txYears, salesList, canFilt
           <table className="custom-table">
             <thead>
               <tr>
-                <SortableTh col="clientCode" sort={sort} onSort={onSort}>Client</SortableTh>
-                <SortableTh col="clientName" sort={sort} onSort={onSort}>Tên Khách Hàng OEM</SortableTh>
-                <SortableTh col="sale" sort={sort} onSort={onSort}>SALE</SortableTh>
+                <SortableTh col="clientCode" sort={sort} onSort={onSort} style={W_MA}>Mã Client</SortableTh>
+                <SortableTh col="clientName" sort={sort} onSort={onSort} style={W_TEN}>Client</SortableTh>
+                <SortableTh col="sale" sort={sort} onSort={onSort} style={W_SALE}>SALE</SortableTh>
                 <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right">{nhanTong} (VND)</SortableTh>
                 {ngayCot.map((d) => (
                   <SortableTh key={d} col={'d:' + d} sort={sort} onSort={onSort} align="right">
@@ -137,7 +150,7 @@ export default function DtNgayReport({ transactions, txYears, salesList, canFilt
               <tr className="top-summary-row">
                 <td style={{ color: 'var(--karofi-navy)' }}>Σ</td>
                 <td style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>TỔNG CỘNG</td>
-                <td style={{ color: 'var(--karofi-navy)' }}>All SALE</td>
+                <td />
                 <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontSize: '0.95rem', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>
                   {fmt(pv.tong)} ₫
                 </td>
@@ -146,11 +159,23 @@ export default function DtNgayReport({ transactions, txYears, salesList, canFilt
                 ))}
               </tr>
 
+              {tongSaleRows.map((sl) => (
+                <tr key={'tong-' + sl.sale} className="sale-subtotal-row">
+                  <td style={{ color: 'var(--karofi-navy)' }}>Σ</td>
+                  <td style={{ color: 'var(--karofi-navy)', fontWeight: 800, whiteSpace: 'nowrap' }}>Tổng {sl.sale}</td>
+                  <td style={{ color: 'var(--text-muted)', fontWeight: 700, whiteSpace: 'nowrap' }}>{sl.sale}</td>
+                  <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 800 }}>{fmt(sl.tong)} ₫</td>
+                  {ngayCot.map((d) => (
+                    <td key={d} style={{ ...sMono, color: 'var(--summary-navy)', fontWeight: 800 }}>{sl.cot[d] ? fmt(sl.cot[d]) : '·'}</td>
+                  ))}
+                </tr>
+              ))}
+
               {pagedRows.map((row) => (
                 <tr key={row.clientCode}>
-                  <td className="code-font" style={{ fontWeight: 800, color: 'var(--cyan-text)' }}>{row.clientCode}</td>
-                  <td style={{ fontWeight: 700 }}>{row.clientName}</td>
-                  <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{row.sale}</td>
+                  <td className="code-font" style={{ fontWeight: 800, color: 'var(--cyan-text)', ...W_MA }}>{row.clientCode}</td>
+                  <td style={{ fontWeight: 700, ...W_TEN }}>{row.clientName}</td>
+                  <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, ...W_SALE }}>{row.sale}</td>
                   <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace" }}>
                     {fmt(row.totalRevenue)} ₫
                   </td>

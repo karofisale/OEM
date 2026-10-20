@@ -111,24 +111,38 @@ export function gopTheoKhach(transactions, { loc, cot, sapCot } = {}) {
 }
 
 /**
- * Dòng xuất Excel cho bảng Client × cột (đúng các cột đang hiện trên màn). `cot` = [{ key, label }] theo thứ tự hiện;
- * `cotCuoi` = [{ ten, get(row), tongRow }] các cột thêm vào SAU các cột kỳ (ví dụ DT thuần, Biến động) — `tongRow` là giá trị ở dòng TỔNG.
- * Có dòng TỔNG ở cuối khi truyền `tongCot` (tổng từng cột kỳ).
+ * Dòng xuất Excel cho bảng Client × cột (đúng các cột đang hiện trên màn). `cot` = [{ key, label }] các cột kỳ theo thứ tự hiện;
+ * `cotDau` = [{ ten, get(row), tongRow, tongSale(s) }] các cột đứng NGAY SAU SALE, trước các cột kỳ (Tổng lũy kế, Biến động) — `tongRow` là giá trị ở dòng TỔNG,
+ * `tongSale` lấy giá trị ở dòng tổng của một Sale; `cotCuoi` cùng dạng nhưng đứng SAU các cột kỳ.
+ * Có dòng TỔNG ở cuối khi truyền `tongCot` (tổng từng cột kỳ); `tongSale` = [{ sale, tong, cot }] thêm dòng "Tổng <sale>" sau dòng TỔNG.
  */
-export function dongXuatTheoCot(rows, cot, { cotCuoi = [], tongCot, tenTong = 'TỔNG CỘNG' } = {}) {
-  const out = (rows || []).map((r) => {
-    const o = { 'Client': r.clientCode || '', 'Tên khách hàng': r.clientName || '', 'SALE': r.sale || '' };
-    cot.forEach((c) => { o[c.label] = Number((r.cot || {})[c.key]) || 0; });
-    cotCuoi.forEach((c) => { o[c.ten] = c.get(r); });
+export function dongXuatTheoCot(rows, cot, { cotDau = [], cotCuoi = [], tongCot, tenTong = 'TỔNG CỘNG', tongSale } = {}) {
+  const dung = (o, giaTri, tongRow) => {
+    cotDau.forEach((c) => { o[c.ten] = giaTri(c, 'dau'); });
+    cot.forEach((c) => { o[c.label] = Number(tongRow.cot[c.key]) || 0; });
+    cotCuoi.forEach((c) => { o[c.ten] = giaTri(c, 'cuoi'); });
     return o;
-  });
-  if (tongCot) {
-    const o = { 'Client': 'Σ', 'Tên khách hàng': tenTong, 'SALE': '' };
-    cot.forEach((c) => { o[c.label] = Number(tongCot[c.key]) || 0; });
-    cotCuoi.forEach((c) => { o[c.ten] = c.tongRow === undefined ? '' : c.tongRow; });
-    out.push(o);
-  }
+  };
+  const out = (rows || []).map((r) => dung({ 'Mã Client': r.clientCode || '', 'Client': r.clientName || '', 'SALE': r.sale || '' }, (c) => c.get(r), { cot: r.cot || {} }));
+  if (tongCot) out.push(dung({ 'Mã Client': 'Σ', 'Client': tenTong, 'SALE': '' }, (c) => (c.tongRow === undefined ? '' : c.tongRow), { cot: tongCot }));
+  (tongSale || []).forEach((s) => out.push(dung({ 'Mã Client': 'Σ', 'Client': 'Tổng ' + s.sale, 'SALE': s.sale }, (c) => (c.tongSale ? c.tongSale(s) : ''), { cot: s.cot || {} })));
   return out;
+}
+
+/**
+ * Tổng theo SALE từ các dòng khách đang hiện (mỗi khách thuộc sale ghi ở cột SALE của nó, cùng cách bảng đang hiện): [{ sale, tong, cot }] tổng giảm dần.
+ * Dòng có `tong` (DT Ngày) hoặc `totalRevenue` (DT Tháng); sale trống -> 'Khác'.
+ */
+export function tongTheoSale(rows) {
+  const m = new Map();
+  (rows || []).forEach((r) => {
+    const ten = String(r.sale || '').trim() || 'Khác';
+    let x = m.get(ten);
+    if (!x) { x = { sale: ten, tong: 0, cot: {} }; m.set(ten, x); }
+    x.tong += Number(r.tong !== undefined ? r.tong : r.totalRevenue) || 0;
+    Object.keys(r.cot || {}).forEach((k) => { x.cot[k] = (x.cot[k] || 0) + (Number(r.cot[k]) || 0); });
+  });
+  return Array.from(m.values()).sort((a, b) => b.tong - a.tong);
 }
 
 /** Tên file: DT_thang_<phạm vi>_<dd-mm-yyyy>.xlsx. `thang` là 'ALL' hoặc khoá tháng. */

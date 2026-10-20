@@ -101,21 +101,21 @@ export default function DtSaleReport({ transactions, txYears, viewMode, macDinhN
               <tr>
                 <th>STT</th>
                 <SortableTh col="sale" sort={sort} onSort={onSort}>SALE</SortableTh>
+                <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right">DT thuần (VND)</SortableTh>
                 <SortableTh col="orderCount" sort={sort} onSort={onSort}>Số Đơn Hàng</SortableTh>
                 <SortableTh col="totalQty" sort={sort} onSort={onSort} align="right">Sản Lượng (PC)</SortableTh>
-                <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right">DT thuần (VND)</SortableTh>
                 <SortableTh col="share" sort={sort} onSort={onSort}>Tỷ Lệ Đóng Góp</SortableTh>
               </tr>
             </thead>
             <tbody>
               <tr className="top-summary-row">
                 <td style={{ color: 'var(--karofi-navy)' }}>Σ</td>
-                <td style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>TỔNG CỘNG HỆ THỐNG</td>
-                <td style={{ color: 'var(--karofi-navy)' }}>{dtSaleTotals.orderCount} đơn</td>
-                <td style={{ textAlign: 'right', color: 'var(--karofi-navy)' }}>{dtSaleTotals.totalQty.toLocaleString('vi-VN')} PC</td>
+                <td style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>TỔNG CỘNG</td>
                 <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontSize: '0.95rem', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>
                   {dtSaleTotals.totalRevenue.toLocaleString('vi-VN')} ₫
                 </td>
+                <td style={{ color: 'var(--karofi-navy)' }}>{dtSaleTotals.orderCount} đơn</td>
+                <td style={{ textAlign: 'right', color: 'var(--karofi-navy)' }}>{dtSaleTotals.totalQty.toLocaleString('vi-VN')} PC</td>
                 <td style={{ color: 'var(--karofi-navy)' }}>100%</td>
               </tr>
 
@@ -125,12 +125,12 @@ export default function DtSaleReport({ transactions, txYears, viewMode, macDinhN
                 return (
                   <tr key={item.sale}>
                     <td style={{ fontWeight: 700 }}>{idx + 1}</td>
-                    <td style={{ fontWeight: 700, color: 'var(--karofi-navy)' }}>{item.sale}</td>
-                    <td style={{ fontWeight: 600 }}>{item.orderCount} đơn</td>
-                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{item.totalQty.toLocaleString('vi-VN')} PC</td>
-                    <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace" }}>
+                    <td style={{ fontWeight: 700, color: 'var(--karofi-navy)', minWidth: '140px', whiteSpace: 'nowrap' }}>{item.sale}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>
                       {item.totalRevenue.toLocaleString('vi-VN')} ₫
                     </td>
+                    <td style={{ fontWeight: 600 }}>{item.orderCount} đơn</td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{item.totalQty.toLocaleString('vi-VN')} PC</td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <div style={{ flex: 1, height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>

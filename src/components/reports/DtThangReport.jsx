@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Filter, TrendingUp, TrendingDown, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { priorMonthKey, shortMonthLabel, resolvePeriod, inPeriod, parseMonthKey } from '../../utils/period';
 import { khopSale } from '../../utils/roles';
-import { sapThang, sapTuan, tuanLichCuaGiaoDich, khoangTuanThang, nhanTuan, nhanThangNgan, dongXuatTheoCot, tenFileDtThang } from '../../utils/revenuePivot';
+import { sapThang, sapTuan, tuanLichCuaGiaoDich, khoangTuanThang, nhanTuan, nhanThangNgan, dongXuatTheoCot, tenFileDtThang, tongTheoSale } from '../../utils/revenuePivot';
 import { vnDateSlug } from '../../utils/vnDate';
 import SortableTh from '../SortableTh';
 import TableState from '../TableState';
@@ -21,6 +21,8 @@ const COLS = [
 
 const fmt = (v) => Number(v || 0).toLocaleString('vi-VN');
 const sMono = { textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', whiteSpace: 'nowrap' };
+// Cột Client (mã), Client (tên) và SALE đủ rộng để không xuống dòng
+const W_MA = { minWidth: '140px', whiteSpace: 'nowrap' }, W_TEN = { minWidth: '240px', whiteSpace: 'nowrap' }, W_SALE = { minWidth: '140px', whiteSpace: 'nowrap' };
 
 // Replaces a hardcoded if-chain that only knew T04..T08-2026 and fell through to
 // 'T07-2026' for anything else — so from September the report would silently have
@@ -42,6 +44,9 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
   const [thangFilterMonth, setThangFilterMonth] = usePersistentState('rpt.thang.month', null);
   // 20/10/2026: "Tất cả tháng" có công tắc XEM CHI TIẾT CÁC THÁNG (mặc định TẮT) hiện thêm cột từng tháng của năm; chọn một tháng thì hiện thêm cột từng TUẦN của tháng đó.
   const [chiTietThang, setChiTietThang] = usePersistentState('rpt.thang.chiTiet', false, (v) => typeof v === 'boolean');
+  // 20/10/2026: cột Biến động đứng cạnh Tổng lũy kế, có nút BẬT/TẮT (mặc định tắt cho bảng gọn); khi xem "Tất cả SALE" có nút hiện thêm các dòng tổng theo từng Sale.
+  const [hienBienDong, setHienBienDong] = usePersistentState('rpt.thang.bienDong', false, (v) => typeof v === 'boolean');
+  const [hienTongSale, setHienTongSale] = usePersistentState('rpt.thang.tongSale', false, (v) => typeof v === 'boolean');
   // Đổi mặc định trong Cài đặt cá nhân -> bỏ bộ lọc năm/tháng/Sale đã nhớ để mặc định mới có hiệu lực ngay.
   useOnSettingChange('st.reportYear', () => { setThangFilterYear(null); setThangFilterMonth(null); });
   useOnSettingChange('st.reportSale', () => setThangFilterSale(null));
@@ -154,6 +159,11 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
   const cols = useMemo(() => [...COLS, ...cotHien.map((k) => ({ key: 'c:' + k, type: 'number', get: (r) => r.cot[k] || 0 }))], [cotHien]);
   const { rows: sortedThang, sort, onSort } = useTableSort(dtThangRows, cols);
 
+  // Dòng tổng theo từng SALE (chỉ khi đang xem "Tất cả SALE" và người dùng bật)
+  const coTheTongSale = canFilterAllSales && thangFilterSale === 'ALL';
+  const tongSaleRows = useMemo(() => (coTheTongSale && hienTongSale ? tongTheoSale(dtThangRows) : []), [coTheTongSale, hienTongSale, dtThangRows]);
+  const nhanTong = effectiveMonth === 'ALL' ? `Tổng lũy kế năm ${effectiveYear} (VND)` : 'Tổng lũy kế tháng (VND)';
+
   // Xuất ĐÚNG các cột đang hiện (kể cả cột tháng / tuần) theo thứ tự đang sắp. xlsx tải lười: chỉ đáng tải khi có người bấm.
   const handleExport = async () => {
     if (exporting || !sortedThang.length) return;
@@ -162,9 +172,11 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
       const XLSX = await import('xlsx');
       const dong = dongXuatTheoCot(sortedThang, cotHien.map((k) => ({ key: k, label: nhanCot(k) })), {
         tongCot,
-        cotCuoi: [
-          { ten: effectiveMonth === 'ALL' ? `DT thuần năm ${effectiveYear} (VND)` : 'DT thuần (VND)', get: (r) => r.totalRevenue, tongRow: dtThangTotals.totalRevenue },
-          { ten: 'Biến động', get: (r) => (r.hasBaseline ? `${r.pct >= 0 ? '+' : ''}${r.pct}% (${r.compareLabel})` : `Chưa có số liệu ${r.compareLabel.replace('vs ', '')}`) }
+        tongSale: tongSaleRows,
+        // Tổng lũy kế đứng ngay sau SALE rồi tới các cột kỳ (như trên màn); Biến động chỉ xuất khi đang bật
+        cotDau: [
+          { ten: nhanTong, get: (r) => r.totalRevenue, tongRow: dtThangTotals.totalRevenue, tongSale: (s) => s.tong },
+          ...(hienBienDong ? [{ ten: 'Biến động', get: (r) => (r.hasBaseline ? `${r.pct >= 0 ? '+' : ''}${r.pct}% (${r.compareLabel})` : `Chưa có số liệu ${r.compareLabel.replace('vs ', '')}`) }] : [])
         ]
       });
       const ws = XLSX.utils.json_to_sheet(dong);
@@ -231,6 +243,20 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
         )}
 
         {viewMode === 'table' && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={hienBienDong} onChange={(e) => setHienBienDong(e.target.checked)} />
+            Hiện biến động
+          </label>
+        )}
+
+        {viewMode === 'table' && coTheTongSale && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={hienTongSale} onChange={(e) => setHienTongSale(e.target.checked)} />
+            Hiện tổng theo Sale
+          </label>
+        )}
+
+        {viewMode === 'table' && (
           <button
             type="button"
             className="btn btn-secondary"
@@ -251,29 +277,42 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
           <table className="custom-table">
             <thead>
               <tr>
-                <SortableTh col="clientCode" sort={sort} onSort={onSort}>Client</SortableTh>
-                <SortableTh col="clientName" sort={sort} onSort={onSort}>Tên Khách Hàng OEM</SortableTh>
-                <SortableTh col="sale" sort={sort} onSort={onSort}>SALE</SortableTh>
+                <SortableTh col="clientCode" sort={sort} onSort={onSort} style={W_MA}>Mã Client</SortableTh>
+                <SortableTh col="clientName" sort={sort} onSort={onSort} style={W_TEN}>Client</SortableTh>
+                <SortableTh col="sale" sort={sort} onSort={onSort} style={W_SALE}>SALE</SortableTh>
+                <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right">{nhanTong}</SortableTh>
+                {hienBienDong && <SortableTh col="pct" sort={sort} onSort={onSort}>Biến động</SortableTh>}
                 {cotHien.map((k) => (
                   <SortableTh key={k} col={'c:' + k} sort={sort} onSort={onSort} align="right">{nhanCot(k)}</SortableTh>
                 ))}
-                <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right">{effectiveMonth === 'ALL' ? `DT thuần năm ${effectiveYear} (VND)` : 'DT thuần (VND)'}</SortableTh>
-                <SortableTh col="pct" sort={sort} onSort={onSort}>Biến động</SortableTh>
               </tr>
             </thead>
             <tbody>
               <tr className="top-summary-row">
                 <td style={{ color: 'var(--karofi-navy)' }}>Σ</td>
-                <td style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>TỔNG CỘNG HỆ THỐNG</td>
-                <td style={{ color: 'var(--karofi-navy)' }}>Tất cả Sales</td>
-                {cotHien.map((k) => (
-                  <td key={k} style={{ ...sMono, color: 'var(--summary-navy)', fontWeight: 900 }}>{fmt(tongCot[k])}</td>
-                ))}
+                <td style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>TỔNG CỘNG</td>
+                <td />
                 <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontSize: '0.95rem', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>
                   {dtThangTotals.totalRevenue.toLocaleString('vi-VN')} ₫
                 </td>
-                <td style={{ color: 'var(--karofi-navy)' }}>Doanh Thu Tháng</td>
+                {hienBienDong && <td />}
+                {cotHien.map((k) => (
+                  <td key={k} style={{ ...sMono, color: 'var(--summary-navy)', fontWeight: 900 }}>{fmt(tongCot[k])}</td>
+                ))}
               </tr>
+
+              {tongSaleRows.map((s) => (
+                <tr key={'tong-' + s.sale} className="sale-subtotal-row">
+                  <td style={{ color: 'var(--karofi-navy)' }}>Σ</td>
+                  <td style={{ color: 'var(--karofi-navy)', fontWeight: 800, whiteSpace: 'nowrap' }}>Tổng {s.sale}</td>
+                  <td style={{ color: 'var(--text-muted)', fontWeight: 700, whiteSpace: 'nowrap' }}>{s.sale}</td>
+                  <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 800 }}>{fmt(s.tong)} ₫</td>
+                  {hienBienDong && <td />}
+                  {cotHien.map((k) => (
+                    <td key={k} style={{ ...sMono, color: 'var(--summary-navy)', fontWeight: 800 }}>{s.cot[k] ? fmt(s.cot[k]) : '·'}</td>
+                  ))}
+                </tr>
+              ))}
 
               {sortedThang.map((row) => {
                 const { hasBaseline, compareLabel } = row;
@@ -282,33 +321,35 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
 
                 return (
                   <tr key={row.clientCode}>
-                    <td className="code-font" style={{ fontWeight: 800, color: 'var(--cyan-text)' }}>{row.clientCode}</td>
-                    <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{row.clientName}</td>
-                    <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{row.sale}</td>
+                    <td className="code-font" style={{ fontWeight: 800, color: 'var(--cyan-text)', ...W_MA }}>{row.clientCode}</td>
+                    <td style={{ fontWeight: 700, color: 'var(--text-main)', ...W_TEN }}>{row.clientName}</td>
+                    <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, ...W_SALE }}>{row.sale}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>
+                      {row.totalRevenue.toLocaleString('vi-VN')} ₫
+                    </td>
+                    {hienBienDong && (
+                      <td>
+                        {!hasBaseline ? (
+                          <span
+                            className="badge badge-neutral"
+                            title={`Không có số liệu ${compareLabel.replace('vs ', '')} để đối chiếu`}
+                          >
+                            — Chưa có số liệu {compareLabel.replace('vs ', '')}
+                          </span>
+                        ) : isPositive ? (
+                          <span className="badge badge-emerald" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <TrendingUp size={12} /> Tăng +{percentChange}% ({compareLabel})
+                          </span>
+                        ) : (
+                          <span className="badge badge-rose" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <TrendingDown size={12} /> Giảm {percentChange}% ({compareLabel})
+                          </span>
+                        )}
+                      </td>
+                    )}
                     {cotHien.map((k) => (
                       <td key={k} style={{ ...sMono, color: row.cot[k] ? 'var(--text-main)' : 'var(--text-dim)' }}>{row.cot[k] ? fmt(row.cot[k]) : '·'}</td>
                     ))}
-                    <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace" }}>
-                      {row.totalRevenue.toLocaleString('vi-VN')} ₫
-                    </td>
-                    <td>
-                      {!hasBaseline ? (
-                        <span
-                          className="badge badge-neutral"
-                          title={`Không có số liệu ${compareLabel.replace('vs ', '')} để đối chiếu`}
-                        >
-                          — Chưa có số liệu {compareLabel.replace('vs ', '')}
-                        </span>
-                      ) : isPositive ? (
-                        <span className="badge badge-emerald" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <TrendingUp size={12} /> Tăng +{percentChange}% ({compareLabel})
-                        </span>
-                      ) : (
-                        <span className="badge badge-rose" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <TrendingDown size={12} /> Giảm {percentChange}% ({compareLabel})
-                        </span>
-                      )}
-                    </td>
                   </tr>
                 );
               })}
