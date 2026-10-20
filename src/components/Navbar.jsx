@@ -1,13 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { RefreshCw, Sparkles, ShieldCheck, UserCheck, Droplets, LogOut, Menu, KeyRound, Sun, Moon, Monitor, ArrowLeft, Settings, SlidersHorizontal } from 'lucide-react';
 import { setSetting } from '../services/prefsSync';
 import { useSetting } from '../hooks/useSetting';
 import { appKhacDungDuoc } from '../services/karofiSession';
+import { lamNongTrang, laBamDiThang } from '../utils/chuyenApp';
 import { nhanVaiTro, TONE_CLASS } from '../utils/glossary';
+
+// Nút chuyển app sau khi bấm: nổi màu nhấn, không bấm lại được, con trỏ "đang chờ".
+const DANG_MO = { color: 'var(--cyan-text)', borderColor: 'var(--cyan-text)', pointerEvents: 'none', cursor: 'progress' };
 
 export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSyncing, onRefreshData, onOpenMobileMenu, onOpenChangePassword, onOpenSettings, onOpenSystemSettings, systemActive }) {
   // Đọc một lần khi dựng: khối quyền nằm trong token, không đổi giữa các lần vẽ.
   const [appKhac] = useState(() => appKhacDungDuoc('OEM'));
+
+  // Địa chỉ nút vừa được bấm — nút đó đổi sang "Đang mở…" + vòng xoay ngay, vì trang đích mất vài giây
+  // mới hiện, không có thì người dùng tưởng nút không ăn. Về lại bằng nút Back (trang lấy từ bộ nhớ đệm,
+  // không chạy lại) thì pageshow.persisted trả nút về như cũ.
+  const [dangChuyen, setDangChuyen] = useState(null);
+  useEffect(() => {
+    const boLopPhu = (e) => { if (e.persisted) setDangChuyen(null); };
+    window.addEventListener('pageshow', boLopPhu);
+    return () => window.removeEventListener('pageshow', boLopPhu);
+  }, []);
+  // Trình duyệt hỏi "rời trang?" (còn ô chưa lưu) mà người dùng chọn Ở LẠI thì trang không đi đâu:
+  // trả nút về như cũ thay vì kẹt "Đang mở…".
+  useEffect(() => {
+    if (!dangChuyen) return undefined;
+    const t = setTimeout(() => setDangChuyen(null), 15000);
+    return () => clearTimeout(t);
+  }, [dangChuyen]);
+  const linkChuyen = (href) => ({
+    href,
+    'aria-busy': dangChuyen === href || undefined,
+    onClick: (e) => { if (laBamDiThang(e)) setDangChuyen(href); },
+    onPointerEnter: () => lamNongTrang(href),
+    onFocus: () => lamNongTrang(href),
+    onTouchStart: () => lamNongTrang(href)
+  });
 
   // Nhãn vai trò lấy từ utils/glossary.js (có cả 'account' — bản cũ bỏ sót nên kế
   // toán hiện thành "Sale: Chung"). Emoji chỉ để dễ nhìn lướt, không mang nghĩa.
@@ -61,9 +90,10 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
         {/* Đường về cổng. Cần thiết vì khi chạy như ứng dụng đã cài, cửa sổ
             không có nút back của trình duyệt. */}
         <a
-          href="/VHKD/"
+          {...linkChuyen('/VHKD/')}
           title="Về Karofi Portal"
           style={{
+            ...(dangChuyen === '/VHKD/' ? DANG_MO : null),
             display: 'inline-flex',
             alignItems: 'center',
             gap: '5px',
@@ -78,8 +108,8 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
             flexShrink: 0
           }}
         >
-          <ArrowLeft size={14} />
-          <span className="hide-mobile-xs">Portal</span>
+          {dangChuyen === '/VHKD/' ? <RefreshCw size={14} className="animate-spin" /> : <ArrowLeft size={14} />}
+          <span className={dangChuyen === '/VHKD/' ? undefined : 'hide-mobile-xs'}>{dangChuyen === '/VHKD/' ? 'Đang mở…' : 'Portal'}</span>
         </a>
 
         {/* Chuyển sang app khác mà người này được vào, không phải đi vòng qua
@@ -88,10 +118,12 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
         {appKhac.map(a => (
           <a
             key={a.key}
-            href={a.href}
+            {...linkChuyen(a.href)}
             title={'Sang ' + a.ten}
             className="hide-mobile-xs"
             style={{
+              ...(dangChuyen === a.href ? DANG_MO : null),
+              gap: '5px',
               display: 'inline-flex',
               alignItems: 'center',
               padding: '6px 10px',
@@ -105,7 +137,7 @@ export default function Navbar({ activeUser, onOpenLoginModal, onLogout, isSynci
               flexShrink: 0
             }}
           >
-            {a.nhan}
+            {dangChuyen === a.href ? <><RefreshCw size={14} className="animate-spin" />Đang mở…</> : a.nhan}
           </a>
         ))}
 
