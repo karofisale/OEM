@@ -1,25 +1,34 @@
-import React, { useMemo } from 'react';
-import { Filter, TrendingUp, TrendingDown } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Filter, TrendingUp, TrendingDown, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { priorMonthKey, shortMonthLabel, resolvePeriod, inPeriod, parseMonthKey } from '../../utils/period';
 import { khopSale } from '../../utils/roles';
+import { sapThang, sapTuan, tuanLichCuaGiaoDich, khoangTuanThang, nhanTuan, nhanThangNgan, dongXuatTheoCot, tenFileDtThang } from '../../utils/revenuePivot';
+import { vnDateSlug } from '../../utils/vnDate';
 import SortableTh from '../SortableTh';
 import TableState from '../TableState';
+import { useToast } from '../ToastProvider';
 import { useTableSort } from '../../hooks/useTableSort';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { useOnSettingChange } from '../../hooks/useSetting';
 import { useEnsureYears } from '../../hooks/useEnsureYears';
 
 // Cột sắp xếp được (Đợt 2 / mục 3). `pct` = % biến động so với kỳ đối chiếu (rỗng nếu chưa có số liệu đối chiếu -> luôn nằm cuối).
+// Các cột tháng / tuần (khoá 'c:<tháng|tuần>') được thêm động theo kiểu xem đang chọn.
 const COLS = [
   { key: 'clientCode' }, { key: 'clientName' }, { key: 'sale' },
   { key: 'totalRevenue', type: 'number' }, { key: 'pct', type: 'number' }
 ];
+
+const fmt = (v) => Number(v || 0).toLocaleString('vi-VN');
+const sMono = { textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', whiteSpace: 'nowrap' };
 
 // Replaces a hardcoded if-chain that only knew T04..T08-2026 and fell through to
 // 'T07-2026' for anything else — so from September the report would silently have
 // compared September against July, and January would never have reached December.
 
 export default function DtThangReport({ transactions, txYears, salesList, canFilterAllSales, viewMode, baselines2025, macDinhNam, macDinhSale }) {
+  const toast = useToast();
+  const [exporting, setExporting] = useState(false);
   // Bộ lọc nhớ qua F5 (Đợt 2 / mục 9); giá trị đã nhớ mà không còn trong dữ liệu thì rơi về mặc định.
   const [saleRaw, setThangFilterSale] = usePersistentState('rpt.thang.sale', null);   // null = chưa chọn -> theo Cài đặt cá nhân (st.reportSale)
   const saleSaved = saleRaw == null ? macDinhSale : saleRaw;
@@ -31,6 +40,8 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
   const [thangYearSaved, setThangFilterYear] = usePersistentState('rpt.thang.year', null);
   const thangFilterYear = thangYearSaved || macDinhNam || null;   // chưa chọn -> Cài đặt cá nhân st.reportYear (null = năm mới nhất có dữ liệu)
   const [thangFilterMonth, setThangFilterMonth] = usePersistentState('rpt.thang.month', null);
+  // 20/10/2026: "Tất cả tháng" có công tắc XEM CHI TIẾT CÁC THÁNG (mặc định TẮT) hiện thêm cột từng tháng của năm; chọn một tháng thì hiện thêm cột từng TUẦN của tháng đó.
+  const [chiTietThang, setChiTietThang] = usePersistentState('rpt.thang.chiTiet', false, (v) => typeof v === 'boolean');
   // Đổi mặc định trong Cài đặt cá nhân -> bỏ bộ lọc năm/tháng/Sale đã nhớ để mặc định mới có hiệu lực ngay.
   useOnSettingChange('st.reportYear', () => { setThangFilterYear(null); setThangFilterMonth(null); });
   useOnSettingChange('st.reportSale', () => setThangFilterSale(null));
@@ -60,25 +71,31 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
           totalRevenue: 0,
           currentSelectedMonthRevenue: 0,
           priorMonthRevenue: 0,
-          prevYearRevenue: 0
+          prevYearRevenue: 0,
+          cot: {}           // doanh thu theo cột kỳ: khoá tháng ('T08-2026') khi xem cả năm, khoá tuần ('W2') khi xem một tháng
         });
       }
       const item = map.get(clientCode);
+      const so = t.netRevenue || 0;
 
       if (effectiveMonth === 'ALL') {
         // Cả năm đang chọn; năm liền trước chỉ để làm mốc so sánh, không cộng vào tổng.
-        if (inPeriod(t, effectiveYear, 'ALL')) item.totalRevenue += t.netRevenue || 0;
-        else {
+        if (inPeriod(t, effectiveYear, 'ALL')) {
+          item.totalRevenue += so;
+          item.cot[t.month] = (item.cot[t.month] || 0) + so;
+        } else {
           const pm = parseMonthKey(t.month);
-          if (pm && String(pm.year) === prevYear) item.prevYearRevenue += t.netRevenue || 0;
+          if (pm && String(pm.year) === prevYear) item.prevYearRevenue += so;
         }
       } else {
         if (t.month === targetMonth) {
-          item.totalRevenue += t.netRevenue || 0;
-          item.currentSelectedMonthRevenue += t.netRevenue || 0;
+          item.totalRevenue += so;
+          item.currentSelectedMonthRevenue += so;
+          const wk = tuanLichCuaGiaoDich(t);
+          item.cot[wk] = (item.cot[wk] || 0) + so;
         }
         if (t.month === priorMonth) {
-          item.priorMonthRevenue += t.netRevenue || 0;
+          item.priorMonthRevenue += so;
         }
       }
     });
@@ -92,6 +109,23 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
       return acc;
     }, { totalRevenue: 0 });
   }, [dtThangData]);
+
+  // Cột kỳ đang hiện: các THÁNG của năm (Tất cả tháng + bật chi tiết) hoặc các TUẦN của tháng đang chọn — chỉ những kỳ có doanh thu.
+  const xemTheoThang = effectiveMonth === 'ALL' && chiTietThang;
+  const xemTheoTuan = effectiveMonth !== 'ALL';
+  const khoangTuan = useMemo(() => (xemTheoTuan ? khoangTuanThang(effectiveMonth) : {}), [xemTheoTuan, effectiveMonth]);
+  const cotHien = useMemo(() => {
+    if (!xemTheoThang && !xemTheoTuan) return [];
+    const keys = new Set();
+    dtThangData.forEach((r) => Object.keys(r.cot).forEach((k) => { if (r.cot[k]) keys.add(k); }));
+    return xemTheoThang ? sapThang(keys) : sapTuan(keys);
+  }, [dtThangData, xemTheoThang, xemTheoTuan]);
+  const nhanCot = (k) => (xemTheoThang ? nhanThangNgan(k) : nhanTuan(k, khoangTuan));
+  const tongCot = useMemo(() => {
+    const t = {};
+    cotHien.forEach((k) => { t[k] = dtThangData.reduce((a, r) => a + (r.cot[k] || 0), 0); });
+    return t;
+  }, [dtThangData, cotHien]);
 
   // So sánh với kỳ đối chiếu, tính MỘT lần cho cả bảng để sắp xếp được theo cột "Biến động".
   //
@@ -117,7 +151,33 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
     return { ...row, compareLabel, hasBaseline, pct };
   }), [dtThangData, effectiveMonth, effectiveYear, yearsList, prevYear, baselines2025]);
 
-  const { rows: sortedThang, sort, onSort } = useTableSort(dtThangRows, COLS);
+  const cols = useMemo(() => [...COLS, ...cotHien.map((k) => ({ key: 'c:' + k, type: 'number', get: (r) => r.cot[k] || 0 }))], [cotHien]);
+  const { rows: sortedThang, sort, onSort } = useTableSort(dtThangRows, cols);
+
+  // Xuất ĐÚNG các cột đang hiện (kể cả cột tháng / tuần) theo thứ tự đang sắp. xlsx tải lười: chỉ đáng tải khi có người bấm.
+  const handleExport = async () => {
+    if (exporting || !sortedThang.length) return;
+    setExporting(true);
+    try {
+      const XLSX = await import('xlsx');
+      const dong = dongXuatTheoCot(sortedThang, cotHien.map((k) => ({ key: k, label: nhanCot(k) })), {
+        tongCot,
+        cotCuoi: [
+          { ten: effectiveMonth === 'ALL' ? `DT thuần năm ${effectiveYear} (VND)` : 'DT thuần (VND)', get: (r) => r.totalRevenue, tongRow: dtThangTotals.totalRevenue },
+          { ten: 'Biến động', get: (r) => (r.hasBaseline ? `${r.pct >= 0 ? '+' : ''}${r.pct}% (${r.compareLabel})` : `Chưa có số liệu ${r.compareLabel.replace('vs ', '')}`) }
+        ]
+      });
+      const ws = XLSX.utils.json_to_sheet(dong);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'DT tháng');
+      XLSX.writeFile(wb, tenFileDtThang(effectiveMonth, effectiveYear, vnDateSlug()));
+      toast.success(`Đã xuất ${sortedThang.length.toLocaleString('vi-VN')} khách ra file Excel.`);
+    } catch (err) {
+      toast.error('Không xuất được file Excel: ' + (err.message || err));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -162,6 +222,27 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
             ))}
           </select>
         </div>
+
+        {effectiveMonth === 'ALL' && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={chiTietThang} onChange={(e) => setChiTietThang(e.target.checked)} />
+            Xem chi tiết các tháng
+          </label>
+        )}
+
+        {viewMode === 'table' && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ marginLeft: 'auto' }}
+            onClick={handleExport}
+            disabled={exporting || carga.dangTai || dtThangRows.length === 0}
+            title="Xuất đúng các cột đang hiện (kể cả cột tháng / tuần) và thứ tự đang sắp ra file Excel"
+          >
+            {exporting ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />}
+            {exporting ? 'Đang xuất...' : 'Xuất Excel'}
+          </button>
+        )}
       </div>
 
       <TableState loading={carga.dangTai} error={carga.loi} onRetry={carga.retry} loadingLabel={carga.nhan} errorPrefix="Không tải được doanh thu năm cũ" isEmpty={dtThangRows.length === 0} emptyText="Không có doanh thu nào khớp với bộ lọc đang chọn.">
@@ -173,7 +254,10 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
                 <SortableTh col="clientCode" sort={sort} onSort={onSort}>Client</SortableTh>
                 <SortableTh col="clientName" sort={sort} onSort={onSort}>Tên Khách Hàng OEM</SortableTh>
                 <SortableTh col="sale" sort={sort} onSort={onSort}>SALE</SortableTh>
-                <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right">DT thuần (VND)</SortableTh>
+                {cotHien.map((k) => (
+                  <SortableTh key={k} col={'c:' + k} sort={sort} onSort={onSort} align="right">{nhanCot(k)}</SortableTh>
+                ))}
+                <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right">{effectiveMonth === 'ALL' ? `DT thuần năm ${effectiveYear} (VND)` : 'DT thuần (VND)'}</SortableTh>
                 <SortableTh col="pct" sort={sort} onSort={onSort}>Biến động</SortableTh>
               </tr>
             </thead>
@@ -182,6 +266,9 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
                 <td style={{ color: 'var(--karofi-navy)' }}>Σ</td>
                 <td style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>TỔNG CỘNG HỆ THỐNG</td>
                 <td style={{ color: 'var(--karofi-navy)' }}>Tất cả Sales</td>
+                {cotHien.map((k) => (
+                  <td key={k} style={{ ...sMono, color: 'var(--summary-navy)', fontWeight: 900 }}>{fmt(tongCot[k])}</td>
+                ))}
                 <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontSize: '0.95rem', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>
                   {dtThangTotals.totalRevenue.toLocaleString('vi-VN')} ₫
                 </td>
@@ -198,6 +285,9 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
                     <td className="code-font" style={{ fontWeight: 800, color: 'var(--cyan-text)' }}>{row.clientCode}</td>
                     <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{row.clientName}</td>
                     <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{row.sale}</td>
+                    {cotHien.map((k) => (
+                      <td key={k} style={{ ...sMono, color: row.cot[k] ? 'var(--text-main)' : 'var(--text-dim)' }}>{row.cot[k] ? fmt(row.cot[k]) : '·'}</td>
+                    ))}
                     <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace" }}>
                       {row.totalRevenue.toLocaleString('vi-VN')} ₫
                     </td>
