@@ -101,7 +101,7 @@ export default function DtSaleReport({ transactions, txYears, viewMode, macDinhN
               <tr>
                 <th>STT</th>
                 <SortableTh col="sale" sort={sort} onSort={onSort}>SALE</SortableTh>
-                <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right">DT thuần (VND)</SortableTh>
+                <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right" style={{ minWidth: '210px', whiteSpace: 'nowrap' }}>DT thuần (VND)</SortableTh>
                 <SortableTh col="orderCount" sort={sort} onSort={onSort}>Số Đơn Hàng</SortableTh>
                 <SortableTh col="totalQty" sort={sort} onSort={onSort} align="right">Sản Lượng (PC)</SortableTh>
                 <SortableTh col="share" sort={sort} onSort={onSort}>Tỷ Lệ Đóng Góp</SortableTh>
@@ -111,7 +111,7 @@ export default function DtSaleReport({ transactions, txYears, viewMode, macDinhN
               <tr className="top-summary-row">
                 <td style={{ color: 'var(--karofi-navy)' }}>Σ</td>
                 <td style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>TỔNG CỘNG</td>
-                <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontSize: '0.95rem', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>
+                <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontSize: '0.9rem', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900, whiteSpace: 'nowrap' }}>
                   {dtSaleTotals.totalRevenue.toLocaleString('vi-VN')} ₫
                 </td>
                 <td style={{ color: 'var(--karofi-navy)' }}>{dtSaleTotals.orderCount} đơn</td>

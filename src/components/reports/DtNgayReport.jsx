@@ -23,6 +23,8 @@ const SAP_MAC_DINH = { key: 'totalRevenue', dir: 'desc' }; // khách doanh thu l
 const hai = (n) => String(n).padStart(2, '0');
 const fmt = (v) => Number(v || 0).toLocaleString('vi-VN');
 // Cột Client (mã), Client (tên) và SALE đủ rộng để không xuống dòng
+// Cột tổng lũy kế: đủ rộng cho số hàng chục tỷ kèm ₫ trên MỘT dòng
+const W_TONG = { minWidth: '210px', whiteSpace: 'nowrap' };
 const W_MA = { minWidth: '140px', whiteSpace: 'nowrap' }, W_TEN = { minWidth: '240px', whiteSpace: 'nowrap' }, W_SALE = { minWidth: '140px', whiteSpace: 'nowrap' };
 const sMono = { textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', whiteSpace: 'nowrap' };
 
@@ -138,7 +140,7 @@ export default function DtNgayReport({ transactions, txYears, salesList, canFilt
                 <SortableTh col="clientCode" sort={sort} onSort={onSort} style={W_MA}>Mã Client</SortableTh>
                 <SortableTh col="clientName" sort={sort} onSort={onSort} style={W_TEN}>Client</SortableTh>
                 <SortableTh col="sale" sort={sort} onSort={onSort} style={W_SALE}>SALE</SortableTh>
-                <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right">{nhanTong} (VND)</SortableTh>
+                <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right" style={W_TONG}>{nhanTong} (VND)</SortableTh>
                 {ngayCot.map((d) => (
                   <SortableTh key={d} col={'d:' + d} sort={sort} onSort={onSort} align="right">
                     {nhanNgay(d)}{d ? <small style={{ display: 'block', fontWeight: 600, opacity: 0.85 }}>{thuNgay(d)}</small> : null}
@@ -151,7 +153,7 @@ export default function DtNgayReport({ transactions, txYears, salesList, canFilt
                 <td style={{ color: 'var(--karofi-navy)' }}>Σ</td>
                 <td style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>TỔNG CỘNG</td>
                 <td />
-                <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontSize: '0.95rem', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>
+                <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontSize: '0.9rem', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900, whiteSpace: 'nowrap' }}>
                   {fmt(pv.tong)} ₫
                 </td>
                 {ngayCot.map((d) => (
@@ -164,7 +166,7 @@ export default function DtNgayReport({ transactions, txYears, salesList, canFilt
                   <td style={{ color: 'var(--karofi-navy)' }}>Σ</td>
                   <td style={{ color: 'var(--karofi-navy)', fontWeight: 800, whiteSpace: 'nowrap' }}>Tổng {sl.sale}</td>
                   <td style={{ color: 'var(--text-muted)', fontWeight: 700, whiteSpace: 'nowrap' }}>{sl.sale}</td>
-                  <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 800 }}>{fmt(sl.tong)} ₫</td>
+                  <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 800, whiteSpace: 'nowrap' }}>{fmt(sl.tong)} ₫</td>
                   {ngayCot.map((d) => (
                     <td key={d} style={{ ...sMono, color: 'var(--summary-navy)', fontWeight: 800 }}>{sl.cot[d] ? fmt(sl.cot[d]) : '·'}</td>
                   ))}
@@ -176,7 +178,7 @@ export default function DtNgayReport({ transactions, txYears, salesList, canFilt
                   <td className="code-font" style={{ fontWeight: 800, color: 'var(--cyan-text)', ...W_MA }}>{row.clientCode}</td>
                   <td style={{ fontWeight: 700, ...W_TEN }}>{row.clientName}</td>
                   <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, ...W_SALE }}>{row.sale}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace" }}>
+                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald-text)', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>
                     {fmt(row.totalRevenue)} ₫
                   </td>
                   {ngayCot.map((d) => (

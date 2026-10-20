@@ -22,6 +22,8 @@ const COLS = [
 const fmt = (v) => Number(v || 0).toLocaleString('vi-VN');
 const sMono = { textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', whiteSpace: 'nowrap' };
 // Cột Client (mã), Client (tên) và SALE đủ rộng để không xuống dòng
+// Cột tổng lũy kế: đủ rộng cho số hàng chục tỷ kèm ₫ trên MỘT dòng
+const W_TONG = { minWidth: '210px', whiteSpace: 'nowrap' };
 const W_MA = { minWidth: '140px', whiteSpace: 'nowrap' }, W_TEN = { minWidth: '240px', whiteSpace: 'nowrap' }, W_SALE = { minWidth: '140px', whiteSpace: 'nowrap' };
 
 // Replaces a hardcoded if-chain that only knew T04..T08-2026 and fell through to
@@ -280,7 +282,7 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
                 <SortableTh col="clientCode" sort={sort} onSort={onSort} style={W_MA}>Mã Client</SortableTh>
                 <SortableTh col="clientName" sort={sort} onSort={onSort} style={W_TEN}>Client</SortableTh>
                 <SortableTh col="sale" sort={sort} onSort={onSort} style={W_SALE}>SALE</SortableTh>
-                <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right">{nhanTong}</SortableTh>
+                <SortableTh col="totalRevenue" sort={sort} onSort={onSort} align="right" style={W_TONG}>{nhanTong}</SortableTh>
                 {hienBienDong && <SortableTh col="pct" sort={sort} onSort={onSort}>Biến động</SortableTh>}
                 {cotHien.map((k) => (
                   <SortableTh key={k} col={'c:' + k} sort={sort} onSort={onSort} align="right">{nhanCot(k)}</SortableTh>
@@ -292,7 +294,7 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
                 <td style={{ color: 'var(--karofi-navy)' }}>Σ</td>
                 <td style={{ color: 'var(--karofi-navy)', fontWeight: 900 }}>TỔNG CỘNG</td>
                 <td />
-                <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontSize: '0.95rem', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>
+                <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontSize: '0.9rem', fontFamily: "'JetBrains Mono', monospace", fontWeight: 900, whiteSpace: 'nowrap' }}>
                   {dtThangTotals.totalRevenue.toLocaleString('vi-VN')} ₫
                 </td>
                 {hienBienDong && <td />}
@@ -306,7 +308,7 @@ export default function DtThangReport({ transactions, txYears, salesList, canFil
                   <td style={{ color: 'var(--karofi-navy)' }}>Σ</td>
                   <td style={{ color: 'var(--karofi-navy)', fontWeight: 800, whiteSpace: 'nowrap' }}>Tổng {s.sale}</td>
                   <td style={{ color: 'var(--text-muted)', fontWeight: 700, whiteSpace: 'nowrap' }}>{s.sale}</td>
-                  <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 800 }}>{fmt(s.tong)} ₫</td>
+                  <td style={{ textAlign: 'right', color: 'var(--summary-navy)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 800, whiteSpace: 'nowrap' }}>{fmt(s.tong)} ₫</td>
                   {hienBienDong && <td />}
                   {cotHien.map((k) => (
                     <td key={k} style={{ ...sMono, color: 'var(--summary-navy)', fontWeight: 800 }}>{s.cot[k] ? fmt(s.cot[k]) : '·'}</td>

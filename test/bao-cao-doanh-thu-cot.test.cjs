@@ -110,6 +110,11 @@ function check(ten, dk, them) {
   check('DT Ngày: nhãn cột "Tổng lũy kế tháng / tuần" (đổi từ Sum lũy kế); DT Sale: DT thuần đứng đầu các cột số, trước Số đơn / Sản lượng',
     /'Tổng lũy kế tháng'/.test(ngay) && !/Sum lũy kế/.test(ngay) && sale.indexOf('col="totalRevenue"') < sale.indexOf('col="orderCount"') && sale.indexOf('col="totalRevenue"') < sale.indexOf('col="totalQty"'));
 
+  check('cột Tổng lũy kế đủ rộng + số tiền không xuống dòng (minWidth + nowrap ở tiêu đề, dòng TỔNG, dòng dữ liệu) ở DT Tháng / DT Ngày / DT Sale',
+    /W_TONG = \{ minWidth: '2\d\dpx', whiteSpace: 'nowrap' \}/.test(thang) && /style=\{W_TONG\}>\{nhanTong\}/.test(thang) && /whiteSpace: 'nowrap' \}\}>\s*\{dtThangTotals/.test(thang) &&
+    /W_TONG = \{ minWidth: '2\d\dpx', whiteSpace: 'nowrap' \}/.test(ngay) && /style=\{W_TONG\}>\{nhanTong\} \(VND\)/.test(ngay) && /whiteSpace: 'nowrap' \}\}>\s*\{fmt\(row\.totalRevenue\)\} ₫/.test(ngay) &&
+    /minWidth: '2\d\dpx', whiteSpace: 'nowrap' \}\}>DT thuần/.test(sale) && /whiteSpace: 'nowrap' \}\}>\s*\{dtSaleTotals\.totalRevenue/.test(sale));
+
   console.log(`\n${pass} đạt, ${fail} lỗi`);
   process.exit(fail ? 1 : 0);
 })();
