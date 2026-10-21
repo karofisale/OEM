@@ -16,6 +16,9 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { lamSachLoi } from '../utils/errorText';
 import { giaTriDong, dungTsvDon, dongDaSua, luuTuanTu, cauKetQuaLuu, khoiPhucSuaDo, boSuaDo, locNhomDon, coLocDon } from '../utils/ordersEdit';
 
+// Đơn xuất từ Bán hàng thanh lý (oem-api thanhly.js: mã đơn 'TL-xxxxxx').
+const laDonThanhLy = (orderNo) => /^TL-/i.test(String(orderNo || ''));
+
 export default function OrdersReview({ token, activeUser, materials, clients, isActive = true, isStale = true, onLoaded }) {
   const toast = useToast();
   // Pending destructive action awaiting confirmation, replacing window.confirm().
@@ -503,6 +506,11 @@ export default function OrdersReview({ token, activeUser, materials, clients, is
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
                 <span className="code-font" style={{ fontWeight: 800, color: 'var(--purple-text)' }}>{orderNo}</span>
+                {laDonThanhLy(orderNo) && (
+                  <span className="badge badge-amber" style={{ fontSize: '0.7rem' }} title="Đơn từ Bán hàng thanh lý: đơn giá ĐÃ GỒM VAT. Nhập vào SAP xong thì xoá đơn ở đây.">
+                    Thanh lý · giá gồm VAT
+                  </span>
+                )}
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                   Mã KH: <strong>{rows[0].clientCode}{rows[0].clientCodeSearch ? ` - ${rows[0].clientCodeSearch}` : ''}</strong>
                 </span>

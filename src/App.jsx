@@ -30,6 +30,7 @@ const ClientManagement = React.lazy(() => import('./components/ClientManagement'
 const SalesPlan = React.lazy(() => import('./components/SalesPlan'));
 const SopPlan = React.lazy(() => import('./components/SopPlan'));
 const DebtManagement = React.lazy(() => import('./components/DebtManagement'));
+const ThanhLy = React.lazy(() => import('./components/ThanhLy'));
 const Settings = React.lazy(() => import('./components/Settings'));
 const SystemSettings = React.lazy(() => import('./components/SystemSettings'));
 
@@ -597,6 +598,17 @@ export default function App() {
 
           <KeepAliveTab isActive={activeTab === 'debt-importer'} hasVisited={visitedTabs.has('debt-importer')}>
             <DebtManagement token={session.token} activeUser={activeUser} clients={clients} />
+          </KeepAliveTab>
+
+          <KeepAliveTab isActive={activeTab === 'thanh-ly'} hasVisited={visitedTabs.has('thanh-ly')}>
+            <ThanhLy
+              token={session.token}
+              activeUser={activeUser}
+              clients={clients}
+              isActive={activeTab === 'thanh-ly'}
+              onOrderSaved={() => setOrdersStale(true)}
+              onOpenOrders={() => requestTab('pending-orders')}
+            />
           </KeepAliveTab>
 
           <KeepAliveTab isActive={activeTab === TAB_SETTINGS} hasVisited={visitedTabs.has(TAB_SETTINGS)}>

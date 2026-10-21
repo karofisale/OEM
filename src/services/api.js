@@ -77,7 +77,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const NON_IDEMPOTENT_FNS = new Set([
   'saveOrder', 'addClient', 'insertOrderLine', 'deleteOrderLine', 'submitPriceProposal',
   'addMaterial', 'addMaterials', 'deleteOrder', 'approveSop', 'approvePriceBatch', 'rejectPriceBatch',
-  'changePassword'
+  'changePassword', 'tlSubmitOrder'
 ]);
 // `addMaterials` thuộc nhóm B: dữ liệu AN TOÀN khi gửi lại (nó bỏ qua SKU đã có
 // nên lượt hai không tạo dòng trùng), nhưng lượt hai báo "đã thêm 0, bỏ qua N"
@@ -297,6 +297,36 @@ export async function saveOrder(token, orderResult) {
 
 export async function getOrders(token) {
   return callApi('getOrders', [token]);
+}
+
+// Bán hàng thanh lý (21/10/2026) — xem oem-api/thanhly.js. Chỉ tlSubmitOrder nằm trong NON_IDEMPOTENT_FNS (gửi lại = đơn nhân đôi);
+// các hàm còn lại gửi lại cho ra cùng kết quả (đặt giá theo mã, thêm từ khoá trùng bị bỏ, xoá theo id).
+export async function getThanhLy(token) {
+  return callApi('getThanhLy', [token]);
+}
+
+export async function tlRequestRefresh(token) {
+  return callApi('tlRequestRefresh', [token]);
+}
+
+export async function tlSetPrices(token, rows) {
+  return callApi('tlSetPrices', [token, rows]);
+}
+
+export async function tlSeedPrices(token) {
+  return callApi('tlSeedPrices', [token]);
+}
+
+export async function tlAddExclude(token, keyword, note) {
+  return callApi('tlAddExclude', [token, keyword, note || '']);
+}
+
+export async function tlRemoveExclude(token, id) {
+  return callApi('tlRemoveExclude', [token, id]);
+}
+
+export async function tlSubmitOrder(token, order) {
+  return callApi('tlSubmitOrder', [token, order]);
 }
 
 export async function updateOrderLine(token, rowIndex, updates) {

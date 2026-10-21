@@ -12,14 +12,14 @@ import {
   Bot, ClipboardList, TrendingUp, PieChart, LayoutDashboard, History, Package, Users,
   CalendarRange, CalendarClock, Wallet, LayoutList, BadgeDollarSign, BadgeCheck, Calculator,
   Coins, Boxes, Eye, FilePenLine, ClipboardCheck, Target, Rows3, CheckCheck, NotebookPen,
-  FileUp, Table2, User, Calendar, CalendarDays
+  FileUp, Table2, User, Calendar, CalendarDays, Recycle, ShoppingCart, Tag, ListFilter
 } from 'lucide-react';
 
 const ICONS = {
   Bot, ClipboardList, TrendingUp, PieChart, LayoutDashboard, History, Package, Users,
   CalendarRange, CalendarClock, Wallet, LayoutList, BadgeDollarSign, BadgeCheck, Calculator,
   Coins, Boxes, Eye, FilePenLine, ClipboardCheck, Target, Rows3, CheckCheck, NotebookPen,
-  FileUp, Table2, User, Calendar, CalendarDays
+  FileUp, Table2, User, Calendar, CalendarDays, Recycle, ShoppingCart, Tag, ListFilter
 };
 
 export const iconOf = (name) => ICONS[name] || null;
@@ -39,7 +39,8 @@ export const NAV = [
   { id: 'clients', label: 'Khách hàng OEM', icon: 'Users' },
   { id: 'sales-plan', label: 'Kế hoạch kinh doanh', icon: 'CalendarRange' },
   { id: 'sop', label: 'Kế hoạch SOP', icon: 'CalendarClock' },
-  { id: 'debt-importer', label: 'Công nợ', icon: 'Wallet' }
+  { id: 'debt-importer', label: 'Công nợ', icon: 'Wallet' },
+  { id: 'thanh-ly', label: 'Bán hàng thanh lý', icon: 'Recycle' }
 ];
 
 /** Mọi id tab thật (lá của NAV). */
@@ -115,6 +116,12 @@ export const SUBTABS = {
   'debt-importer': [
     { id: 'view', label: 'Bảng Công Nợ', icon: 'Table2' },
     { id: 'import', label: 'Nhập Excel', icon: 'FileUp' }
+  ],
+  // Bán hàng thanh lý (21/10/2026): Tồn kho + lên đơn / Bảng giá thanh lý / Bộ lọc hàng (Admin)
+  'thanh-ly': [
+    { id: 'order', label: 'Tồn kho & Lên đơn', icon: 'ShoppingCart' },
+    { id: 'price', label: 'Bảng giá', icon: 'Tag' },
+    { id: 'rules', label: 'Bộ lọc hàng', icon: 'ListFilter' }
   ]
 };
 

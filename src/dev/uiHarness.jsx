@@ -28,6 +28,9 @@
  *   &systable=missing  giả bảng cài đặt hệ thống CHƯA có (getSystemSettings báo tableMissing, getSystemValues trả mặc định, setSystemSetting báo lỗi)
  *   &syserr=1      getSystemSettings báo lỗi;  &nosys=1  getSystemValues báo lỗi (client phải im lặng dùng mặc định 8% / 20)
  *   &sysfail=1     setSystemSetting luôn báo một câu lỗi tiếng Việt (thử hiện lỗi ngay trong trang)
+ *   Bán hàng thanh lý (21/10/2026): máy chủ giả có getThanhLy / tlSetPrices / tlSeedPrices / tlRequestRefresh / tlAddExclude / tlRemoveExclude / tlSubmitOrder
+ *   (tồn kho giả 14 mã, trong bộ nhớ; tlSubmitOrder ghi đơn 'TL-xxxxxx' vào danh sách đơn chờ duyệt giả).  &tlstale=1 dữ liệu cũ 3 ngày (chưa cập nhật hôm nay);
+ *   &tlempty=1 chưa có tồn;  &tlerr=1 getThanhLy báo lỗi;  &tljob=pending|error  trạng thái lượt cào.
  * Lỗi/cảnh báo console: window.__consoleErrors (phải rỗng sau khi duyệt hết các tab).
  * Nhật ký lệnh ĐỌC: window.__harnessReads (mảng { fn, args }) — để soát client có gọi getTransactionsByYear đúng lúc không.
  * Nhật ký lệnh ghi: window.__harnessLog (mảng { fn, args }) — để soát gửi gì lên máy chủ (vd lý do từ chối).
@@ -170,6 +173,40 @@ function sysHieuLuc(d, today) {
   return { giaTri: e && e.giaTri !== null ? e.giaTri : d.macDinh, daDat: !!(e && e.giaTri !== null), hieuLucTu: e ? e.hieuLucTu : '' };
 }
 
+// ---- Bán hàng thanh lý giả -----------------------------------------------------
+const tlBoDau = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+let tlKw = [['bếp từ', 'gia dụng'], ['quạt', 'gia dụng'], ['nồi cơm', 'gia dụng'], ['máy xay', 'gia dụng'], ['EZ270', 'lõi / màng RO EZ270...']].map((k, i) => ({ id: i + 1, keyword: k[0], note: k[1], by: 'mặc định' }));
+const tlStock = [
+  ['1001020053', 'Sơ lọc KoriHome PFK-501 /DC', 'Phin lọc', 166, 12000, 'kho1402'], ['2003030365', 'Lõi Nano V xanh DMAX LNT003 (DM)', 'Lõi', 394, 54000, 'kho1402'],
+  ['2003030541', 'Lõi T33 102 xanh (TB2) (FLOW)', 'Lõi', 310, 38000, 'lichsu'], ['2003030713', 'Lõi khoáng EZ270T-2RV v2 (DM)', 'Lõi', 48, 0, ''],
+  ['2007030101', 'Van điện từ 24/4U Spring', 'Linh kiện', 32, 0, ''], ['2008010042', 'Bơm 24-S 8369T-LC', 'Bơm', 82, 245000, 'admin'],
+  ['2011020017', 'Cút EZ V-4U-6 ST', 'Linh kiện', 635, 0, ''], ['2012010005', '(Mẫu) Màng RO', '', 49, 0, ''], ['2012020008', 'Màng ULP 1812-50S', 'Màng RO', 259, 189000, 'kho1402'],
+  ['2013100167', 'Bình áp nhựa trắng 3.2G-S Karofi', 'Bình áp', 346, 98000, 'lichsu'], ['4006070041', 'ACEP00370 Module nguồn 12V 6A K28-U72S12', 'Linh kiện', 6859, 31000, 'lichsu'],
+  ['1003010036', 'Bếp từ Livotec LIS-668', 'Gia dụng', 17, 0, ''], ['1004010048', 'Quạt cây Livotec S-100 (đen)', 'Gia dụng', 21, 0, ''], ['1003010057', 'Nồi cơm điện LVT LRC-6118P Hồng', 'Gia dụng', 4, 0, '']
+].map((r) => ({ sku: r[0], name: r[1], group: r[2], qty: r[3], price: r[4], priceSource: r[5], priceDate: r[5] && r[5] !== 'admin' ? '2026-07-07' : '', priceBy: r[5] === 'admin' ? 'hai' : '', priceAt: '' }));
+// Mã 2008010042 đã có 40 cái nằm trong đơn thanh lý chờ duyệt TL-100001
+orders.push({ rowIndex: 9001, orderNo: 'TL-100001', sku: '2008010042', name: 'Bơm 24-S 8369T-LC', qty: 40, price: 245000, total: 9800000, clientCode: clients[2].code, clientCodeSearch: clients[2].codeSearch, createdAt: '21/10/2026 09:00', pic: 'Luyến' });
+const tlJob = () => ({ status: q.get('tljob') === 'error' ? 'error' : (q.get('tljob') === 'pending' ? '' : 'ok'), message: q.get('tljob') === 'error' ? 'SAP chưa đăng nhập (mô phỏng)' : '', pending: q.get('tljob') === 'pending',
+  requestedBy: 'hai', requestedAt: '2026-10-21 12:00', lastOk: '2026-10-21 12:30', gioChay: ['08:30', '12:30', '16:30'] });
+function tlThanhLy() {
+  if (q.get('tlerr')) throw new Error('Mô phỏng lỗi tải tồn thanh lý (tlerr=1)');
+  if (!['sale', 'admin', 'creator', 'leader', 'lead'].includes(role)) throw new Error('Vai trò của anh/chị không dùng chức năng Bán hàng thanh lý.');
+  const quanTri = ['admin', 'creator'].includes(role);
+  const cho = {};
+  orders.filter((o) => /^TL-/.test(o.orderNo)).forEach((o) => { cho[o.sku] = (cho[o.sku] || 0) + o.qty; });
+  const kws = tlKw.map((k) => k.keyword);
+  const hit = (n) => kws.find((k) => (' ' + tlBoDau(n)).indexOf(' ' + tlBoDau(k)) >= 0) || '';
+  const items = [], hidden = [];
+  (q.get('tlempty') ? [] : tlStock).forEach((r) => {
+    const k = hit(r.name);
+    if (k) { hidden.push({ sku: r.sku, name: r.name, qty: r.qty, keyword: k }); return; }
+    items.push({ ...r, pending: cho[r.sku] || 0, avail: Math.max(0, r.qty - (cho[r.sku] || 0)) });
+  });
+  return { updatedAt: q.get('tlempty') ? '' : (q.get('tlstale') ? '2026-10-18 12:30' : '2026-10-21 12:30'), updatedToday: !q.get('tlstale') && !q.get('tlempty'), today: '2026-10-21',
+    job: tlJob(), plant: '0400', slocs: ['1402'], items, hiddenCount: hidden.length, hidden: quanTri ? hidden : [], keywords: quanTri ? tlKw : [],
+    canEditPrice: quanTri, canOrder: ['sale', 'admin', 'creator'].includes(role) };
+}
+
 const RAW_PG = 'duplicate key value violates unique constraint "products_sku_key"';
 window.__harnessLog = [];
 window.__harnessReads = [];
@@ -259,6 +296,35 @@ function doc(fn, args) {
       (sysDb[d.khoa] = sysDb[d.khoa] || []).push({ giaTri: p.giaTri, hieuLucTu: hl, nguoiSua: 'hai', ghiChu: p.ghiChu || '', lucSua: new Date().toISOString() });
       sysLuu();
       return { ok: true, khoa: d.khoa, hieuLucTu: hl };
+    }
+    case 'getThanhLy': return tlThanhLy();
+    case 'tlRequestRefresh': return { ok: true, job: { ...tlJob(), pending: true } };
+    case 'tlSeedPrices': return { ok: true, added: 2 };
+    case 'tlSetPrices': {
+      (args[1] || []).forEach((r) => { const it = tlStock.find((x) => x.sku === String(r.sku)); if (it) { it.price = r.price; it.priceSource = 'admin'; it.priceBy = 'hai'; it.priceDate = ''; } });
+      return { ok: true, saved: (args[1] || []).length };
+    }
+    case 'tlAddExclude': {
+      const kw = String(args[1] || '').trim();
+      if (!kw) throw new Error('Từ khoá trống.');
+      const moi = !tlKw.some((k) => tlBoDau(k.keyword) === tlBoDau(kw));
+      if (moi) tlKw.push({ id: nextId++, keyword: kw, note: args[2] || '', by: 'hai' });
+      return { ok: true, added: moi, keywords: tlKw };
+    }
+    case 'tlRemoveExclude': { tlKw = tlKw.filter((k) => k.id !== Number(args[1])); return { ok: true, keywords: tlKw }; }
+    case 'tlSubmitOrder': {
+      const o = args[1] || {}; const view = tlThanhLy();
+      if (!o.client || !o.client.code) throw new Error('Chưa chọn khách hàng.');
+      const no = 'TL-' + (200000 + nextId++);
+      let total = 0;
+      (o.items || []).forEach((i) => {
+        const it = view.items.find((x) => x.sku === String(i.sku));
+        if (!it) throw new Error('Mã ' + i.sku + ' không còn trong tồn kho thanh lý (hoặc đã bị loại khỏi danh sách).');
+        if (i.qty > it.avail) throw new Error('Mã ' + i.sku + ': chỉ còn ' + it.avail + '.');
+        total += i.qty * it.price;
+        orders.push({ rowIndex: nextId++, orderNo: no, sku: it.sku, name: it.name, qty: i.qty, price: it.price, total: i.qty * it.price, clientCode: o.client.code, clientCodeSearch: o.client.codeSearch, createdAt: '21/10/2026 14:00', pic: role === 'sale' ? 'luyen' : 'hai' });
+      });
+      return { ok: true, orderNo: no, savedCount: (o.items || []).length, total };
     }
     case 'getMyRejectedPriceProposals': return { batches: rejected };
     case 'getReportContext': return { plan2026: {}, baselines2025: {} };
