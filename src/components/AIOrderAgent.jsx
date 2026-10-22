@@ -18,7 +18,8 @@ import {
   EyeOff,
   ShieldCheck,
   AlertTriangle,
-  ArrowRightLeft
+  ArrowRightLeft,
+  History
 } from 'lucide-react';
 import {
   findMatchingMaterial,
@@ -104,6 +105,27 @@ function DoiChieuBadge({ doiChieu, onDoiSang }) {
   );
 }
 
+// Lịch sử mua của khách (22/10/2026): máy chủ đối chiếu với TOÀN BỘ lịch sử doanh thu của khách đó.
+//   true  -> khách đã từng mua mã này; false -> khách CÓ lịch sử nhưng chưa từng mua mã này (nên kiểm lại mã);
+//   undefined -> không có căn cứ (khách mới / chưa chọn khách) nên không nói gì.
+function DaMuaBadge({ daMua }) {
+  if (daMua === true) {
+    return (
+      <span className="badge badge-blue" style={{ fontSize: '0.625rem' }} title="Khách này đã từng mua mã này (theo lịch sử doanh thu)">
+        <History size={11} /> Khách từng mua
+      </span>
+    );
+  }
+  if (daMua === false) {
+    return (
+      <span className="badge badge-amber" style={{ fontSize: '0.625rem' }} title="Khách này có lịch sử mua nhưng chưa từng mua mã này — kiểm tra lại mã có đúng không">
+        <History size={11} /> Chưa từng mua
+      </span>
+    );
+  }
+  return null;
+}
+
 function IconDinhKem({ loai }) {
   if (loai === 'bang') return <FileSpreadsheet size={13} />;
   if (loai === 'pdf') return <FileText size={13} />;
@@ -184,7 +206,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
 
   // Giá lấy theo lịch sử mua của chính khách đó (Đơn Giá là giá riêng từng
   // khách), không phải giá niêm yết — giữ nguyên cách cũ.
-  const dungDong = (sku, name, unit, qty, confidence, sourceText, khach, doiChieu, note) => {
+  const dungDong = (sku, name, unit, qty, confidence, sourceText, khach, doiChieu, note, daMua) => {
     const mat = materials.find((m) => m.sku === sku);
     const price = getHistoricalUnitPrice(khach.name || '', sku, transactions, (mat && mat.avgPrice) || 0);
     return {
@@ -199,7 +221,8 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
       sourceQuery: sourceText || '',
       matchedAlias: mat && isNewAliasWorthLearning(sourceText, mat) ? sourceText : '',
       doiChieu,
-      note: note || ''
+      note: note || '',
+      daMua
     };
   };
 
@@ -241,10 +264,14 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
       // Một lượt quét lịch sử cho cả bảng, không phải mỗi dòng một lượt —
       // getClientOrderedSkus duyệt toàn bộ tab Data.
       const skuDaMua = getClientOrderedSkus(khach, transactions);
+      // Ưu tiên câu trả lời của máy chủ (đối chiếu TOÀN BỘ lịch sử); máy chủ cũ không trả thì dùng lịch sử đang tải ở máy, và chỉ khi
+      // khách có lịch sử mới đánh dấu "chưa từng mua" — khách mới thì không nói gì.
+      const coLichSu = kq.lichSuKhach ? !!kq.lichSuKhach.coDuLieu : skuDaMua.size > 0;
       const items = (kq.items || []).map((it) =>
         dungDong(
           it.sku, it.name, it.unit, it.qty, it.confidence, it.sourceText,
-          khach, doiChieuDong(it.sku, it.sourceText, skuDaMua), it.note
+          khach, doiChieuDong(it.sku, it.sourceText, skuDaMua), it.note,
+          coLichSu ? (it.daMua !== undefined ? it.daMua : skuDaMua.has(it.sku)) : undefined
         )
       );
 
@@ -317,9 +344,10 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
   const handleClientChange = (client) => {
     setKhachChon(client);
     if (!orderResult) return;
+    const daMuaSet = getClientOrderedSkus(client, transactions);
     const updatedItems = orderResult.items.map((item) => {
       const price = getHistoricalUnitPrice(client.name, item.sku, transactions, item.price);
-      return { ...item, price, total: tinhThanhTien(item.qty, price) };
+      return { ...item, price, total: tinhThanhTien(item.qty, price), daMua: daMuaSet.has(item.sku) ? true : undefined };
     });
     setOrderResult((cu) => ({ ...cu, client, items: updatedItems, grandTotal: tinhTong(updatedItems) }));
   };
@@ -340,7 +368,8 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
         total: tinhThanhTien(item.qty, price),
         confidence: 'Đã sửa thủ công',
         matchedAlias: isNewAliasWorthLearning(item.sourceQuery, material) ? item.sourceQuery : '',
-        doiChieu: null
+        doiChieu: null,
+        daMua: getClientOrderedSkus(orderResult.client, transactions).has(material.sku) ? true : undefined
       };
     }));
   };
@@ -659,6 +688,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
                           <div style={{ fontWeight: 600, fontSize: '0.78rem' }}>{item.name}</div>
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '2px' }}>
                             <ConfidenceBadge confidence={item.confidence} />
+                            <DaMuaBadge daMua={item.daMua} />
                             <DoiChieuBadge
                               doiChieu={item.doiChieu}
                               onDoiSang={() => {
