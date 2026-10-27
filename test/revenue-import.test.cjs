@@ -404,6 +404,15 @@ console.log('\n12. dieu-phoi.ps1 — kiểm lớp hai, khoá, và không nói d�
   check("dùng trạng thái 'dang-chay' làm hợp đồng với app", /'dang-chay'/.test(ps));
   check('lỗi ghi nhịp tim không làm hỏng việc chính', /không được để lỗi ở đây|khong phá|cái đo/i.test(ps) || /catch \{[\s\S]{0,120}Ghi-NhatKy/.test(ps));
   check('có nhật ký và tự giữ độ dài', /nhat-ky\.log/.test(ps) && /Select-Object -Last 400/.test(ps));
+
+  // 27/10/2026: lịch 12:30 hằng ngày (Scheduled Task Karofi-DoanhThu-OEM -> chay-lich.vbs -> dieu-phoi.ps1 -Lich).
+  check('có -Lich: nhịp riêng oem.doanh-thu.lich (khớp khuôn heartbeat), python chạy --ngam',
+    /\[switch\]\$Lich/.test(ps) && /\$Lich -and \$HanhDong -eq 'dt-oem'\)\s*\{\s*\$JOB = 'oem\.doanh-thu\.lich'/.test(ps) &&
+    /if \(\$Lich\) \{ \$thamSo1 \+= '--ngam' \}/.test(ps));
+  const lich = docNeuCo(path.join(PROTO, 'chay-lich.vbs'));
+  check('chay-lich.vbs: chạy ẩn, CHỜ xong và trả mã thoát (để Task thử lại khi lỗi)',
+    /sh\.Run\(lenh, 0, True\)/.test(lich) && /WScript\.Quit/.test(lich) && /-HanhDong dt-oem -Lich/.test(lich));
+  check('chay-lich.vbs không nhận URL / tham số từ ngoài', !/WScript\.Arguments/.test(lich));
 }
 
 console.log('\n13. Web App chỉ cho ghi nhịp phụ, không cho ghi đè dòng dữ liệu');
@@ -505,16 +514,27 @@ console.log('\n17. export_zsd450.py — đọc workbook nhúng, có dự phòng 
   // control Office (GuiShell subtype=OfficeIntegration) nhúng trong cửa sổ
   // SAP. Đó là lý do read_doi_workbook() bắt Excel qua Running Object Table
   // thay vì qua findById một GridView không tồn tại.
+  // Từ 27/10/2026 việc bắt workbook nằm ở Scripts/sap_phien.py (dùng chung với dt-fc, VA05...).
+  const SAPPHIEN = docNeuCo('D:/Operation/Claude/Scripts/sap_phien.py');
+  check('đọc workbook qua sap_phien.doc_workbook_sap', /sap_phien\.doc_workbook_sap\(bo_qua=bo_qua/.test(py));
   check('bắt Excel qua ROT (Running Object Table)',
-    /GetObject\(Class="Excel\.Application"\)/.test(py));
+    /GetObject\(Class="Excel\.Application"\)/.test(SAPPHIEN));
 
   // PHẢI khớp theo tiền tố tên workbook, KHÔNG lấy workbook đầu tiên. Nếu
   // người dùng đang mở file Excel riêng của họ và code lấy Workbooks(1) thì
   // đó chính là file bị đọc và đẩy lên tab Data — dữ liệu của người khác.
-  check('có hằng số tiền tố ~SAP{', /SAP_DOI_PREFIX\s*=\s*"~SAP\{"/.test(py));
+  check('có hằng số tiền tố ~SAP{', /SAP_DOI_PREFIX\s*=\s*"~SAP\{"/.test(SAPPHIEN));
   check('duyệt HẾT workbook để tìm đúng tiền tố, không lấy phần tử đầu',
-    /for i in range\(1, xl\.Workbooks\.Count \+ 1\)/.test(py) &&
-    /startswith\(SAP_DOI_PREFIX\)/.test(py));
+    /for i in range\(n, 0, -1\)/.test(SAPPHIEN) &&
+    /startswith\(SAP_DOI_PREFIX\)/.test(SAPPHIEN));
+  // 27/10/2026: chỉ đọc workbook MỚI của lượt này — Excel của người dùng có thể còn workbook ~SAP{ của lượt trước
+  // (đo thật: 301 dòng OEM còn sót), bản cũ lấy "cái đầu tiên khớp tiền tố" nên có thể đọc nhầm.
+  check('chỉ đọc workbook MỚI sau F8 (bỏ workbook có trước)',
+    /workbook_truoc = sap_phien\.ten_workbook_sap\(\)/.test(py) && /ten in bo_qua/.test(SAPPHIEN));
+  // Lịch 12:30 chạy lúc người dùng đang làm việc: phải là phiên SAP tạm thu nhỏ, không chiếm / maximize phiên của họ.
+  check('chạy trên phiên SAP tạm, đóng khi xong', /sap_phien\.mo_phien_tam\(conn, an=True\)/.test(py) && /sap_phien\.dong_phien_tam\(conn, tam\)/.test(py));
+  check('KHÔNG maximize, KHÔNG chiếm Children(0)', !/\.maximize\(\)/.test(py) && !/[A-Za-z_]\.Children\(0\)/.test(py));
+  check('--ngam: lượt theo lịch không rơi về Save As', /--ngam/.test(py) && /if ngam:\s*\n\s*raise RuntimeError/.test(py));
 
   // Bẫy múi giờ: ô SAP về dạng datetime CÓ tzinfo (UTC). astimezone/utcoffset
   // ở máy có múi giờ khác 0 sẽ dịch ngày — 04/09 thành 03/09, sai một ngày và
@@ -534,7 +554,7 @@ console.log('\n17. export_zsd450.py — đọc workbook nhúng, có dự phòng 
   check('vẫn giữ đường Save As làm dự phòng',
     /run_save_as_helper/.test(py) && /APPL_SAVEAS/.test(py));
   check('chỉ dùng Save As khi read_doi_workbook trả None',
-    /rows = read_doi_workbook\(\)/.test(py) && /if rows is None:/.test(py));
+    /rows = read_doi_workbook\(bo_qua=workbook_truoc\)/.test(py) && /if rows is None:/.test(py));
   // Đường nào được dùng phải lộ ra ngoài, để nhật ký sau này phân biệt được
   // "đang chạy đường mới" với "đã rơi về đường cũ".
   check('kết quả báo rõ đã dùng đường nào (doi / save-as)',
@@ -543,7 +563,7 @@ console.log('\n17. export_zsd450.py — đọc workbook nhúng, có dự phòng 
   // no_data vẫn phải kiểm TRƯỚC khi thử đọc workbook — tháng chưa có chứng từ
   // thì không có gì để đọc ở cả hai đường, và detect_no_data() đã biết việc đó.
   check('vẫn kiểm no_data trước khi chọn đường đọc',
-    py.indexOf('detect_no_data(session)') < py.indexOf('read_doi_workbook()'));
+    py.indexOf('detect_no_data(session)') < py.indexOf('read_doi_workbook(bo_qua=workbook_truoc)'));
 }
 
 console.log('');
