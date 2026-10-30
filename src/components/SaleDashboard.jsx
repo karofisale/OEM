@@ -372,7 +372,7 @@ export default function SaleDashboard({ token, activeUser, transactions = [], tx
                   </tbody>
                 </table>
               </div>
-              {congNo.rows.length > 10 && <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>Còn {congNo.rows.length - 10} khách khác — xem đủ ở mục Công nợ.</p>}
+              {congNo.rows.length > 10 && <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>Còn {congNo.rows.length - 10} khách khác — xem đủ ở Khách hàng OEM → Công nợ.</p>}
             </TableState>
           </Khung>
 

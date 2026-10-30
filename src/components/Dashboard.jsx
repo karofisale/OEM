@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { monthSortValue, yearsFromTransactions } from '../utils/period';
 import { thangGiaoDich } from '../utils/salesPlan';
 import { khopSale } from '../utils/roles';
+import { sanLuongTheoLoai, demDon, demKhachActive } from '../utils/dashboardMetric';
 import { vnYear } from '../utils/vnDate';
 import { useEnsureYears } from '../hooks/useEnsureYears';
 import TableState from './TableState';
@@ -11,6 +12,7 @@ import {
   Users, 
   FileText, 
   Calendar, 
+  Droplets,
   Award,
   Filter
 } from 'lucide-react';
@@ -74,13 +76,12 @@ export default function Dashboard({ transactions = [], txYears, clients = [], ma
   // trong useMemo, chỉ tính lại khi transactions/clients thật sự đổi.
   const {
     totalRevenue,
-    totalQty,
-    totalTransactionsCount,
+    sanLuong,
+    soDon,
     monthlyList,
     topClients
   } = useMemo(() => {
     let revenue = 0;
-    let qty = 0;
 
     // Monthly breakdown. Rows with no month used to be filed under a hardcoded
     // 'T08-2026', quietly inflating that one month with revenue that belongs
@@ -97,7 +98,6 @@ export default function Dashboard({ transactions = [], txYears, clients = [], ma
       // đồ tháng ngay bên dưới nó. Một nguồn duy nhất: netRevenue.
       const net = t.netRevenue || 0;
       revenue += net;
-      qty += t.qty || 0;
 
       const month = t.month || 'Chưa rõ tháng';
       monthlyRevenueMap.set(month, (monthlyRevenueMap.get(month) || 0) + net);
@@ -111,8 +111,9 @@ export default function Dashboard({ transactions = [], txYears, clients = [], ma
 
     return {
       totalRevenue: revenue,
-      totalQty: qty,
-      totalTransactionsCount: rows.length,
+      // Máy / Bơm tách riêng (30/10/2026); linh kiện & vật tư khác ghi ở dòng phụ để đối chiếu với tổng cũ. Số đơn = số mã SO khác nhau.
+      sanLuong: sanLuongTheoLoai(rows),
+      soDon: demDon(rows),
       // Chronological, not alphabetical: localeCompare puts 'T12-2025' after
       // 'T08-2026' because it compares '1' against '8' character by character.
       monthlyList: Array.from(monthlyRevenueMap.entries())
@@ -135,8 +136,9 @@ export default function Dashboard({ transactions = [], txYears, clients = [], ma
   //
   // Thẻ này đi theo bộ lọc SALE luôn: hiện số đối tác của CẢ hệ thống ngay cạnh
   // doanh thu của riêng một Sale thì cả hàng KPI đọc ra sai ý.
+  // Đếm theo Search Code (mã chữ), không phải Code SAP: một khách nhiều mã SAP chỉ tính một (30/10/2026).
   const activeClientsCount = useMemo(
-    () => clients.filter(c => String(c.status || '').trim() === 'Active' && khopSale(c.sale, saleFilter)).length,
+    () => demKhachActive(clients, saleFilter, khopSale),
     [clients, saleFilter]
   );
   const hasData = transactions.length > 0 || clients.length > 0;
@@ -214,7 +216,7 @@ export default function Dashboard({ transactions = [], txYears, clients = [], ma
           </div>
         </div>
 
-        {/* KPI 2 */}
+        {/* KPI 2a: Sản lượng máy */}
         <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{
             width: '48px', height: '48px', borderRadius: '12px',
@@ -223,11 +225,28 @@ export default function Dashboard({ transactions = [], txYears, clients = [], ma
             <PackageCheck size={24} color="var(--accent-emerald)" />
           </div>
           <div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Sản Lượng Xuất Bán</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Sản Lượng Máy</span>
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>
-              {totalQty.toLocaleString('vi-VN')} PC
+              {sanLuong.may.toLocaleString('vi-VN')} PC
             </div>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Vật tư & Linh kiện</span>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Mã SAP bắt đầu bằng 1</span>
+          </div>
+        </div>
+
+        {/* KPI 2b: Sản lượng bơm */}
+        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{
+            width: '48px', height: '48px', borderRadius: '12px',
+            background: 'rgba(14, 165, 233, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>
+            <Droplets size={24} color="var(--karofi-cyan)" />
+          </div>
+          <div>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Sản Lượng Bơm</span>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>
+              {sanLuong.bom.toLocaleString('vi-VN')} PC
+            </div>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Không tính linh kiện khác ({sanLuong.khac.toLocaleString('vi-VN')} PC)</span>
           </div>
         </div>
 
@@ -244,7 +263,7 @@ export default function Dashboard({ transactions = [], txYears, clients = [], ma
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>
               {activeClientsCount} Đối tác
             </div>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Đã xác minh</span>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Tính theo Search Code</span>
           </div>
         </div>
 
@@ -257,11 +276,11 @@ export default function Dashboard({ transactions = [], txYears, clients = [], ma
             <FileText size={24} color="var(--accent-amber)" />
           </div>
           <div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Số Lượt Giao Dịch</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Số Lượng Đơn</span>
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>
-              {totalTransactionsCount.toLocaleString('vi-VN')} Bản ghi
+              {soDon.toLocaleString('vi-VN')} Đơn
             </div>
-            <span style={{ fontSize: '0.7rem', color: 'var(--warning-text)', fontWeight: 600 }}>Doanh thu từ SAP</span>
+            <span style={{ fontSize: '0.7rem', color: 'var(--warning-text)', fontWeight: 600 }}>Đếm theo mã đơn SAP</span>
           </div>
         </div>
 

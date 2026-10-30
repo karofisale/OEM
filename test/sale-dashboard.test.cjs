@@ -138,7 +138,7 @@ const url = (f) => pathToFileURL(path.join(__dirname, '..', 'src', 'utils', f)).
   {
     const navSrc = SRC('utils/navMeta.js');
     const tabs = (await import(url('navMeta.js'))).TAB_IDS;
-    check('menu có mục "Dashboard Sale" (id sale-dashboard) với icon Gauge, import đủ icon', tabs.includes('sale-dashboard') && /id: 'sale-dashboard', label: 'Dashboard Sale', icon: 'Gauge'/.test(navSrc) && /ListFilter, Gauge\n\} from 'lucide-react'/.test(navSrc));
+    check('menu có mục "Dashboard Sale" (id sale-dashboard) với icon Gauge, import đủ icon', tabs.includes('sale-dashboard') && /id: 'sale-dashboard', label: 'Dashboard Sale', icon: 'Gauge'/.test(navSrc) && /ListFilter, Gauge(, [A-Za-z]+)*\n\} from 'lucide-react'/.test(navSrc));
     const navm = await import(url('navMeta.js'));
     check('kế toán KHÔNG vào được Dashboard Sale (rơi về tab mặc định của họ); các vai khác vào được',
       navm.tabHopLe('sale-dashboard', 'account') === 'products' && ['sale', 'admin', 'leader', 'creator'].every((r) => navm.tabHopLe('sale-dashboard', r) === 'sale-dashboard'));

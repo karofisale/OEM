@@ -20,17 +20,16 @@ import LoadingScreen from './components/LoadingScreen';
  * AIOrderAgent là tab mặc định nên gần như luôn được tải — nhưng tách vẫn có
  * lợi: nó kéo theo services/aiAgent.js, và giờ lượt tải đó chạy SONG SONG với
  * request getBootstrap thay vì nằm chặn trước nó. */
-const AIOrderAgent = React.lazy(() => import('./components/AIOrderAgent'));
-const OrdersReview = React.lazy(() => import('./components/OrdersReview'));
+// Đơn hàng = Nhận đơn (AIOrderAgent) + Chờ duyệt (OrdersReview); Khách hàng OEM = danh sách + Công nợ; SOP nằm trong Kế hoạch
+// kinh doanh (30/10/2026) — mỗi mục gom các màn con trong một "hub" tải lười, các màn con tự tải lười tiếp bên trong.
+const OrdersHub = React.lazy(() => import('./components/OrdersHub'));
+const ClientsHub = React.lazy(() => import('./components/ClientsHub'));
 const RevenueReports = React.lazy(() => import('./components/RevenueReports'));
 const Dashboard = React.lazy(() => import('./components/Dashboard'));
 const SaleDashboard = React.lazy(() => import('./components/SaleDashboard'));
 const TransactionGrid = React.lazy(() => import('./components/TransactionGrid'));
 const ProductPricing = React.lazy(() => import('./components/ProductPricing'));
-const ClientManagement = React.lazy(() => import('./components/ClientManagement'));
 const SalesPlan = React.lazy(() => import('./components/SalesPlan'));
-const SopPlan = React.lazy(() => import('./components/SopPlan'));
-const DebtManagement = React.lazy(() => import('./components/DebtManagement'));
 const ThanhLy = React.lazy(() => import('./components/ThanhLy'));
 const Settings = React.lazy(() => import('./components/Settings'));
 const SystemSettings = React.lazy(() => import('./components/SystemSettings'));
@@ -58,7 +57,7 @@ export default function App() {
   const guard = useNavGuard();
   const [session, setSession] = useState(() => api.loadSession());
   // Nhớ tab cuối qua F5 (Đợt 2 / mục 9). Chưa nhớ gì thì mặc định THEO VAI TRÒ (Đợt 3, navMeta.tabMacDinh):
-  // admin/leader vào báo cáo doanh thu, Sale vào AI Nhận Đơn Hàng, kế toán vào Sản phẩm. tabHopLe() chặn tab đã nhớ mà vai trò hiện tại
+  // admin/leader vào báo cáo doanh thu, Sale vào Dashboard Sale, kế toán vào Sản phẩm. tabHopLe() chặn tab đã nhớ mà vai trò hiện tại
   // không được vào (vd kế toán chỉ có 3 mục). Phạm vi theo tên người đăng nhập:
   // máy dùng chung thì người sau không thừa hưởng tab/bộ lọc của người trước.
   // Cài đặt "Trang đầu" (st.landing, 14/10/2026): 'auto' giữ đúng hành vi trên; chọn một tab cụ thể thì mở tab đó mỗi lần vào app.
@@ -71,6 +70,10 @@ export default function App() {
   // Chuyển tab đi qua hộp thoại chung "còn thay đổi chưa lưu" (NavGuard).
   // Cài đặt hệ thống chỉ dành cho master (creator): vai khác bấm/gọi vào cũng bị bỏ qua (máy chủ cũng từ chối getSystemSettings).
   const requestTab = (id) => { if (id === TAB_SYSTEM && !coQuyenHeThong(session && session.user && session.user.role)) return; if (id !== activeTab) guard(() => setActiveTab(id)); };
+  // Lệnh "mở thẳng tab con của một mục" (30/10/2026): { tab, sub, n } — n tăng mỗi lần để bấm lại cùng đích vẫn có tác dụng.
+  // Mục đích nhận qua prop `jump` (hooks/useJump.js). Đi qua guard như mọi lần chuyển tab (hỏi nếu còn thay đổi chưa lưu).
+  const [jump, setJump] = useState({ tab: '', sub: '', n: 0 });
+  const moTabCon = (tab, sub) => guard(() => { setJump((j) => ({ tab, sub, n: j.n + 1 })); setActiveTab(tab); });
   // Which tabs have ever been opened. Tabs mount on first visit and then stay
   // mounted (hidden) — see KeepAliveTab for why.
   const [visitedTabs, setVisitedTabs] = useState(() => new Set([activeTab]));
@@ -495,13 +498,18 @@ export default function App() {
         ) : (
         <main className="page-container">
           <KeepAliveTab isActive={activeTab === 'ai-agent'} hasVisited={visitedTabs.has('ai-agent')}>
-            <AIOrderAgent
+            <OrdersHub
+              token={session.token}
+              activeUser={activeUser}
               clients={clients}
               materials={materials}
               transactions={allTransactions}
               kits={kits}
-              token={session.token}
+              isActive={activeTab === 'ai-agent'}
+              isStale={ordersStale}
               onOrderSaved={() => setOrdersStale(true)}
+              onLoaded={() => setOrdersStale(false)}
+              jump={jump.tab === 'ai-agent' ? jump : null}
             />
           </KeepAliveTab>
 
@@ -514,18 +522,6 @@ export default function App() {
               plans={plans}
               plan2026={plan2026}
               isActive={activeTab === 'sale-dashboard'}
-            />
-          </KeepAliveTab>
-
-          <KeepAliveTab isActive={activeTab === 'pending-orders'} hasVisited={visitedTabs.has('pending-orders')}>
-            <OrdersReview
-              token={session.token}
-              activeUser={activeUser}
-              materials={materials}
-              clients={clients}
-              isActive={activeTab === 'pending-orders'}
-              isStale={ordersStale}
-              onLoaded={() => setOrdersStale(false)}
             />
           </KeepAliveTab>
 
@@ -577,11 +573,13 @@ export default function App() {
           </KeepAliveTab>
 
           <KeepAliveTab isActive={activeTab === 'clients'} hasVisited={visitedTabs.has('clients')}>
-            <ClientManagement
-              clients={clients}
+            <ClientsHub
+              token={session.token}
               activeUser={activeUser}
+              clients={clients}
               onAddClient={handleAddClient}
               onEditClient={handleEditClient}
+              jump={jump.tab === 'clients' ? jump : null}
             />
           </KeepAliveTab>
 
@@ -595,22 +593,11 @@ export default function App() {
               plan2026={plan2026}
               planDefaultMonth={planDefaultMonth}
               activeUser={activeUser}
+              materials={materials}
+              onAddMaterial={handleAddMaterial}
               onDataChanged={lamMoiKhoi}
               onReloadPlanKpi={napBaoCao}
             />
-          </KeepAliveTab>
-
-          <KeepAliveTab isActive={activeTab === 'sop'} hasVisited={visitedTabs.has('sop')}>
-            <SopPlan
-              token={session.token}
-              activeUser={activeUser}
-              materials={materials}
-              onAddMaterial={handleAddMaterial}
-            />
-          </KeepAliveTab>
-
-          <KeepAliveTab isActive={activeTab === 'debt-importer'} hasVisited={visitedTabs.has('debt-importer')}>
-            <DebtManagement token={session.token} activeUser={activeUser} clients={clients} />
           </KeepAliveTab>
 
           <KeepAliveTab isActive={activeTab === 'thanh-ly'} hasVisited={visitedTabs.has('thanh-ly')}>
@@ -620,7 +607,7 @@ export default function App() {
               clients={clients}
               isActive={activeTab === 'thanh-ly'}
               onOrderSaved={() => setOrdersStale(true)}
-              onOpenOrders={() => requestTab('pending-orders')}
+              onOpenOrders={() => moTabCon('ai-agent', 'review')}
             />
           </KeepAliveTab>
 

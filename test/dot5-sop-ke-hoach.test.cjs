@@ -163,8 +163,8 @@ const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   console.log('\n10. Mã nguồn: khung chung, nối props, không còn thứ đã bỏ');
   const panel = SRC('components/sop/SopPlanPanel.jsx');
   const modal = SRC('components/sop/SopAddProductModal.jsx');
-  check('SopPlan.jsx + App.jsx truyền onAddMaterial (handleAddMaterial) xuống panel',
-    /onAddMaterial=\{handleAddMaterial\}/.test(SRC('App.jsx')) && /onAddMaterial=\{onAddMaterial\}/.test(SRC('components/SopPlan.jsx')) && /SopPlan\(\{ token, activeUser, materials, onAddMaterial \}\)/.test(SRC('components/SopPlan.jsx')));
+  check('SopPlan.jsx + App.jsx (qua SalesPlan, tab con SOP từ 30/10/2026) truyền onAddMaterial (handleAddMaterial) xuống panel',
+    /onAddMaterial=\{handleAddMaterial\}/.test(SRC('App.jsx')) && /onAddMaterial=\{onAddMaterial\}/.test(SRC('components/SopPlan.jsx')) && /<SopPlan [^>]*onAddMaterial=\{onAddMaterial\}/.test(SRC('components/SalesPlan.jsx')) && /SopPlan\(\{ token, activeUser, materials, onAddMaterial(, embedded = false)? \}\)/.test(SRC('components/SopPlan.jsx')));
   check('bảng chỉ hiện mã trong kế hoạch (dongKeHoach), không còn checkbox "Chỉ SP có SL kế hoạch tháng trước" / "hiện SP đang ẩn"',
     /dongKeHoach\(materials, inPlan\)/.test(panel) && !/onlyPriorPlanned/.test(panel) && !/SP đang ẩn/.test(panel) && !/priorApprovedBySku/.test(panel));
   check('ô tìm đổi placeholder; có "Trong kế hoạch: N SKU"', /Tìm trong kế hoạch theo mã SKU, tên, alias/.test(panel) && /Trong kế hoạch: \{inPlan\.length/.test(panel));

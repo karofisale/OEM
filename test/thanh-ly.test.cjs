@@ -86,7 +86,7 @@ const imp = (f) => import(pathToFileURL(path.join(ROOT, 'src', f)).href);
   check('chỉ tlSubmitOrder bị chặn tự thử lại (gửi lại = đơn nhân đôi)', /NON_IDEMPOTENT_FNS = new Set\(\[[^\]]*'tlSubmitOrder'/.test(api) && !/NON_IDEMPOTENT_FNS = new Set\(\[[^\]]*'tlSetPrices'/.test(api));
   const app = SRC('App.jsx');
   check('App: tải ThanhLy bằng React.lazy + KeepAliveTab, báo đơn mới cho OrdersReview (ordersStale) và có đường mở Đơn chờ duyệt',
-    /lazy\(\(\) => import\('\.\/components\/ThanhLy'\)\)/.test(app) && /isActive=\{activeTab === 'thanh-ly'\}/.test(app) && /<ThanhLy[\s\S]*?onOrderSaved=\{\(\) => setOrdersStale\(true\)\}[\s\S]*?onOpenOrders=\{\(\) => requestTab\('pending-orders'\)\}/.test(app));
+    /lazy\(\(\) => import\('\.\/components\/ThanhLy'\)\)/.test(app) && /isActive=\{activeTab === 'thanh-ly'\}/.test(app) && /<ThanhLy[\s\S]*?onOrderSaved=\{\(\) => setOrdersStale\(true\)\}[\s\S]*?onOpenOrders=\{\(\) => moTabCon\('ai-agent', 'review'\)\}/.test(app));
   const orders = SRC('components/OrdersReview.jsx');
   check('Đơn chờ duyệt: đơn mã TL- có nhãn "Thanh lý · giá gồm VAT"', /laDonThanhLy = \(orderNo\) => \/\^TL-\/i/.test(orders) && /Thanh lý · giá gồm VAT/.test(orders));
   const main = SRC('components/ThanhLy.jsx');

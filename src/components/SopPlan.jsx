@@ -9,7 +9,8 @@ import SopPlanPanel from './sop/SopPlanPanel';
 import SopApprovePanel from './sop/SopApprovePanel';
 import SopMyPlanPanel from './sop/SopMyPlanPanel';
 
-export default function SopPlan({ token, activeUser, materials, onAddMaterial }) {
+// embedded: đang là tab con của Kế hoạch kinh doanh (30/10/2026) -> không vẽ lại thẻ tiêu đề, chỉ còn thanh tab SOP.
+export default function SopPlan({ token, activeUser, materials, onAddMaterial, embedded = false }) {
   // Bumped every time a plan is submitted or approved, so the "Xem SOP" panel
   // (and the approve panel's pending count) refetch instead of showing what
   // was true before the write.
@@ -29,17 +30,23 @@ export default function SopPlan({ token, activeUser, materials, onAddMaterial })
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
       {/* Header Banner */}
-      <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-        <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CalendarClock size={24} color="var(--karofi-cyan)" /> Kế hoạch SOP
-          </h2>
-          <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-            Kế hoạch sản lượng theo mã SKU cho 4 tháng tiếp theo — tổng hợp từ mọi Sale sau khi được duyệt.
-          </p>
+      {!embedded && (
+        <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+          <div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <CalendarClock size={24} color="var(--karofi-cyan)" /> Kế hoạch SOP
+            </h2>
+            <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
+              Kế hoạch sản lượng theo mã SKU cho 4 tháng tiếp theo — tổng hợp từ mọi Sale sau khi được duyệt.
+            </p>
+          </div>
         </div>
-
-      </div>
+      )}
+      {embedded && (
+        <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', margin: 0 }}>
+          Kế hoạch sản lượng theo mã SKU cho 4 tháng tiếp theo — tổng hợp từ mọi Sale sau khi được duyệt.
+        </p>
+      )}
 
       <SubTabs tabs={tabs} active={subView} onChange={setSubView} ariaLabel="Kế hoạch SOP" />
 

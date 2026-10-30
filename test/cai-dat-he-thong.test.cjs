@@ -155,7 +155,7 @@ const gan = (a, b) => Math.abs(a - b) < 1e-9;
   const nm = await imp('utils/navMeta.js');
   check('tabHopLe: "system-settings" chỉ creator vào được; admin/leader/sale/account rơi về tab mặc định của vai; không nằm trong NAV/TAB_IDS (không chọn làm Trang đầu)',
     nm.tabHopLe('system-settings', 'creator') === 'system-settings' && nm.tabHopLe('system-settings', 'admin') === 'revenue-reports' && nm.tabHopLe('system-settings', 'leader') === 'revenue-reports'
-    && nm.tabHopLe('system-settings', 'sale') === 'ai-agent' && nm.tabHopLe('system-settings', 'account') === 'products' && nm.tabHopLe('system-settings', undefined) === 'ai-agent'
+    && nm.tabHopLe('system-settings', 'sale') === 'sale-dashboard' && nm.tabHopLe('system-settings', 'account') === 'products' && nm.tabHopLe('system-settings', undefined) === 'ai-agent'
     && !nm.TAB_IDS.includes('system-settings') && !nm.NAV.some((m) => m.id === 'system-settings'));
   check('coQuyenHeThong: creator (mọi kiểu chữ) có; vai khác không', nm.coQuyenHeThong('creator') && nm.coQuyenHeThong('CREATOR') && ['admin', 'leader', 'sale', 'account', '', null].every((v) => !nm.coQuyenHeThong(v)));
   check('tab "Cài đặt cá nhân" vẫn mọi vai vào được (không bị ảnh hưởng)', nm.tabHopLe('settings', 'account') === 'settings');

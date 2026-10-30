@@ -12,14 +12,17 @@ import TableState from './TableState';
 import { useEnsureYears } from '../hooks/useEnsureYears';
 import { namCuaCacThang } from '../utils/txYears';
 
-export default function SalesPlan({ token, plans, clients, transactions, txYears, plan2026, planDefaultMonth, activeUser, onDataChanged, onReloadPlanKpi }) {
+// Kế hoạch SOP là tab con của Kế hoạch kinh doanh (30/10/2026; trước là mục menu riêng). Tải lười: chỉ tải khi mở tab SOP.
+const SopPlan = React.lazy(() => import('./SopPlan'));
+
+export default function SalesPlan({ token, plans, clients, transactions, txYears, plan2026, planDefaultMonth, activeUser, materials, onAddMaterial, onDataChanged, onReloadPlanKpi }) {
   const canPropose = ['sale', 'admin', 'creator'].includes(activeUser.role);
   const canApprove = ['admin', 'creator'].includes(activeUser.role);
 
   // Tab con: icon riêng, nhớ tab cuối qua F5 (Đợt 2 / mục 7, 9).
-  const hien = { view: true, propose: canPropose, approve: canApprove, kpi: canApprove };
+  const hien = { view: true, propose: canPropose, approve: canApprove, kpi: canApprove, sop: true };
   const tabs = SUBTABS['sales-plan'].filter((t) => hien[t.id]);
-  const [subSaved, setSubView] = usePersistentState('sub.sales-plan', 'view'); // 'view' | 'propose' | 'approve' | 'kpi'
+  const [subSaved, setSubView] = usePersistentState('sub.sales-plan', 'view'); // 'view' | 'propose' | 'approve' | 'kpi' | 'sop'
   const subView = tabs.some((t) => t.id === subSaved) ? subSaved : 'view';
 
   // Done của từng tháng kế hoạch tính từ giao dịch (Đợt 4: bootstrap chỉ gửi năm nay + năm trước). Kế hoạch của tháng thuộc năm CŨ
@@ -91,6 +94,12 @@ export default function SalesPlan({ token, plans, clients, transactions, txYears
       {canApprove && subView === 'kpi' && (
         <PlanNamPanel token={token} onSaved={onReloadPlanKpi} />
       )}
+
+      {/* Kế hoạch SOP không phụ thuộc doanh thu năm cũ nên nằm NGOÀI khối chờ `chuaDu` ở trên: tab này mở được ngay cả khi
+          doanh thu năm cũ đang tải / lỗi. embedded: bỏ thẻ tiêu đề riêng (đã có tiêu đề + thanh tab của Kế hoạch kinh doanh). */}
+      <KeepAliveTab isActive={subView === 'sop'}>
+        <SopPlan token={token} activeUser={activeUser} materials={materials} onAddMaterial={onAddMaterial} embedded />
+      </KeepAliveTab>
     </div>
   );
 }

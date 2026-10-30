@@ -185,10 +185,10 @@ const rel = (f) => path.relative(path.join(ROOT, 'src'), f).replace(/\\/g, '/');
   delete global.localStorage;
   check('không có localStorage (SSR/test) cũng không nổ', ui.readUi('tab', 'm') === 'm' && ui.writeUi('tab', 'x') === false);
   const nm = await imp('utils/navMeta.js');
-  check('tab đã nhớ hợp lệ thì giữ: admin + "sop" -> sop', nm.tabHopLe('sop', 'admin') === 'sop' && nm.tabHopLe('transactions', 'leader') === 'transactions');
-  check('F5 không còn luôn về AI nếu có tab đã nhớ; chưa nhớ gì -> mặc định ai-agent', nm.tabHopLe('clients', 'sale') === 'clients' && nm.tabHopLe(null, 'sale') === 'ai-agent');
+  check('tab đã nhớ hợp lệ thì giữ: admin + "sales-plan" -> sales-plan (id "sop" cũ cũng dẫn tới đó)', nm.tabHopLe('sales-plan', 'admin') === 'sales-plan' && nm.tabHopLe('sop', 'admin') === 'sales-plan' && nm.tabHopLe('transactions', 'leader') === 'transactions');
+  check('F5 không còn luôn về AI nếu có tab đã nhớ; chưa nhớ gì -> mặc định theo vai (Sale: sale-dashboard từ 30/10/2026; creator: ai-agent)', nm.tabHopLe('clients', 'sale') === 'clients' && nm.tabHopLe(null, 'sale') === 'sale-dashboard' && nm.tabHopLe(null, 'creator') === 'ai-agent');
   // Đợt 3 (mục 6): mặc định THEO VAI TRÒ — admin/leader vào báo cáo thay vì AI (Sale vẫn vào AI). Chi tiết ở dot3-tung-man.test.cjs.
-  check('tab rác/đã gỡ -> mặc định theo vai trò (Sale: ai-agent; admin: revenue-reports); kế toán chỉ được 3 mục (tab AI đã nhớ bị chặn)', nm.tabHopLe('ten-la', 'sale') === 'ai-agent' && nm.tabHopLe('ten-la', 'admin') === 'revenue-reports' && nm.tabHopLe('ai-agent', 'account') === 'products' && nm.tabHopLe('debt-importer', 'account') === 'debt-importer');
+  check('tab rác/đã gỡ -> mặc định theo vai trò (Sale: sale-dashboard; admin: revenue-reports); kế toán chỉ được Sản phẩm + Khách hàng OEM (tab AI đã nhớ bị chặn)', nm.tabHopLe('ten-la', 'sale') === 'sale-dashboard' && nm.tabHopLe('ten-la', 'admin') === 'revenue-reports' && nm.tabHopLe('ai-agent', 'account') === 'products' && nm.tabHopLe('debt-importer', 'account') === 'clients');
   check('App.jsx khởi tạo tab từ localStorage + ghi lại mỗi lần đổi + visitedTabs theo tab đó',
     /saved: readUi\('tab', null\)/.test(app) && /tabHopLe \}\)/.test(app) && /writeUi\('tab', id\)/.test(app) && /new Set\(\[activeTab\]\)/.test(app) && !/useState\('ai-agent'\)/.test(app));
   const persisted = { 'components/ClientManagement.jsx': ['clients.status', 'clients.sale', 'clients.view'], 'components/TransactionGrid.jsx': ['tx.year', 'tx.month', 'tx.sale', 'tx.group'],

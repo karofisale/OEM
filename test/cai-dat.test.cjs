@@ -90,10 +90,10 @@ const cho = (ms) => new Promise((r) => setTimeout(r, ms));
 
   console.log('\n4. Trang đầu + danh sách tab theo vai trò + Sale mặc định');
   const td = (landing, saved, role) => st.tabMoDau({ landing, saved, role, tabHopLe: nm.tabHopLe });
-  check('auto = hành vi cũ: tab đã nhớ nếu hợp lệ, không thì mặc định vai trò', td('auto', 'sop', 'admin') === 'sop' && td('auto', null, 'admin') === 'revenue-reports' && td('auto', null, 'sale') === 'ai-agent' && td('auto', null, 'account') === 'products' && td('auto', 'ai-agent', 'account') === 'products');
-  check('chọn tab cụ thể: luôn mở tab đó, thắng tab đã nhớ', td('clients', 'sop', 'sale') === 'clients' && td('dashboard', null, 'leader') === 'dashboard');
+  check('auto = hành vi cũ: tab đã nhớ nếu hợp lệ, không thì mặc định vai trò', td('auto', 'sales-plan', 'admin') === 'sales-plan' && td('auto', 'sop', 'admin') === 'sales-plan' && td('auto', null, 'admin') === 'revenue-reports' && td('auto', null, 'sale') === 'sale-dashboard' && td('auto', null, 'creator') === 'ai-agent' && td('auto', null, 'account') === 'products' && td('auto', 'ai-agent', 'account') === 'products');
+  check('chọn tab cụ thể: luôn mở tab đó, thắng tab đã nhớ', td('clients', 'sales-plan', 'sale') === 'clients' && td('dashboard', null, 'leader') === 'dashboard');
   check('vai trò không được vào tab đã chọn (kế toán chọn dashboard) -> rơi về mặc định vai trò, không lỗi', td('dashboard', null, 'account') === 'products' && td('sop', 'products', 'account') === 'products');
-  check('landing rác/chưa có -> như auto', td('xyz', 'clients', 'sale') === 'clients' && td(undefined, null, 'sale') === 'ai-agent');
+  check('landing rác/chưa có -> như auto', td('xyz', 'clients', 'sale') === 'clients' && td(undefined, null, 'sale') === 'sale-dashboard');
   check('tab Cài đặt: mọi vai trò (kể cả account) vào được, không nằm trong NAV/TAB_IDS', nm.tabHopLe('settings', 'account') === 'settings' && nm.tabHopLe('settings', 'sale') === 'settings' && !nm.TAB_IDS.includes('settings') && !nm.NAV.some((m) => m.id === 'settings' || (m.children || []).some((c) => c.id === 'settings')));
   const tcAcc = st.tabChoPhep('account', nm.NAV, nm.ACCOUNT_TAB_IDS).map((x) => x.id);
   const tcAdm = st.tabChoPhep('admin', nm.NAV, nm.ACCOUNT_TAB_IDS).map((x) => x.id);

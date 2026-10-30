@@ -211,10 +211,10 @@ const khongCmt = (s) => s.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l
   // ===========================================================================
   console.log('\n6. Toàn app: nhãn Sheet cũ, thẻ Karofi AI Engine, tab mặc định theo vai trò');
   const nm = await imp('utils/navMeta.js');
-  check('tabMacDinh: Sale/Creator -> ai-agent; admin/leader/lead -> revenue-reports; kế toán -> products; vai trò lạ -> ai-agent',
-    nm.tabMacDinh('sale') === 'ai-agent' && nm.tabMacDinh('creator') === 'ai-agent' && nm.tabMacDinh('admin') === 'revenue-reports' && nm.tabMacDinh('leader') === 'revenue-reports' && nm.tabMacDinh('lead') === 'revenue-reports' && nm.tabMacDinh('ADMIN') === 'revenue-reports' && nm.tabMacDinh('account') === 'products' && nm.tabMacDinh(undefined) === 'ai-agent');
+  check('tabMacDinh: Sale -> sale-dashboard (30/10/2026), Creator -> ai-agent; admin/leader/lead -> revenue-reports; kế toán -> products; vai trò lạ -> ai-agent',
+    nm.tabMacDinh('sale') === 'sale-dashboard' && nm.tabMacDinh('creator') === 'ai-agent' && nm.tabMacDinh('admin') === 'revenue-reports' && nm.tabMacDinh('leader') === 'revenue-reports' && nm.tabMacDinh('lead') === 'revenue-reports' && nm.tabMacDinh('ADMIN') === 'revenue-reports' && nm.tabMacDinh('account') === 'products' && nm.tabMacDinh(undefined) === 'ai-agent');
   check('tab ĐÃ NHỚ vẫn thắng mặc định (admin + "ai-agent" đã nhớ -> ai-agent); chưa nhớ/rác -> mặc định vai trò; tab mặc định luôn hợp lệ',
-    nm.tabHopLe('ai-agent', 'admin') === 'ai-agent' && nm.tabHopLe('sop', 'leader') === 'sop' && nm.tabHopLe(null, 'admin') === 'revenue-reports' && nm.tabHopLe('ten-la', 'leader') === 'revenue-reports' && nm.tabHopLe(undefined, 'sale') === 'ai-agent' && nm.TAB_IDS.includes(nm.tabMacDinh('admin')));
+    nm.tabHopLe('ai-agent', 'admin') === 'ai-agent' && nm.tabHopLe('sales-plan', 'leader') === 'sales-plan' && nm.tabHopLe(null, 'admin') === 'revenue-reports' && nm.tabHopLe('ten-la', 'leader') === 'revenue-reports' && nm.tabHopLe(undefined, 'sale') === 'sale-dashboard' && nm.TAB_IDS.includes(nm.tabMacDinh('admin')));
   check('kế toán không bị đẩy vào báo cáo; tab AI đã nhớ của kế toán vẫn bị chặn', nm.tabHopLe(null, 'account') === 'products' && nm.tabHopLe('ai-agent', 'account') === 'products' && nm.tabHopLe('revenue-reports', 'account') === 'products');
   const app = SRC('App.jsx');
   check('App: đăng nhập xong dùng tab đã nhớ của NGƯỜI MỚI (readUi null) hoặc mặc định vai trò — không thừa hưởng activeTab của người trước, và không ghi mặc định vào bộ nhớ',

@@ -132,7 +132,7 @@ function IconDinhKem({ loai }) {
   return <ImageIcon size={13} />;
 }
 
-export default function AIOrderAgent({ clients, materials, transactions, kits, token, onOrderSaved }) {
+export default function AIOrderAgent({ clients, materials, transactions, kits, token, onOrderSaved, onOpenReview }) {
   const toast = useToast();
   const fileInputRef = useRef(null);
 
@@ -145,7 +145,7 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
   const [isSaving, setIsSaving] = useState(false);
   // true = đơn ĐANG HIỆN đã lưu xong. Từ 09/10/2026 chỉ handleGenerateOrder (bóc đơn MỚI) mới hạ cờ này:
   // trước đây sửa một ô / đổi khách / thêm file là cờ về false và nút Lưu bấm lại được — lưu lần hai là
-  // saveOrder ghi thêm NGUYÊN đơn nữa (đơn trùng). Sửa đơn đã lưu thì làm ở mục "Đơn hàng chờ duyệt".
+  // saveOrder ghi thêm NGUYÊN đơn nữa (đơn trùng). Sửa đơn đã lưu thì làm ở tab "Chờ duyệt" của mục Đơn hàng.
   const [saved, setSaved] = useState(false);
   const [hienDocText, setHienDocText] = useState(false);
   const [bangLui, setBangLui] = useState('');
@@ -763,13 +763,16 @@ export default function AIOrderAgent({ clients, materials, transactions, kits, t
               </button>
               {saved && (
                 <div style={{ fontSize: '0.75rem', color: 'var(--accent-emerald-text)', textAlign: 'center' }}>
-                  Đơn này đã lưu. Muốn sửa thì vào mục "Đơn hàng chờ duyệt"; bấm "Phân tích đơn" để lên đơn khác.
+                  Đơn này đã lưu. Muốn sửa thì mở tab "Chờ duyệt"; bấm "Phân tích đơn" để lên đơn khác.
+                  {onOpenReview && (
+                    <> <button type="button" onClick={onOpenReview} className="btn btn-secondary btn-sm" style={{ marginLeft: '6px' }}>Mở Đơn hàng chờ duyệt</button></>
+                  )}
                 </div>
               )}
 
               <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', background: 'rgba(59, 130, 246, 0.08)', padding: '10px 14px', borderRadius: 'var(--radius-md)' }}>
                 💡 <strong>Dán vào SAP:</strong> bấm <strong>"Copy dán về SAP"</strong>, mở màn hình tạo Sales Order trong SAP GUI (VA01),
-                click vào ô đầu tiên của bảng vật tư rồi <code>Ctrl + V</code>. Sau khi lưu, vào mục "Đơn hàng chờ duyệt" để rà soát lại.
+                click vào ô đầu tiên của bảng vật tư rồi <code>Ctrl + V</code>. Sau khi lưu, mở tab "Chờ duyệt" để rà soát lại.
               </div>
             </>
           )}

@@ -9,7 +9,8 @@ import DebtImportPanel from './debt/DebtImportPanel';
 
 // "Nhập công nợ Excel" menu — consolidated (2026-08-25) into a real read table
 // over tab "Debt" plus the Excel import, instead of import-preview-only.
-export default function DebtManagement({ token, activeUser, clients }) {
+// embedded: đang là tab con của Khách hàng OEM (30/10/2026) -> bỏ thẻ tiêu đề riêng, chỉ còn dòng mô tả + thanh tab.
+export default function DebtManagement({ token, activeUser, clients, embedded = false }) {
   const [refreshTick, setRefreshTick] = useState(0);
   const canImport = ['admin', 'creator', 'account'].includes(activeUser.role);
 
@@ -20,16 +21,22 @@ export default function DebtManagement({ token, activeUser, clients }) {
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-        <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Wallet size={24} color="var(--karofi-cyan)" /> Công Nợ Khách Hàng
-          </h2>
-          <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-            Bảng công nợ khách hàng — nhập Excel để cập nhật Hạn mức và Số dư công nợ.
-          </p>
+      {!embedded ? (
+        <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+          <div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Wallet size={24} color="var(--karofi-cyan)" /> Công Nợ Khách Hàng
+            </h2>
+            <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
+              Bảng công nợ khách hàng — nhập Excel để cập nhật Hạn mức và Số dư công nợ.
+            </p>
+          </div>
         </div>
-      </div>
+      ) : (
+        <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', margin: 0 }}>
+          Bảng công nợ khách hàng — nhập Excel để cập nhật Hạn mức và Số dư công nợ.
+        </p>
+      )}
 
       <SubTabs tabs={tabs} active={subView} onChange={setSubView} ariaLabel="Công nợ" />
 
