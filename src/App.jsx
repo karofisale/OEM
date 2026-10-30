@@ -24,6 +24,7 @@ const AIOrderAgent = React.lazy(() => import('./components/AIOrderAgent'));
 const OrdersReview = React.lazy(() => import('./components/OrdersReview'));
 const RevenueReports = React.lazy(() => import('./components/RevenueReports'));
 const Dashboard = React.lazy(() => import('./components/Dashboard'));
+const SaleDashboard = React.lazy(() => import('./components/SaleDashboard'));
 const TransactionGrid = React.lazy(() => import('./components/TransactionGrid'));
 const ProductPricing = React.lazy(() => import('./components/ProductPricing'));
 const ClientManagement = React.lazy(() => import('./components/ClientManagement'));
@@ -155,7 +156,7 @@ export default function App() {
   }, [session?.token]);
 
   useEffect(() => {
-    const canDenBaoCao = activeTab === 'revenue-reports' || activeTab === 'sales-plan';
+    const canDenBaoCao = activeTab === 'revenue-reports' || activeTab === 'sales-plan' || activeTab === 'sale-dashboard';
     if (!canDenBaoCao || daNapBaoCao || !session?.token) return;
     napBaoCao().catch(() => {
       // Không đặt cờ daNapBaoCao: lần sau mở màn này sẽ thử lại. Hai màn vẫn
@@ -501,6 +502,18 @@ export default function App() {
               kits={kits}
               token={session.token}
               onOrderSaved={() => setOrdersStale(true)}
+            />
+          </KeepAliveTab>
+
+          <KeepAliveTab isActive={activeTab === 'sale-dashboard'} hasVisited={visitedTabs.has('sale-dashboard')}>
+            <SaleDashboard
+              token={session.token}
+              activeUser={activeUser}
+              transactions={allTransactions}
+              txYears={txYears}
+              plans={plans}
+              plan2026={plan2026}
+              isActive={activeTab === 'sale-dashboard'}
             />
           </KeepAliveTab>
 

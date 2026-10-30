@@ -12,20 +12,22 @@ import {
   Bot, ClipboardList, TrendingUp, PieChart, LayoutDashboard, History, Package, Users,
   CalendarRange, CalendarClock, Wallet, LayoutList, BadgeDollarSign, BadgeCheck, Calculator,
   Coins, Boxes, Eye, FilePenLine, ClipboardCheck, Target, Rows3, CheckCheck, NotebookPen,
-  FileUp, Table2, User, Calendar, CalendarDays, Recycle, ShoppingCart, Tag, ListFilter
+  FileUp, Table2, User, Calendar, CalendarDays, Recycle, ShoppingCart, Tag, ListFilter, Gauge
 } from 'lucide-react';
 
 const ICONS = {
   Bot, ClipboardList, TrendingUp, PieChart, LayoutDashboard, History, Package, Users,
   CalendarRange, CalendarClock, Wallet, LayoutList, BadgeDollarSign, BadgeCheck, Calculator,
   Coins, Boxes, Eye, FilePenLine, ClipboardCheck, Target, Rows3, CheckCheck, NotebookPen,
-  FileUp, Table2, User, Calendar, CalendarDays, Recycle, ShoppingCart, Tag, ListFilter
+  FileUp, Table2, User, Calendar, CalendarDays, Recycle, ShoppingCart, Tag, ListFilter, Gauge
 };
 
 export const iconOf = (name) => ICONS[name] || null;
 
 /** Mục menu bên trái. `children` = nhóm sổ xuống (id con là activeTab thật). */
 export const NAV = [
+  // Dashboard Sale (30/10/2026): số liệu riêng của mình hoặc chung của nhóm; kế toán (account) không vào (ACCOUNT_TAB_IDS).
+  { id: 'sale-dashboard', label: 'Dashboard Sale', icon: 'Gauge' },
   { id: 'ai-agent', label: 'AI Nhận Đơn Hàng', icon: 'Bot' },
   { id: 'pending-orders', label: 'Đơn Hàng Chờ Duyệt', icon: 'ClipboardList' },
   {

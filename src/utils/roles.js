@@ -66,6 +66,26 @@ export function khopSale(rowSale, saleFilter) {
 }
 
 /**
+ * "Của tôi" ở Dashboard Sale (30/10/2026): dòng dữ liệu này thuộc saleId của NGƯỜI ĐANG ĐĂNG NHẬP, bất kể vai trò.
+ *
+ * Khác ownsSaleRow ở chỗ KHÔNG coi admin/creator là "sở hữu tất cả": ở đây "của tôi" nghĩa đen là phần mình phụ trách
+ * (admin có saleId thì xem được phần của mình, không có thì rỗng). Cùng phép so với ownsSaleRow/laSaleCuaMinh: bằng đúng sau khi
+ * bỏ tiền tố "KH ", hoặc saleId là trọn các chữ cuối của tên; saleId trống -> false (fail closed).
+ */
+export function laCuaToi(activeUser, rowSale) {
+  const saleId = chuanHoaChu(activeUser?.saleId);
+  if (!saleId) return false;
+  const row = chuanHoaChu(rowSale);
+  return row === saleId || row.endsWith(' ' + saleId);
+}
+
+/** Đơn của tôi theo PIC = TÊN ĐĂNG NHẬP, mọi vai trò (khác ownsOrder: không cho admin/creator "sở hữu tất cả"). */
+export function donCuaToi(activeUser, pic) {
+  const ten = String(activeUser?.name || '').trim();
+  return !!ten && String(pic || '').trim() === ten;
+}
+
+/**
  * Đơn hàng này có do người đang đăng nhập tạo không (cột PIC của tab Orders).
  *
  * PIC lưu TÊN ĐĂNG NHẬP chứ không phải saleId (xem oemAppSaveOrder_), nên so
