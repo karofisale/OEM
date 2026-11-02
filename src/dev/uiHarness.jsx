@@ -16,6 +16,7 @@
  *   &slowyear=1    getTransactionsByYear chậm 2,5 giây (thử trạng thái "Đang tải doanh thu năm ...")
  *   &norej=1       không có đề xuất giá bị từ chối (mặc định có 2 đợt, kèm lý do)
  *   Kế hoạch SOP (Lập Kế Hoạch): &sop=carry (mặc định: 12 mã mang sang từ kỳ đã duyệt) | draft (kèm bản nháp đã gửi: 5 mã) | empty (kế hoạch trống)
+ *   &sop=hist       quên lập kỳ trước: KHÔNG có carry/nháp nhưng có LỊCH SỬ các kỳ cũ (2026-06 đã duyệt 10 mã; 2026-08 chờ duyệt 8 mã) -> thử "Các tháng đã lập trước đây" + sao chép tháng
  *   &failsubmit=1  submitSopDraft báo lỗi;  &failadd=1  addMaterial báo lỗi thô;  &slowadd=1  addMaterial chậm 2 giây.
  *   addMaterial giả kiểm trùng SKU (không phân biệt hoa/thường) + giá âm như máy chủ thật rồi GHI vào danh mục giả.
  *   Lần gửi SOP gần nhất: window.__lastSopSubmit ({ anchor, rows }).
@@ -132,7 +133,7 @@ const pendingProposals = materials.slice(0, 6).map((m) => ({
 
 // Kế hoạch SOP giả: carry = số mang sang từ kỳ đã duyệt; draft = bản đã gửi của kỳ này (cập nhật khi submitSopDraft).
 const sopMode = q.get('sop') || 'carry';
-const sopCarry = sopMode === 'empty' ? {} : Object.fromEntries(materials.slice(0, 12).map((m, i) => [m.sku, [10 + i, 20 + i, 30 + i, 0]]));
+const sopCarry = sopMode === 'empty' || sopMode === 'hist' ? {} : Object.fromEntries(materials.slice(0, 12).map((m, i) => [m.sku, [10 + i, 20 + i, 30 + i, 0]]));
 let sopDraft = sopMode === 'draft' ? materials.slice(20, 25).map((m, i) => ({ sku: m.sku, sl1: 5 + i, sl2: 6, sl3: 0, sl4: 1 })) : [];
 
 // Cài đặt cá nhân giả (getMyPrefs/setMyPrefs): bản "trên máy chủ" cất ở sessionStorage của tab (sống qua F5, mất khi đóng tab);
@@ -331,7 +332,16 @@ function doc(fn, args) {
     case 'getOrders': return orders;
     case 'getDebtView': return { rows: debtRows, lastUpdated: '2026-10-09T08:00:00Z' };
     case 'getSopView': return { rows: sopRows, monthLabels: labels };
-    case 'getMySopPlan': return { anchor: '', rows: [] };
+    case 'getMySopPlan': {
+      if (sopMode !== 'hist') return { anchor: '', rows: [] };
+      // Lịch sử giả: kỳ 2026-06 (T06–T09) đã duyệt cho 10 mã; kỳ 2026-08 (T08–T11) chờ duyệt cho 8 mã — T08/T09 do kỳ 08 ghi đè.
+      const lb = (p) => [0, 1, 2, 3].map((i) => { const t = Number(p.slice(5)) - 1 + i; return 'T' + String((t % 12) + 1).padStart(2, '0') + '-' + (Number(p.slice(0, 4)) + Math.floor(t / 12)); });
+      const mk = (p, ms, st, f) => ms.map((m, i) => ({ period: p, monthLabels: lb(p), sku: m.sku, name: m.name, price: m.suggestedPrice, sl: f(i), status: st, submittedAt: '', approvedAt: '' }));
+      return { anchor: '2026-10', rows: [
+        ...mk('2026-06', materials.slice(0, 10), 'Đã duyệt', (i) => [100 + i, 110 + i, 120 + i, 130 + i]),
+        ...mk('2026-08', materials.slice(2, 10), 'Chờ duyệt', (i) => [200 + i, 210 + i, 0, 230 + i])
+      ] };
+    }
     case 'getSopPlanningContext': return { anchor: '2026-10', monthLabels: labels, myDraft: sopDraft.map((d) => ({ ...d })), carryForwardBySku: sopMode === 'draft' ? Object.fromEntries(materials.slice(0, 12).map((m, i) => [m.sku, [10 + i, 20 + i, 30 + i, 0]])) : sopCarry, priorApprovedBySku: {} };
     case 'submitSopDraft': {
       if (q.get('failsubmit')) throw new Error('Mô phỏng lỗi gửi kế hoạch (failsubmit=1)');

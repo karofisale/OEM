@@ -6,6 +6,7 @@ import SortableTh from '../SortableTh';
 import TableState from '../TableState';
 import ConfirmDialog from '../ConfirmDialog';
 import SopAddProductModal from './SopAddProductModal';
+import SopLichSuSaoChep from './SopLichSuSaoChep';
 import { useToast } from '../ToastProvider';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useTableSort } from '../../hooks/useTableSort';
@@ -13,7 +14,8 @@ import { usePersistentState } from '../../hooks/usePersistentState';
 import { useUnsavedGuard } from '../../hooks/useUnsavedGuard';
 import {
   khoiTaoKeHoach, dongGui, chuKy, boKhoiKeHoach, hoanTacBo, themVaoKeHoach, diffGui, tomTatMa,
-  trangThaiChonTatCa, chonTatCa, giuChonConHien, khopLoc, dongKeHoach, datLenDau, doanhThuTheoThang, coSL
+  trangThaiChonTatCa, chonTatCa, giuChonConHien, khopLoc, dongKeHoach, datLenDau, doanhThuTheoThang, coSL,
+  luoiLichSu, saoChepThang
 } from '../../utils/sopPlan';
 
 import { useDefaultPageSize } from '../../hooks/useSetting';
@@ -43,9 +45,13 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  // Các tháng đã lập trước đây (mọi kỳ của chính Sale, từ getMySopPlan) — chỉ để xem lại + sao chép; lỗi ở đây không chặn việc lập kế hoạch.
+  const [lichSu, setLichSu] = useState(null);   // { grid, thang } | null
+  const [lichSuTai, setLichSuTai] = useState(false);
+  const [lichSuLoi, setLichSuLoi] = useState('');
 
   const [selected, setSelected] = useState(() => new Set());
-  const [undo, setUndo] = useState(null);       // { daBo, tieuDe } — dải Hoàn tác đang hiện
+  const [undo, setUndo] = useState(null);       // { tieuDe, daBo } (bỏ mã) | { tieuDe, truoc: { inPlan, draftMap } } (sao chép tháng) — dải Hoàn tác đang hiện
   const [pinned, setPinned] = useState(() => new Set()); // mã vừa thêm: lên đầu bảng tới lần sắp xếp/lọc kế tiếp
   const [flash, setFlash] = useState(() => new Set());   // mã vừa thêm: nổi bật vài giây
   const tableWrapRef = useRef(null);
@@ -80,8 +86,22 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
     }
   };
 
+  // Các tháng đã lập trước đây: tải riêng, không chặn bảng; kỳ đang soạn (anchor) không tính vào lịch sử.
+  const fetchLichSu = async () => {
+    setLichSuTai(true);
+    setLichSuLoi('');
+    try {
+      const res = await api.getMySopPlan(token);
+      setLichSu(luoiLichSu((res && res.rows) || [], (res && res.anchor) || ''));
+    } catch (err) {
+      setLichSuLoi((err && err.message) || String(err));
+    } finally {
+      setLichSuTai(false);
+    }
+  };
+
   // refreshTick: panel không remount khi chuyển sub-tab (KeepAliveTab), nên sau mỗi lần gửi/duyệt phải tải lại context.
-  useEffect(() => { fetchContext(); }, [token, refreshTick]);
+  useEffect(() => { fetchContext(); fetchLichSu(); }, [token, refreshTick]);
 
   const groupsList = useMemo(() => {
     const set = new Set(materials.map(m => m.group).filter(Boolean));
@@ -192,6 +212,15 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
 
   const handleUndo = () => {
     if (!undo) return;
+    if (undo.truoc) { // hoàn tác SAO CHÉP THÁNG: về đúng bản đang soạn trước khi sao chép
+      setInPlan(undo.truoc.inPlan);
+      setDraftMap(undo.truoc.draftMap);
+      setUndo(null);
+      setPinned(new Set());
+      setFlash(new Set());
+      toast.success('Đã hoàn tác việc sao chép tháng.');
+      return;
+    }
     const kq = hoanTacBo(inPlan, draftMap, undo.daBo);
     setInPlan(kq.inPlan);
     setDraftMap(kq.draftMap);
@@ -216,6 +245,30 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
     setSelected(new Set());
     setPinned(new Set());
     setUndo({ daBo: kq.daBo, tieuDe: `Đã xoá toàn bộ kế hoạch đang soạn (${kq.daBo.skus.length.toLocaleString('vi-VN')} mã).` });
+  };
+
+  // ----- Sao chép số của một tháng đã lập sang các tháng tiếp theo của kế hoạch đang soạn -----------------
+  // Chỉ sửa bản ĐANG SOẠN (draftMap/inPlan) — chưa gửi gì. Có Hoàn tác về đúng bản trước khi sao chép.
+  const handleSaoChep = ({ dich, chiODangTrong, nguon, nhanNguon }) => {
+    const kq = saoChepThang(inPlan, draftMap, nguon, dich, chiODangTrong);
+    const nhanDich = dich.map(i => context.monthLabels[i]).join(', ');
+    if (!kq.oDien) {
+      toast.info(kq.oGiu
+        ? `Không có ô nào để điền: ${kq.oGiu.toLocaleString('vi-VN')} ô ở ${nhanDich} đã có số. Bỏ tick “Chỉ điền ô đang trống” nếu muốn ghi đè.`
+        : `Các ô ở ${nhanDich} đã đúng số của ${nhanNguon}, không có gì để đổi.`);
+      return;
+    }
+    const truoc = { inPlan, draftMap };
+    setInPlan(kq.inPlan);
+    setDraftMap(kq.draftMap);
+    setSelected(new Set());
+    const moi = kq.inPlan.slice(inPlan.length);
+    setPinned(new Set(moi));
+    setFlash(new Set(moi));
+    setPage(1);
+    if (moi.length) setScrollTick(t => t + 1);
+    const phu = [kq.maMoi ? `thêm ${kq.maMoi.toLocaleString('vi-VN')} mã mới` : '', kq.oGiu ? `giữ nguyên ${kq.oGiu.toLocaleString('vi-VN')} ô đã có số` : ''].filter(Boolean).join(', ');
+    setUndo({ truoc, tieuDe: `Đã sao chép ${nhanNguon} sang ${nhanDich}: điền ${kq.oDien.toLocaleString('vi-VN')} ô${phu ? ', ' + phu : ''}.` });
   };
 
   // ----- Thêm mã vào kế hoạch -----------------------------------------------
@@ -309,7 +362,7 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
   // Dải Hoàn tác: nằm ngay trên bảng (hoặc trên khối "kế hoạch trống" sau khi xoá hết) để sale thấy ngay chỗ vừa thao tác.
   const undoBar = undo && (
     <div className="sop-undo-bar" role="status">
-      <span>{undo.tieuDe} Mã bị bỏ sẽ không còn trong kế hoạch kỳ này sau khi bạn bấm “Lưu Kế Hoạch, Gửi Duyệt”.</span>
+      <span>{undo.tieuDe}{undo.truoc ? ' Kiểm tra và sửa số rồi bấm “Lưu Kế Hoạch, Gửi Duyệt” — chưa gửi gì lên hệ thống.' : ' Mã bị bỏ sẽ không còn trong kế hoạch kỳ này sau khi bạn bấm “Lưu Kế Hoạch, Gửi Duyệt”.'}</span>
       <span style={{ display: 'inline-flex', gap: '6px' }}>
         <button type="button" className="btn btn-secondary btn-sm" onClick={handleUndo}><Undo2 size={14} aria-hidden="true" /> Hoàn tác</button>
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setUndo(null)} aria-label="Đóng thông báo hoàn tác"><X size={14} aria-hidden="true" /></button>
@@ -353,6 +406,21 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
         ))}
       </div>
 
+      {/* Các tháng đã lập trước đây + sao chép sang kế hoạch này (quên lập kỳ trước vẫn thấy và dùng lại được số cũ) */}
+      <SopLichSuSaoChep
+        anchor={context.anchor}
+        monthLabels={context.monthLabels}
+        lichSu={lichSu}
+        dangTai={lichSuTai}
+        loi={lichSuLoi}
+        onThuLai={fetchLichSu}
+        draftMap={draftMap}
+        inPlan={inPlan}
+        materials={materials}
+        moSan={inPlan.length === 0}
+        onSaoChep={handleSaoChep}
+      />
+
       {inPlan.length === 0 ? (
         /* Kế hoạch chưa có SKU nào: hướng dẫn lớn + nút thêm */
         <>
@@ -362,7 +430,7 @@ export default function SopPlanPanel({ token, materials, refreshTick, onSubmitte
           <div>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>Kế hoạch kỳ {kyLabel} chưa có sản phẩm nào</h3>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '6px auto 0', maxWidth: '520px', lineHeight: 1.5 }}>
-              Thêm các mã SKU bạn muốn lập kế hoạch từ danh mục sản phẩm (tìm theo mã, tên hoặc alias, tick được nhiều mã một lúc),
+              Có kế hoạch đã lập ở các tháng trước thì <strong>sao chép</strong> sang đây ở thẻ phía trên rồi sửa lại. Hoặc thêm các mã SKU từ danh mục sản phẩm (tìm theo mã, tên hoặc alias, tick được nhiều mã một lúc),
               rồi nhập số lượng cho từng tháng. Sản phẩm chưa có trong danh mục thì thêm mới ngay trong hộp tìm.
             </p>
           </div>
