@@ -132,8 +132,8 @@ const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   check('DT Tháng đòi cả NĂM TRƯỚC (so sánh) chứ không chỉ năm đang xem', /useEnsureYears\(txYears, \[effectiveYear, prevYear\]\)/.test(ap('reports/DtThangReport.jsx')));
   check('Dashboard: "Tất cả năm" đòi mọi năm cũ (truyền yearFilter, có thể là ALL), ẩn KPI khi chưa đủ', /useEnsureYears\(txYears, \[yearFilter\]\)/.test(ap('Dashboard.jsx')) && /chuaDu \? \(/.test(ap('Dashboard.jsx')));
   check('Lịch sử doanh thu: tổng / số bản ghi / phân trang / xuất Excel đều chờ dữ liệu đủ', /chuaDu \? '…' : totals\.qty/.test(ap('TransactionGrid.jsx')) && /disabled=\{exporting \|\| chuaDu/.test(ap('TransactionGrid.jsx')) && /\{!chuaDu && \(\s*\n\s*<Pagination/.test(ap('TransactionGrid.jsx')));
-  check('Kế hoạch KD: đòi các năm của tháng kế hoạch (Done tính từ giao dịch); gửi/duyệt kế hoạch chỉ làm mới plans',
-    /namCuaCacThang\(\(plans \|\| \[\]\)\.map/.test(ap('SalesPlan.jsx')) && (ap('SalesPlan.jsx').match(/onDataChanged\(\['plans'\]\)/g) || []).length === 2);
+  check('Kế hoạch KD: đòi các năm của tháng kế hoạch (Done tính từ giao dịch); gửi/duyệt/yêu cầu sửa lại kế hoạch chỉ làm mới plans',
+    /namCuaCacThang\(\(plans \|\| \[\]\)\.map/.test(ap('SalesPlan.jsx')) && (ap('SalesPlan.jsx').match(/onDataChanged\(\['plans'\]\)/g) || []).length === 3);
   const pp = ap('ProductPricing.jsx');
   check('Sản phẩm & Bảng giá: duyệt giá chỉ làm mới materials; lưu bộ sản phẩm chỉ làm mới kits', /onDataChanged\(\['materials'\]\)/.test(pp) && /onDataChanged\(\['kits'\]\)/.test(pp));
   const hk = SRC('hooks/useEnsureYears.js');

@@ -65,7 +65,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * B. DỮ LIỆU AN TOÀN nhưng lượt hai báo lỗi sai sự thật, người dùng tưởng
  *    hỏng rồi làm lại: addMaterial ("mã SKU đã có"), deleteOrder ("không tìm
  *    thấy đơn"), approveSop / approvePriceBatch / rejectPriceBatch ("không có
- *    gì đang chờ duyệt"), changePassword ("sai PIN cũ" — PIN đã đổi rồi).
+ *    gì đang chờ duyệt"), changePassword ("sai PIN cũ" — PIN đã đổi rồi), requestSalesPlanRevision ("không có kế hoạch nào để yêu cầu sửa").
  *
  * CỐ Ý KHÔNG nằm trong danh sách: các hàm upsert theo khoá — submitSalesPlan,
  * submitSopDraft, approveSalesPlan, editClient, editMaterial, updateOrderLine,
@@ -77,7 +77,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const NON_IDEMPOTENT_FNS = new Set([
   'saveOrder', 'addClient', 'insertOrderLine', 'deleteOrderLine', 'submitPriceProposal',
   'addMaterial', 'addMaterials', 'deleteOrder', 'approveSop', 'approvePriceBatch', 'rejectPriceBatch',
-  'changePassword', 'tlSubmitOrder'
+  'changePassword', 'tlSubmitOrder',
+  'requestSalesPlanRevision'   // nhóm B: lượt hai báo "không có kế hoạch nào để yêu cầu sửa" (dòng đã chuyển Cần sửa ở lượt đầu)
 ]);
 // `addMaterials` thuộc nhóm B: dữ liệu AN TOÀN khi gửi lại (nó bỏ qua SKU đã có
 // nên lượt hai không tạo dòng trùng), nhưng lượt hai báo "đã thêm 0, bỏ qua N"
@@ -355,6 +356,11 @@ export async function getSopPlanningContext(token) {
 
 export async function submitSopDraft(token, anchor, rows) {
   return callApi('submitSopDraft', [token, anchor, rows]);
+}
+
+/** Admin yêu cầu sửa lại kế hoạch tháng (đã duyệt / chờ duyệt) kèm lý do; `codes` rỗng = cả tháng. Trả { ok, count, thang, wholeMonth }. */
+export async function requestSalesPlanRevision(token, thang, codes, reason) {
+  return callApi('requestSalesPlanRevision', [token, thang, codes || [], reason]);
 }
 
 export async function getSopPendingReview(token, anchor) {

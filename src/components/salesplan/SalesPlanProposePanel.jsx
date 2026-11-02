@@ -13,6 +13,7 @@ import { doneTheoKhach, doneDong } from '../../utils/salesPlan';
 import { trangThai } from '../../utils/glossary';
 import { vnPlanMonthKey, vnTimestamp } from '../../utils/vnDate';
 import { dungBangMau, docBangKeHoach, ghepVaoNhap } from '../../utils/salesPlanExcel';
+import { TT_SUA, dongCanSuaCuaToi, lyDoRiengBiet } from '../../utils/salesPlanRevision';
 import { useTableSort } from '../../hooks/useTableSort';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { useUnsavedGuard } from '../../hooks/useUnsavedGuard';
@@ -92,6 +93,7 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
   const [dangXuat, setDangXuat] = useState(false);
   const [dangDoc, setDangDoc] = useState(false);
   const [dlgNhap, setDlgNhap] = useState(null); // { ten, thang, gh, loi, trung } — kết quả đọc file, chờ xác nhận áp
+  const [chiCanSua, setChiCanSua] = useState(false); // chỉ hiện khách Admin yêu cầu sửa lại
 
   const [draftMap, setDraftMap] = useState({});   // searchCode -> { w1..w5, note }
   const [savedMap, setSavedMap] = useState({});   // searchCode -> draftSignature đã lưu THÀNH CÔNG
@@ -114,6 +116,15 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
     plans.forEach(p => { if (p.month === month) map[p.searchCode] = p; });
     return map;
   }, [plans, month]);
+
+  // Admin YÊU CẦU SỬA LẠI (02/11/2026): các dòng 'Cần sửa' của CHÍNH Sale này, gom theo tháng. Chỉ hiện cho vai Sale (Admin là người yêu cầu,
+  // không phải người sửa). Dòng của tháng đang lập có nhãn + lý do ngay trên bảng; tháng khác chỉ nhắc để Sale biết mà mở.
+  const canSuaTheoThang = useMemo(
+    () => (isSale ? dongCanSuaCuaToi(plans, (tenSale) => ownsSaleRow(activeUser, tenSale)) : {}),
+    [plans, isSale, activeUser] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const canSuaThangNay = canSuaTheoThang[month] || [];
+  const thangKhacCanSua = Object.keys(canSuaTheoThang).filter(m => m !== month);
 
   // Danh bạ khách, tra theo Mã KH chữ. Tab Clients có thể có NHIỀU dòng cho
   // cùng một khách thật (khác địa chỉ/liên hệ) — giữ dòng đầu tiên.
@@ -231,7 +242,8 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
 
   const filteredRows = useMemo(() => {
     const q = normalizeForSearch(searchTerm.trim());
-    const base = !q ? scopedRows : scopedRows.filter(r =>
+    const goc = chiCanSua ? scopedRows.filter(r => r.plan && r.plan.status === TT_SUA) : scopedRows;
+    const base = !q ? goc : goc.filter(r =>
       normalizeForSearch(r.name).includes(q) ||
       normalizeForSearch(r.codeSearch).includes(q)
     );
@@ -239,7 +251,7 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
       if (!!b.isAdded !== !!a.isAdded) return b.isAdded ? 1 : -1;
       return planKpiForCode(b.codeSearch) - planKpiForCode(a.codeSearch);
     });
-  }, [scopedRows, searchTerm, month, plan2026]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scopedRows, searchTerm, month, plan2026, chiCanSua]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sắp xếp theo cột (Đợt 2 / mục 3) — chỉ các cột KHÔNG sửa được (Mã, Tên, Plan KPI, Done), vì sắp
   // theo ô đang gõ thì dòng nhảy chỗ dưới tay người nhập. Không chọn cột nào thì giữ thứ tự mặc định
@@ -334,6 +346,12 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
   }, [filteredRows, draftMap, existingByCode, month, plan2026, doneByCode]); // eslint-disable-line react-hooks/exhaustive-deps
   const totalPlanUpdate = totals.w1 + totals.w2 + totals.w3 + totals.w4 + totals.w5;
   const fmt = (v) => (v || 0).toLocaleString('vi-VN');
+
+  // Sale xem yêu cầu sửa mà thấy số đã đúng: "Giữ nguyên số, gửi lại" đưa dòng vào danh sách CHƯA LƯU y hệt số hiện có — bấm Lưu thì dòng
+  // về 'Chờ duyệt' (server xoá lý do). Không có nút này thì dòng không đổi số sẽ không bao giờ được gửi lại.
+  const guiLaiKhongDoi = (code) => {
+    setDraftMap(prev => ({ ...prev, [code]: { ...getDraft(code) } }));
+  };
 
   const handleAddClientToPlan = () => {
     if (!pickedClient) return;
@@ -477,6 +495,7 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
   // tháng khác là ghi số của tháng này vào tháng kia. Nên đổi tháng = bỏ nháp (đã hỏi nếu còn dòng chưa lưu) và
   // quay về bước chọn tháng; dữ liệu ĐÃ lưu nằm trên server nên không mất gì.
   const doiThang = () => {
+    setChiCanSua(false);
     setDraftMap({});
     setSavedMap({});
     setExtraCodes([]);
@@ -501,9 +520,34 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
     }
   };
 
+  // Khối nhắc "Admin yêu cầu sửa lại" — dùng ở màn chọn tháng và ở đầu bảng. `moThang` (chỉ ở màn chọn tháng) mở thẳng tháng đó.
+  const khoiCanSua = (moThang) => {
+    const cacThang = Object.keys(canSuaTheoThang).sort().reverse();
+    if (!cacThang.length) return null;
+    return (
+      <div role="alert" className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderColor: 'rgba(220, 38, 38, 0.45)', textAlign: 'left', width: '100%', maxWidth: '680px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, color: 'var(--danger)', fontSize: '0.9rem' }}>
+          <AlertTriangle size={16} aria-hidden="true" /> Admin yêu cầu bạn sửa lại kế hoạch
+        </div>
+        {cacThang.map(m => (
+          <div key={m} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', fontSize: '0.82rem' }}>
+            <span>
+              <strong>{m}</strong>: {canSuaTheoThang[m].length.toLocaleString('vi-VN')} khách
+              {lyDoRiengBiet(canSuaTheoThang[m]).length ? ` — “${lyDoRiengBiet(canSuaTheoThang[m]).join('”, “')}”` : ''}
+            </span>
+            {moThang && (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => moThang(m)}>Mở tháng {m}</button>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   if (!periodConfirmed) {
     return (
       <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', textAlign: 'center', padding: '32px 20px' }}>
+        {khoiCanSua((m) => { setMonth(m); setPeriodConfirmed(true); })}
         <ShieldCheck size={32} color="var(--karofi-cyan)" />
         <div>
           <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>Chọn tháng lập kế hoạch</h3>
@@ -547,6 +591,25 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {canSuaThangNay.length > 0 && (
+        <div role="alert" className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', borderColor: 'rgba(220, 38, 38, 0.45)' }}>
+          <AlertTriangle size={18} color="var(--danger)" aria-hidden="true" />
+          <span style={{ fontSize: '0.84rem', flex: 1, minWidth: '260px', lineHeight: 1.5 }}>
+            <strong style={{ color: 'var(--danger)' }}>Admin yêu cầu sửa lại {canSuaThangNay.length.toLocaleString('vi-VN')} khách của tháng {month}</strong>
+            {lyDoRiengBiet(canSuaThangNay).length ? <> — “{lyDoRiengBiet(canSuaThangNay).join('”, “')}”</> : null}.
+            {' '}Sửa số các dòng có nhãn <strong>CẦN SỬA</strong> rồi bấm “Lưu Kế Hoạch, Gửi Duyệt” (hoặc “Giữ nguyên số, gửi lại” nếu số đã đúng).
+          </span>
+          <button type="button" className={'btn btn-sm ' + (chiCanSua ? 'btn-primary' : 'btn-secondary')} onClick={() => { setChiCanSua(v => !v); setPage(1); }}>
+            {chiCanSua ? 'Hiện tất cả khách' : 'Chỉ hiện khách cần sửa'}
+          </button>
+        </div>
+      )}
+      {thangKhacCanSua.length > 0 && (
+        <div className="glass-card" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', borderColor: 'rgba(245, 158, 11, 0.4)' }}>
+          <AlertTriangle size={14} color="var(--warning-text)" style={{ verticalAlign: '-2px', marginRight: '6px' }} aria-hidden="true" />
+          Tháng {thangKhacCanSua.sort().join(', ')} còn khách Admin yêu cầu sửa lại — bấm “Đổi tháng” để mở.
+        </div>
+      )}
       {!kpiLoaded && (
         <div className="glass-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', borderColor: 'rgba(245, 158, 11, 0.4)' }}>
           <AlertTriangle size={18} color="var(--warning-text)" />
@@ -702,6 +765,9 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
                     {isDirty && (
                       <span style={{ marginLeft: '6px', fontSize: '0.65rem', fontWeight: 800, color: 'var(--warning-text)' }}>CHƯA LƯU</span>
                     )}
+                    {r.plan && r.plan.status === TT_SUA && !isDirty && !isJustSaved && (
+                      <span style={{ marginLeft: '6px', fontSize: '0.65rem', fontWeight: 800, color: 'var(--danger)' }}>CẦN SỬA</span>
+                    )}
                     {!editable && (
                       <span title={`Khách của ${r.sale} — chỉ xem`} style={{ marginLeft: '6px', fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
                         <Lock size={11} /> CHỈ XEM
@@ -710,6 +776,13 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
                   </td>
                   <td style={{ fontSize: '0.8rem' }}>
                     <div style={{ fontWeight: 600 }}>{r.name}</div>
+                    {r.plan && r.plan.status === TT_SUA && !isDirty && !isJustSaved && (
+                      <div style={{ fontSize: '0.72rem', color: 'var(--danger)', margin: '2px 0', lineHeight: 1.4 }}>
+                        Admin yêu cầu sửa{r.plan.revisionNote ? `: ${r.plan.revisionNote}` : ''}
+                        {r.plan.revisionBy || r.plan.revisionAt ? <span style={{ color: 'var(--text-dim)' }}> ({[r.plan.revisionBy, r.plan.revisionAt].filter(Boolean).join(' · ')})</span> : null}
+                        {editable && <> <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '2px 6px' }} onClick={() => guiLaiKhongDoi(code)}>Giữ nguyên số, gửi lại</button></>}
+                      </div>
+                    )}
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
                       {canFilterAllSales && r.sale ? r.sale : ''}
                       {r.plan ? `${canFilterAllSales && r.sale ? ' · ' : ''}${trangThai(r.plan.status || 'Chờ duyệt').label}` : ''}

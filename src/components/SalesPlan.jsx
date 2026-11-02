@@ -84,6 +84,7 @@ export default function SalesPlan({ token, plans, clients, transactions, txYears
             plans={plans}
             transactions={transactions}
             onApproved={() => { if (onDataChanged) onDataChanged(['plans']); setSubView('view'); }}
+            onChanged={() => { if (onDataChanged) onDataChanged(['plans']); }}
           />
         </KeepAliveTab>
       )}

@@ -17,6 +17,7 @@
  *   &norej=1       không có đề xuất giá bị từ chối (mặc định có 2 đợt, kèm lý do)
  *   Kế hoạch SOP (Lập Kế Hoạch): &sop=carry (mặc định: 12 mã mang sang từ kỳ đã duyệt) | draft (kèm bản nháp đã gửi: 5 mã) | empty (kế hoạch trống)
  *   &sop=hist       quên lập kỳ trước: KHÔNG có carry/nháp nhưng có LỊCH SỬ các kỳ cũ (2026-06 đã duyệt 10 mã; 2026-08 chờ duyệt 8 mã) -> thử "Các tháng đã lập trước đây" + sao chép tháng
+ *   &plan=sua       Kế hoạch tháng: một số dòng T10-2026 đang 'Cần sửa' kèm lý do của Admin (thử nhãn CẦN SỬA, banner, Giữ nguyên số gửi lại; nên dùng &role=sale)
  *   &failsubmit=1  submitSopDraft báo lỗi;  &failadd=1  addMaterial báo lỗi thô;  &slowadd=1  addMaterial chậm 2 giây.
  *   addMaterial giả kiểm trùng SKU (không phân biệt hoa/thường) + giá âm như máy chủ thật rồi GHI vào danh mục giả.
  *   Lần gửi SOP gần nhất: window.__lastSopSubmit ({ anchor, rows }).
@@ -116,6 +117,13 @@ const plans = clients.slice(0, 12).flatMap((c, i) => ['T10-2026', 'T09-2026'].ma
   month: mo, searchCode: c.codeSearch, clientName: c.name, sale: c.sale, planKpi: 1e9 * (i + 1), planUpdate: 8e8 * (i + 1), done: 0,
   w1: 2e8 * (i + 1), w2: 2e8 * (i + 1), w3: 2e8 * (i + 1), w4: 2e8 * (i + 1), w5: 0, note: i % 3 ? '' : 'Ghi chú', status: k && i % 2 ? 'Đã duyệt' : 'Chờ duyệt'
 })));
+// Kế hoạch tháng giả — trạng thái đổi theo requestSalesPlanRevision / approveSalesPlan / submitSalesPlan (sửa tại chỗ trên mảng `plans`).
+plans.forEach((p) => { p.revisionNote = ''; p.revisionBy = ''; p.revisionAt = ''; });
+if (q.get('plan') === 'sua') {
+  plans.filter((p) => p.month === 'T10-2026' && p.sale === 'KH Luyến').slice(0, 3).forEach((p, i) => {
+    p.status = 'Cần sửa'; p.revisionNote = i ? 'Tuần 3 cao hơn lịch sử, rà lại với khách' : 'Chưa khớp KPI tháng'; p.revisionBy = 'hai'; p.revisionAt = '02/11/2026 09:30';
+  });
+}
 const orders = [];
 ['SO-A001', 'SO-A002', 'SO-A003'].forEach((no, n) => {
   [0, 1, 2].forEach((k) => orders.push({
@@ -231,7 +239,7 @@ function doc(fn, args) {
     case 'getBootstrap': {
       const opts = q.get('legacy') ? null : (args[2] && typeof args[2] === 'object' ? args[2] : null);
       const tatCa = txNamCu[2024].concat(txNamCu[2025], transactions);
-      const day = { clients, transactions: tatCa, materials, plans, planDefaultMonth: '', kits: [] };
+      const day = { clients, transactions: tatCa, materials, plans: plans.map((p) => ({ ...p })), planDefaultMonth: '', kits: [] };   // bản sao: App so tham chiếu, trả đúng mảng cũ thì không vẽ lại
       if (!opts) return day;
       if (Array.isArray(opts.parts) && opts.parts.length) {
         const out = { planDefaultMonth: '' };
@@ -332,6 +340,30 @@ function doc(fn, args) {
     case 'getOrders': return orders;
     case 'getDebtView': return { rows: debtRows, lastUpdated: '2026-10-09T08:00:00Z' };
     case 'getSopView': return { rows: sopRows, monthLabels: labels };
+    case 'requestSalesPlanRevision': {
+      if (q.get('failrevise')) throw new Error('Mô phỏng lỗi yêu cầu sửa (failrevise=1)');
+      const [thang, codes, lyDo] = [args[1], args[2] || [], String(args[3] || '').trim()];
+      if (lyDo.length < 3) throw new Error('Cần ghi lý do yêu cầu sửa lại (ít nhất 3 ký tự) để Sale biết sửa gì.');
+      const hit = plans.filter((p) => p.month === thang && ['Đã duyệt', 'Chờ duyệt'].includes(p.status) && (!codes.length || codes.includes(p.searchCode)));
+      if (!hit.length) throw new Error('Không có kế hoạch nào (đã duyệt hoặc chờ duyệt) để yêu cầu sửa ở tháng này.');
+      hit.forEach((p) => { p.status = 'Cần sửa'; p.revisionNote = lyDo; p.revisionBy = 'hai'; p.revisionAt = '02/11/2026 10:00'; });
+      window.__lastRevision = { thang, codes, lyDo, count: hit.length };
+      return { ok: true, count: hit.length, thang, wholeMonth: !codes.length };
+    }
+    case 'approveSalesPlan': {
+      const hit = plans.filter((p) => p.month === args[1] && p.status === 'Chờ duyệt');
+      if (!hit.length) throw new Error('Không có kế hoạch nào đang chờ duyệt cho tháng này.');
+      hit.forEach((p) => { p.status = 'Đã duyệt'; });
+      return { ok: true, approvedCount: hit.length, thang: args[1] };
+    }
+    case 'submitSalesPlan': {
+      (args[2] || []).forEach((r) => {
+        const p = plans.find((x) => x.month === args[1] && x.searchCode === r.searchCode);
+        if (p) Object.assign(p, { w1: r.w1, w2: r.w2, w3: r.w3, w4: r.w4, w5: r.w5, note: r.note || '', planUpdate: (r.w1 || 0) + (r.w2 || 0) + (r.w3 || 0) + (r.w4 || 0) + (r.w5 || 0), status: 'Chờ duyệt', revisionNote: '', revisionBy: '', revisionAt: '' });
+      });
+      window.__lastPlanSubmit = { thang: args[1], rows: JSON.parse(JSON.stringify(args[2] || [])) };
+      return { ok: true, savedCount: (args[2] || []).length, thang: args[1] };
+    }
     case 'getMySopPlan': {
       if (sopMode !== 'hist') return { anchor: '', rows: [] };
       // Lịch sử giả: kỳ 2026-06 (T06–T09) đã duyệt cho 10 mã; kỳ 2026-08 (T08–T11) chờ duyệt cho 8 mã — T08/T09 do kỳ 08 ghi đè.

@@ -57,6 +57,8 @@ const TRANG_THAI = {
   'chờ duyệt': { label: 'Chờ duyệt', tone: 'amber' },
   'approved': { label: 'Đã duyệt', tone: 'emerald' },
   'đã duyệt': { label: 'Đã duyệt', tone: 'emerald' },
+  'cần sửa': { label: 'Cần sửa', tone: 'rose' },   // kế hoạch tháng bị Admin yêu cầu sửa lại (02/11/2026)
+  'cần sửa lại': { label: 'Cần sửa', tone: 'rose' },
   'rejected': { label: 'Từ chối', tone: 'rose' },
   'từ chối': { label: 'Từ chối', tone: 'rose' },
   'đã từ chối': { label: 'Từ chối', tone: 'rose' },
