@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Filter, CheckCircle2, Save, ShieldCheck, User, UserPlus, Plus, RefreshCw, AlertTriangle, Check, Lock, CalendarRange } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Search, Filter, CheckCircle2, Save, ShieldCheck, User, UserPlus, Plus, RefreshCw, AlertTriangle, Check, Lock, CalendarRange, Download, Upload } from 'lucide-react';
 import * as api from '../../services/api';
 import Combobox from '../Combobox';
 import ConfirmDialog from '../ConfirmDialog';
@@ -11,7 +11,8 @@ import { parseMonthKey, formatMonthKey } from '../../utils/period';
 import { canSeeAllSales, ownsSaleRow } from '../../utils/roles';
 import { doneTheoKhach, doneDong } from '../../utils/salesPlan';
 import { trangThai } from '../../utils/glossary';
-import { vnPlanMonthKey } from '../../utils/vnDate';
+import { vnPlanMonthKey, vnTimestamp } from '../../utils/vnDate';
+import { dungBangMau, docBangKeHoach, ghepVaoNhap } from '../../utils/salesPlanExcel';
 import { useTableSort } from '../../hooks/useTableSort';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { useUnsavedGuard } from '../../hooks/useUnsavedGuard';
@@ -86,6 +87,11 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
   const [page, setPage] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
   const [isReloadingKpi, setIsReloadingKpi] = useState(false);
+  // Xuất Excel mẫu / Nhập từ Excel (02/11/2026): chỉ đổi bản NHÁP trên màn, không ghi lên máy chủ — Sale kiểm rồi bấm Lưu như thường.
+  const fileRef = useRef(null);
+  const [dangXuat, setDangXuat] = useState(false);
+  const [dangDoc, setDangDoc] = useState(false);
+  const [dlgNhap, setDlgNhap] = useState(null); // { ten, thang, gh, loi, trung } — kết quả đọc file, chờ xác nhận áp
 
   const [draftMap, setDraftMap] = useState({});   // searchCode -> { w1..w5, note }
   const [savedMap, setSavedMap] = useState({});   // searchCode -> draftSignature đã lưu THÀNH CÔNG
@@ -394,6 +400,79 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
     }
   };
 
+  // ----- Excel mẫu: xuất + nhập -----------------------------------------------
+  // Mẫu = các khách Sale SỬA ĐƯỢC trong phạm vi đang chọn (kèm số hiện có, kể cả nháp chưa lưu). Nhập lại: ô trống giữ nguyên số,
+  // 0 đặt về 0; chỉ dòng thật sự đổi mới vào nháp (dòng y hệt số đã lưu không bị đẩy lại về "Chờ duyệt").
+  const handleXuatMau = async () => {
+    if (dangXuat) return;
+    const ds = [...scopedRows].filter(canEditRow).sort((a, b) => planKpiForCode(b.codeSearch) - planKpiForCode(a.codeSearch));
+    if (!ds.length) { toast.info('Không có khách hàng nào bạn sửa được trong phạm vi đang chọn để xuất mẫu.'); return; }
+    setDangXuat(true);
+    try {
+      const XLSX = await import('xlsx');
+      const rows = ds.map(r => {
+        const d = getDraft(r.codeSearch);
+        return { code: r.codeSearch, name: r.name, sale: r.sale, planKpi: planKpiForCode(r.codeSearch), w: [d.w1, d.w2, d.w3, d.w4, d.w5], note: d.note, done: doneCua(r).value };
+      });
+      const mau = dungBangMau({ month, rows, nguoiXuat: activeUser.name, ngayXuat: vnTimestamp() });
+      const ws = XLSX.utils.aoa_to_sheet(mau.aoa);
+      ws['!cols'] = mau.cot.map(wch => ({ wch }));
+      for (let r = mau.dongDau; r < mau.aoa.length; r++) {
+        for (let c = 3; c <= 10; c++) { const cell = ws[XLSX.utils.encode_cell({ r, c })]; if (cell) cell.z = '#,##0'; }
+      }
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, mau.tenSheet);
+      const ten = String(selectedSale === 'ALL' ? 'tat-ca' : selectedSale).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'mau';
+      XLSX.writeFile(wb, `Ke-hoach-kinh-doanh_${month}_${ten}.xlsx`);
+      toast.success(`Đã xuất mẫu ${month} cho ${ds.length.toLocaleString('vi-VN')} khách. Điền Tuần 1–5 / Note rồi bấm "Nhập từ Excel".`);
+    } catch (err) {
+      toast.error('Không xuất được file Excel: ' + (err.message || err));
+    } finally {
+      setDangXuat(false);
+    }
+  };
+
+  const handleNhapExcel = async (file) => {
+    if (!file || dangDoc) return;
+    setDangDoc(true);
+    try {
+      const XLSX = await import('xlsx');
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      let dk = null;
+      for (const name of wb.SheetNames) {
+        const r = docBangKeHoach(XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' }));
+        if (!r.loiCauTruc) { dk = r; break; }
+        if (!dk) dk = r;
+      }
+      if (!dk || dk.loiCauTruc) { toast.error((dk && dk.loiCauTruc) || 'File không có dữ liệu.'); return; }
+      if (dk.thang && dk.thang !== month) {
+        toast.error(`File này là kế hoạch ${dk.thang}, còn bạn đang lập ${month}. Bấm "Đổi tháng" cho đúng, hoặc xuất lại mẫu đúng tháng.`);
+        return;
+      }
+      if (!dk.dong.length) { toast.info('File không có dòng khách hàng nào.'); return; }
+      const gh = ghepVaoNhap({ dong: dk.dong, rowByCode, clientByCode, getDraft, canEditRow, canEditClient: (c) => !c.sale || ownsSaleRow(activeUser, c.sale) });
+      setDlgNhap({ ten: file.name, thang: dk.thang, gh, loi: dk.loi, trung: dk.trung });
+    } catch (err) {
+      toast.error('Không đọc được file Excel: ' + (err.message || err));
+    } finally {
+      setDangDoc(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const apDungNhap = () => {
+    if (!dlgNhap) return;
+    const { gh } = dlgNhap;
+    const moi = {};
+    gh.apply.forEach(a => { moi[a.code] = a.draft; });
+    setDraftMap(prev => ({ ...prev, ...moi }));
+    if (gh.themKhach.length) setExtraCodes(prev => [...prev, ...gh.themKhach.filter(c => !prev.includes(c))]);
+    setSearchTerm('');
+    setPage(1);
+    setDlgNhap(null);
+    toast.success(`Đã nạp ${gh.apply.length.toLocaleString('vi-VN')} khách từ Excel vào bảng — kiểm tra rồi bấm "Lưu Kế Hoạch, Gửi Duyệt".`);
+  };
+
   // Nháp gắn theo mã khách của THÁNG đang lập (draftMap khoá theo searchCode, không theo tháng) — giữ lại khi sang
   // tháng khác là ghi số của tháng này vào tháng kia. Nên đổi tháng = bỏ nháp (đã hỏi nếu còn dòng chưa lưu) và
   // quay về bước chọn tháng; dữ liệu ĐÃ lưu nằm trên server nên không mất gì.
@@ -446,6 +525,26 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
     );
   }
 
+  // Nội dung hộp xem trước (JSX) dựng sẵn để phần props của ConfirmDialog không chứa thẻ tự đóng (test khung dot2 soát props bằng regex).
+  const ghN = dlgNhap && dlgNhap.gh;
+  const blk = { display: 'block', marginTop: '4px' };
+  const msgNhap = dlgNhap && (
+    <>
+      File <strong>{dlgNhap.ten}</strong>{dlgNhap.thang ? ` (tháng ${dlgNhap.thang})` : ` — file không ghi tháng, hãy chắc đây là kế hoạch ${month}`}: đọc được <strong>{ghN.tong.toLocaleString('vi-VN')}</strong> dòng khách.
+      <span style={blk}>• <strong>{ghN.apply.length.toLocaleString('vi-VN')}</strong> khách có số mới sẽ được nạp vào bảng{ghN.themKhach.length ? ` (${ghN.themKhach.length} khách chưa có trên bảng sẽ được thêm)` : ''}.</span>
+      <span style={blk}>• {ghN.khongDoi.toLocaleString('vi-VN')} khách không đổi (ô trống hoặc đúng số hiện có) — giữ nguyên.</span>
+      {(ghN.boQua.length > 0 || dlgNhap.loi.length > 0) && (
+        <span style={{ ...blk, color: 'var(--warning-text)' }}>
+          • Bỏ qua {(ghN.boQua.length + dlgNhap.loi.length).toLocaleString('vi-VN')} dòng:{' '}
+          {[...dlgNhap.loi.map(l => `dòng ${l.dongExcel} (${l.code}): ${l.lyDo}`), ...ghN.boQua.map(b => `dòng ${b.dongExcel} (${b.code}): ${b.lyDo}`)].slice(0, 6).join('; ')}
+          {ghN.boQua.length + dlgNhap.loi.length > 6 ? ` …và ${ghN.boQua.length + dlgNhap.loi.length - 6} dòng khác` : ''}.
+        </span>
+      )}
+      {dlgNhap.trung.length > 0 && <span style={blk}>• Mã lặp nhiều dòng (lấy dòng cuối): {dlgNhap.trung.slice(0, 5).join(', ')}.</span>}
+      <span style={blk}>Chưa gửi gì lên hệ thống — số chỉ vào bảng dưới dạng nháp (CHƯA LƯU) để bạn kiểm tra rồi bấm Lưu.</span>
+    </>
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {!kpiLoaded && (
@@ -495,6 +594,17 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
         <button type="button" onClick={yeuCauDoiThang} className="btn btn-secondary btn-sm" title="Chọn lại tháng lập kế hoạch">
           <CalendarRange size={14} /> Tháng {month} · Đổi tháng
         </button>
+
+        <button type="button" onClick={handleXuatMau} disabled={dangXuat} className="btn btn-secondary btn-sm" title="Tải file Excel mẫu của tháng này: danh sách khách bạn sửa được kèm số hiện có">
+          <Download size={14} aria-hidden="true" /> {dangXuat ? 'Đang xuất...' : 'Xuất Excel mẫu'}
+        </button>
+        <button type="button" onClick={() => fileRef.current && fileRef.current.click()} disabled={dangDoc} className="btn btn-secondary btn-sm" title="Nhập file Excel mẫu đã điền: số vào bảng dưới dạng nháp, chưa gửi duyệt">
+          <Upload size={14} aria-hidden="true" /> {dangDoc ? 'Đang đọc...' : 'Nhập từ Excel'}
+        </button>
+        <input
+          ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} aria-label="Chọn file Excel kế hoạch"
+          onChange={(e) => handleNhapExcel(e.target.files && e.target.files[0])}
+        />
       </div>
 
       {/* Bổ sung khách chưa có trong bảng — tra trong tab Clients. */}
@@ -664,6 +774,17 @@ export default function SalesPlanProposePanel({ token, clients, plans, transacti
           <Save size={16} /> {isSaving ? 'Đang lưu...' : `Lưu Kế Hoạch ${month}, Gửi Duyệt${pendingCodes.length ? ` (${pendingCodes.length})` : ''}`}
         </button>
       </div>
+
+      {dlgNhap && (
+        <ConfirmDialog
+          title={ghN.apply.length ? `Nạp ${ghN.apply.length.toLocaleString('vi-VN')} khách từ Excel?` : 'Không có số mới để nạp'}
+          message={msgNhap}
+          confirmLabel={ghN.apply.length ? 'Áp vào bảng' : 'Đóng'}
+          cancelLabel={ghN.apply.length ? 'Huỷ' : 'Quay lại'}
+          onConfirm={ghN.apply.length ? apDungNhap : () => setDlgNhap(null)}
+          onCancel={() => setDlgNhap(null)}
+        />
+      )}
 
       {hoiDoiThang && (
         <ConfirmDialog
