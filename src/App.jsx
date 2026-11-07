@@ -51,6 +51,8 @@ import { useSetting, useApplyDensity } from './hooks/useSetting';
 import { lamSachLoi } from './utils/errorText';
 import { readUi, writeUi, setUiScope } from './utils/uiState';
 import { gopGiaoDich } from './utils/txYears';
+import { useThongBaoGia } from './hooks/useThongBaoGia';
+import ThongBaoGia from './components/checkgia/ThongBaoGia';
 
 export default function App() {
   const toast = useToast();
@@ -73,7 +75,10 @@ export default function App() {
   // Lệnh "mở thẳng tab con của một mục" (30/10/2026): { tab, sub, n } — n tăng mỗi lần để bấm lại cùng đích vẫn có tác dụng.
   // Mục đích nhận qua prop `jump` (hooks/useJump.js). Đi qua guard như mọi lần chuyển tab (hỏi nếu còn thay đổi chưa lưu).
   const [jump, setJump] = useState({ tab: '', sub: '', n: 0 });
-  const moTabCon = (tab, sub) => guard(() => { setJump((j) => ({ tab, sub, n: j.n + 1 })); setActiveTab(tab); });
+  // `extra` mang thêm tham số cho đích (vd Check giá bán: { id } mở thẳng yêu cầu, { view } mở hộp thư).
+  const moTabCon = (tab, sub, extra) => guard(() => { setJump((j) => ({ ...(extra || {}), tab, sub, n: j.n + 1 })); setActiveTab(tab); });
+  // Thông báo Check giá bán (07/11/2026): Admin/Creator "Hỏi giá cần kiểm tra", Sale "Hỏi giá được trả lời".
+  const thongBaoGia = useThongBaoGia(session && session.token, session && session.user && session.user.role);
   // Which tabs have ever been opened. Tabs mount on first visit and then stay
   // mounted (hidden) — see KeepAliveTab for why.
   const [visitedTabs, setVisitedTabs] = useState(() => new Set([activeTab]));
@@ -437,6 +442,7 @@ export default function App() {
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
         transactionCount={txTotal != null ? txTotal : allTransactions.length}
+        productsBadge={thongBaoGia.tb && thongBaoGia.tb.bat ? thongBaoGia.tb.soLuong : 0}
         activeUser={activeUser}
         onOpenSettings={() => requestTab(TAB_SETTINGS)}
         onOpenSystemSettings={coQuyenHeThong(activeUser.role) ? () => requestTab(TAB_SYSTEM) : undefined}
@@ -497,6 +503,9 @@ export default function App() {
           <LoadingScreen label="Đang tải dữ liệu OEM App..." />
         ) : (
         <main className="page-container">
+          {(activeTab === 'dashboard' || activeTab === 'sale-dashboard') && (
+            <ThongBaoGia tb={thongBaoGia.tb} onOpen={(extra) => moTabCon('products', 'checkgia', extra)} />
+          )}
           <KeepAliveTab isActive={activeTab === 'ai-agent'} hasVisited={visitedTabs.has('ai-agent')}>
             <OrdersHub
               token={session.token}
@@ -569,6 +578,9 @@ export default function App() {
               onAddMaterial={handleAddMaterial}
               onEditMaterial={handleEditMaterial}
               onDataChanged={lamMoiKhoi}
+              jump={jump.tab === 'products' ? jump : null}
+              onCheckGiaChanged={thongBaoGia.reload}
+              thongBaoGiaSo={thongBaoGia.tb && thongBaoGia.tb.bat ? thongBaoGia.tb.soLuong : 0}
             />
           </KeepAliveTab>
 

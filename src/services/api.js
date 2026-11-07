@@ -78,6 +78,8 @@ const NON_IDEMPOTENT_FNS = new Set([
   'saveOrder', 'addClient', 'insertOrderLine', 'deleteOrderLine', 'submitPriceProposal',
   'addMaterial', 'addMaterials', 'deleteOrder', 'approveSop', 'approvePriceBatch', 'rejectPriceBatch',
   'changePassword', 'tlSubmitOrder',
+  // Check giá bán (07/11/2026): gửi lại là sinh yêu cầu / trả lời trùng hoặc báo lỗi "đã xử lý" ở lượt hai
+  'cgGuiKho', 'cgGuiNhapKhau', 'cgSapYeuCau', 'cgGuiTraLoiKho', 'cgNhapKhauGui', 'cgYeuCauTinhLai',
   'requestSalesPlanRevision'   // nhóm B: lượt hai báo "không có kế hoạch nào để yêu cầu sửa" (dòng đã chuyển Cần sửa ở lượt đầu)
 ]);
 // `addMaterials` thuộc nhóm B: dữ liệu AN TOÀN khi gửi lại (nó bỏ qua SKU đã có
@@ -497,3 +499,27 @@ export async function saveKits(token, rows) {
 export async function aiParseOrder(token, input) {
   return callApi('aiParseOrder', [token, input], 150000);
 }
+
+// ---------------------------------------------------------------------------
+// Check giá bán (07/11/2026, oem-api checkgia.js, SQL đợt 29) — Sản phẩm & Bảng giá > Check giá bán.
+//  - cgTraGiaKho({ text | lines }) -> { lines: [{ code, name, status: 'co_gia' | 'chua_co', reason, price }], soChuaCo }: CHỈ giá bán có VAT, không bao giờ giá vốn.
+//  - cgGuiKho / cgGuiNhapKhau: tạo yêu cầu (KHÔNG tự thử lại — NON_IDEMPOTENT_FNS). cgDanhSach / cgThongBao / cgChiTiet: đọc.
+//  - Admin/Creator: cgSapYeuCau (xếp hàng cào VA01), cgNhapGiaVonTay, cgGhiChuDong, cgGuiTraLoiKho, cgNhapKhauLuu / cgNhapKhauTinh / cgNhapKhauGui.
+//  - Sale: cgDaXem, cgYeuCauTinhLai. cgTyGia: tỷ giá USD/VNĐ VCB bán hôm nay (null -> nhập tay).
+// ---------------------------------------------------------------------------
+export async function cgTraGiaKho(token, p) { return callApi('cgTraGiaKho', [token, p], 45000); }
+export async function cgGuiKho(token, p) { return callApi('cgGuiKho', [token, p]); }
+export async function cgGuiNhapKhau(token, p) { return callApi('cgGuiNhapKhau', [token, p]); }
+export async function cgDanhSach(token, p) { return callApi('cgDanhSach', [token, p || {}], 30000); }
+export async function cgThongBao(token) { return callApi('cgThongBao', [token], 15000); }
+export async function cgChiTiet(token, id) { return callApi('cgChiTiet', [token, id], 30000); }
+export async function cgDaXem(token, id) { return callApi('cgDaXem', [token, id], 15000); }
+export async function cgSapYeuCau(token, id) { return callApi('cgSapYeuCau', [token, id]); }
+export async function cgNhapGiaVonTay(token, p) { return callApi('cgNhapGiaVonTay', [token, p]); }
+export async function cgGhiChuDong(token, p) { return callApi('cgGhiChuDong', [token, p]); }
+export async function cgGuiTraLoiKho(token, p) { return callApi('cgGuiTraLoiKho', [token, p]); }
+export async function cgNhapKhauLuu(token, p) { return callApi('cgNhapKhauLuu', [token, p]); }
+export async function cgNhapKhauTinh(token, p) { return callApi('cgNhapKhauTinh', [token, p], 45000); }
+export async function cgNhapKhauGui(token, p) { return callApi('cgNhapKhauGui', [token, p]); }
+export async function cgYeuCauTinhLai(token, p) { return callApi('cgYeuCauTinhLai', [token, p]); }
+export async function cgTyGia(token) { return callApi('cgTyGia', [token], 20000); }

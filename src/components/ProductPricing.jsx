@@ -9,13 +9,15 @@ import PriceApprovePanel from './pricing/PriceApprovePanel';
 import PriceCalculatorPanel from './pricing/PriceCalculatorPanel';
 import CostImportPanel from './pricing/CostImportPanel';
 import KitsPanel from './pricing/KitsPanel';
+import CheckGiaPanel from './checkgia/CheckGiaPanel';
+import { useJump } from '../hooks/useJump';
 
 // "Sản phẩm & Bảng giá" — sub-tab giống khuôn Kế hoạch SOP: Danh mục (đọc,
 // đã có từ trước), Đề xuất giá (Sale gửi hàng loạt giá lẻ/KM), Chờ duyệt
 // (Admin/Creator duyệt, ghi thẳng vào Products hoặc Gia_KhachHang), Tính Giá
 // (Admin/Creator, công cụ gợi ý giá theo % LNG — không lộ giá vốn thật), Giá
 // Vốn (chỉ Creator, nhập Excel giá vốn hàng tháng).
-export default function ProductPricing({ token, materials, clients, kits, activeUser, onAddMaterial, onEditMaterial, onDataChanged }) {
+export default function ProductPricing({ token, materials, clients, kits, activeUser, onAddMaterial, onEditMaterial, onDataChanged, jump, onCheckGiaChanged, thongBaoGiaSo }) {
 
   // Perf (2026-08-27): sub-tab giờ giữ nguyên (KeepAliveTab) thay vì unmount
   // khi chuyển — mỗi lần unmount là mất luôn dữ liệu đã tải, và mở lại phải
@@ -30,12 +32,16 @@ export default function ProductPricing({ token, materials, clients, kits, active
   const canApprove = ['admin', 'creator'].includes(activeUser.role);
   const canCalculate = ['admin', 'creator'].includes(activeUser.role);
   const canImportCost = activeUser.role === 'creator';
+  // Check giá bán (07/11/2026): Sale / Admin / Creator (kế toán, leader không dùng).
+  const canCheckGia = ['sale', 'admin', 'creator'].includes(activeUser.role);
 
   // Tab con: icon riêng từng tab (utils/navMeta.js), nhớ tab cuối qua F5 (Đợt 2 / mục 9).
-  const hien = { catalog: true, propose: canPropose, approve: canApprove, calculator: canCalculate, cost: canImportCost, kits: canApprove };
+  const hien = { catalog: true, propose: canPropose, checkgia: canCheckGia, approve: canApprove, calculator: canCalculate, cost: canImportCost, kits: canApprove };
   const tabs = SUBTABS.products.filter((t) => hien[t.id]);
   const [subSaved, setSubView] = usePersistentState('sub.products', 'catalog'); // catalog | propose | approve | calculator | cost | kits
   const subView = tabs.some((t) => t.id === subSaved) ? subSaved : 'catalog';
+  // Thông báo ở Dashboard bấm vào → mở thẳng tab Check giá bán (và yêu cầu cụ thể, xem CheckGiaPanel).
+  useJump(jump, tabs, setSubView);
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -61,6 +67,12 @@ export default function ProductPricing({ token, materials, clients, kits, active
             refreshTick={refreshTick}
             onSubmitted={bumpRefresh}
           />
+        </KeepAliveTab>
+      )}
+
+      {canCheckGia && (
+        <KeepAliveTab isActive={subView === 'checkgia'}>
+          <CheckGiaPanel token={token} activeUser={activeUser} jump={jump} onChanged={onCheckGiaChanged} thongBaoSo={thongBaoGiaSo} />
         </KeepAliveTab>
       )}
 

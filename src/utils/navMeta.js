@@ -12,14 +12,14 @@ import {
   Bot, ClipboardList, TrendingUp, PieChart, LayoutDashboard, History, Package, Users,
   CalendarRange, CalendarClock, Wallet, LayoutList, BadgeDollarSign, BadgeCheck, Calculator,
   Coins, Boxes, Eye, FilePenLine, ClipboardCheck, Target, Rows3, CheckCheck, NotebookPen,
-  FileUp, Table2, User, Calendar, CalendarDays, Recycle, ShoppingCart, Tag, ListFilter, Gauge, Hourglass, Contact
+  FileUp, Table2, User, Calendar, CalendarDays, Recycle, ShoppingCart, Tag, ListFilter, Gauge, Hourglass, Contact, SearchCheck
 } from 'lucide-react';
 
 const ICONS = {
   Bot, ClipboardList, TrendingUp, PieChart, LayoutDashboard, History, Package, Users,
   CalendarRange, CalendarClock, Wallet, LayoutList, BadgeDollarSign, BadgeCheck, Calculator,
   Coins, Boxes, Eye, FilePenLine, ClipboardCheck, Target, Rows3, CheckCheck, NotebookPen,
-  FileUp, Table2, User, Calendar, CalendarDays, Recycle, ShoppingCart, Tag, ListFilter, Gauge, Hourglass, Contact
+  FileUp, Table2, User, Calendar, CalendarDays, Recycle, ShoppingCart, Tag, ListFilter, Gauge, Hourglass, Contact, SearchCheck
 };
 
 export const iconOf = (name) => ICONS[name] || null;
@@ -117,6 +117,7 @@ export const SUBTABS = {
   products: [
     { id: 'catalog', label: 'Danh Mục', icon: 'LayoutList' },
     { id: 'propose', label: 'Đề Xuất Giá', icon: 'BadgeDollarSign' },
+    { id: 'checkgia', label: 'Check giá bán', icon: 'SearchCheck' },
     { id: 'approve', label: 'Chờ Duyệt', icon: 'BadgeCheck' },
     { id: 'calculator', label: 'Tính Giá', icon: 'Calculator' },
     { id: 'cost', label: 'Giá Vốn', icon: 'Coins' },

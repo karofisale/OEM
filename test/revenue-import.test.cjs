@@ -328,8 +328,9 @@ console.log('\n11. Phép lọc URL trong chay.vbs — CỬA CHẶN DUY NHẤT');
     // việc: dt-oem (cào thật), tu-kiem (không đụng SAP, không ghi), bom (cào
     // BOM một mã, thêm 2026-09-24 — vẫn chỉ GHI ĐÈ, không XOÁ, xem chú thích
     // đầu file).
-    check('chỉ chấp nhận dt-oem, tu-kiem và bom',
-      /hanhDong <> "dt-oem" And hanhDong <> "tu-kiem" And hanhDong <> "bom" Then WScript\.Quit/.test(vbs));
+    // Thêm việc thứ tư gia-von (Check giá bán 07/11/2026): cào VA01 giá vốn cho một yêu cầu, id là số nguyên dương.
+    check('chỉ chấp nhận dt-oem, tu-kiem, bom và gia-von',
+      /hanhDong <> "dt-oem" And hanhDong <> "tu-kiem" And hanhDong <> "bom" And hanhDong <> "gia-von" Then WScript\.Quit/.test(vbs));
     check('việc bom bắt buộc phải có material',
       /hanhDong = "bom" And Len\(material\) = 0 Then WScript\.Quit/.test(vbs));
     check('thoát ngay nếu không khớp khuôn', /If Not re\.Test\(url\) Then WScript\.Quit/.test(vbs));
@@ -352,7 +353,7 @@ console.log('\n12. dieu-phoi.ps1 — kiểm lớp hai, khoá, và không nói d�
   check('không nhận URL, chỉ nhận tham số đã lọc',
     /\[string\]\$HanhDong/.test(ps) && !/\$Url/.test(ps));
   check('kiểm lại việc cho phép',
-    /@\('dt-oem', 'tu-kiem', 'bom'\) -notcontains \$HanhDong/.test(ps));
+    /@\('dt-oem', 'tu-kiem', 'bom', 'gia-von'\) -notcontains \$HanhDong/.test(ps));
   // Lớp thứ hai riêng cho `material` — chay.vbs đã lọc, nhưng chuỗi này đi
   // thẳng vào dòng lệnh python nên khuôn phải hẹp ở CẢ HAI nơi (xem đầu file).
   check('kiểm lại khuôn material (lớp hai)',
@@ -371,7 +372,8 @@ console.log('\n12. dieu-phoi.ps1 — kiểm lớp hai, khoá, và không nói d�
   // lên Sheet được" cho một lượt ĐÃ GHI XONG 47 dòng. Sai kiểu tệ nhất: không
   // mất dữ liệu, nhưng đẩy người dùng đi chạy lại.
   check('Doc-Json lấy từ dấu { tới hết chuỗi, không lọc theo dòng',
-    /IndexOf\('\{'\)/.test(ps) && !/StartsWith\('\{'\)/.test(ps));
+    // Doc-Json (hàm gốc) vẫn lấy từ dấu {; Doc-JsonCuoi (mới, cho gia-von) chỉ ưu tiên dòng {...} cuối rồi RƠI VỀ Doc-Json.
+    /IndexOf\('\{'\)/.test(ps) && !/StartsWith\('\{'\)/.test((/function Doc-Json\(\$chuoi\) \{[\s\S]*?\n\}\n/.exec(ps) || [''])[0]) && /return Doc-Json \$chuoi/.test(ps));
   check('tự kiểm thử Doc-Json với CẢ HAI dạng JSON',
     /Doc-Json 1 dong/.test(ps) && /Doc-Json nhieu dong/.test(ps));
   check('tự kiểm KHÔNG gọi hai script ghi dữ liệu',
@@ -399,7 +401,7 @@ console.log('\n12. dieu-phoi.ps1 — kiểm lớp hai, khoá, và không nói d�
   // job của mình, và cùng lý do đó áp cho "oem.bom" nếu sau này có ai ghi
   // dòng dữ liệu tương ứng cho BOM.
   check("mỗi việc một dòng nhịp riêng, không đụng dòng dữ liệu",
-    /\$JOB\s*=\s*if\s*\(\$HanhDong\s*-eq\s*'bom'\)\s*\{\s*'oem\.bom\.nut'\s*\}\s*else\s*\{\s*'oem\.doanh-thu\.nut'\s*\}/.test(ps) &&
+    /\$JOB\s*=\s*if\s*\(\$HanhDong\s*-eq\s*'bom'\)\s*\{\s*'oem\.bom\.nut'\s*\}\s*elseif\s*\(\$HanhDong\s*-eq\s*'gia-von'\)\s*\{\s*'oem\.gia-von\.nut'\s*\}\s*else\s*\{\s*'oem\.doanh-thu\.nut'\s*\}/.test(ps) &&
     !/'oem\.doanh-thu'/.test(ps) && !/'oem\.bom'/.test(ps));
   check("dùng trạng thái 'dang-chay' làm hợp đồng với app", /'dang-chay'/.test(ps));
   check('lỗi ghi nhịp tim không làm hỏng việc chính', /không được để lỗi ở đây|khong phá|cái đo/i.test(ps) || /catch \{[\s\S]{0,120}Ghi-NhatKy/.test(ps));

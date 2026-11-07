@@ -16,7 +16,7 @@ import { version as APP_VERSION } from '../../package.json';
 // tiết hơn (view-only, ai được sửa gì) nằm trong từng trang, không phải ở đây.
 // Danh sách id + icon + nhãn nằm ở utils/navMeta.js (mỗi mục một icon riêng).
 
-export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, transactionCount = 0, activeUser, onOpenSettings, onOpenSystemSettings, systemActive }) {
+export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, transactionCount = 0, productsBadge = 0, activeUser, onOpenSettings, onOpenSystemSettings, systemActive }) {
   // The mobile drawer always shows full labels — icon-only collapse is a
   // desktop-only space-saving mode, not something worth doing in an overlay.
   const effectiveCollapsed = isMobileOpen ? false : isCollapsed;
@@ -35,6 +35,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
   const gan = (m) => {
     const icon = iconOf(m.icon);
     if (m.children) return { ...m, icon, children: m.children.map(gan) };
+    if (m.id === 'products') return { ...m, icon, count: productsBadge > 0 ? String(productsBadge) : '' };   // Check giá bán: số hỏi giá cần xử lý / được trả lời
     return m.id === 'transactions'
       ? { ...m, icon, count: transactionCount ? transactionCount.toLocaleString('vi-VN') : '' }
       : { ...m, icon };
