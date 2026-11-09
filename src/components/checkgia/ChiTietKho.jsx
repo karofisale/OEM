@@ -163,7 +163,7 @@ export default function ChiTietKho({ token, d, laQuanTri, onChanged }) {
           title="Gửi bảng báo giá cho Sale?"
           message={thieu
             ? `Còn ${thieu} mã chưa có giá vốn — Sale sẽ thấy các mã đó ghi "Kiểm tra lại thông tin". Bảng sẽ chốt và gửi cho ${rq.createdBy}.`
-            : `Gửi bảng báo giá ${d.lines.length} mã cho ${rq.createdBy}. Giá bán = giá vốn × (1 + VAT) ÷ (1 − ${d.lngPct}%), làm tròn 100đ.`}
+            : `Gửi bảng báo giá ${d.lines.length} mã cho ${rq.createdBy}. Giá bán = giá vốn × (1 + VAT) ÷ (1 − ${d.lngPct}%), làm tròn lên 100đ (giá vốn < 1.000đ: mốc 50đ).`}
           confirmLabel="Gửi trả lời" busy={ban === 'gui'} busyLabel="Đang gửi…"
           onConfirm={gui} onCancel={() => { if (ban !== 'gui') setXacNhan(false); }}
         />
