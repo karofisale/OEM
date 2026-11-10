@@ -12,12 +12,16 @@ const VAI_TRO = ['sale', 'admin', 'creator'];
 export function useThongBaoGia(token, role) {
   const [tb, setTb] = useState(null);
   const dangHoi = useRef(false);
+  const hoiLai = useRef(false);   // có lệnh reload trong lúc đang hỏi -> hỏi thêm một lượt khi xong (số cũ không được thắng)
   const dung = VAI_TRO.includes(String(role || '').toLowerCase()) && !!token;
 
   const reload = useCallback(async () => {
-    if (!dung || dangHoi.current) return;
+    if (!dung) return;
+    if (dangHoi.current) { hoiLai.current = true; return; }
     dangHoi.current = true;
-    try { setTb(await api.cgThongBao(token)); } catch (e) { /* giữ số cũ */ } finally { dangHoi.current = false; }
+    try {
+      do { hoiLai.current = false; setTb(await api.cgThongBao(token)); } while (hoiLai.current);
+    } catch (e) { /* giữ số cũ */ } finally { dangHoi.current = false; hoiLai.current = false; }
   }, [token, dung]);
 
   useEffect(() => {

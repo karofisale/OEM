@@ -53,13 +53,14 @@ export function nhanLyDo(reason) {
 /** Tên trạng thái cào SAP trên yêu cầu. */
 export function nhanCaoSap(scrape) {
   const st = scrape && scrape.status;
+  if (scrape && scrape.stale && (st === 'pending' || st === 'running')) return 'Lượt cào trước không phản hồi (máy có SAP chưa nhận việc hoặc bị ngắt giữa chừng) — bấm Kiểm tra SAP lại, hoặc nhập giá vốn tay.';
   if (st === 'pending') return 'Đang chờ máy có SAP nhận việc…';
   if (st === 'running') return 'Đang cào SAP' + (scrape.total ? ' (' + (scrape.done || 0) + '/' + scrape.total + ')' : '') + '…';
   if (st === 'done') return scrape.message || 'Đã cào xong.';
   if (st === 'error') return 'Lỗi cào SAP: ' + (scrape.message || 'không rõ');
   return '';
 }
-export const dangCaoSap = (scrape) => !!scrape && (scrape.status === 'pending' || scrape.status === 'running');
+export const dangCaoSap = (scrape) => !!scrape && !scrape.stale && (scrape.status === 'pending' || scrape.status === 'running');   // quá hạn = không ai làm nữa
 
 /** Giao thức mở máy có SAP (karofi-oem://gia-von?req=<id>). */
 export const duongDanSap = (id) => 'karofi-oem://gia-von?req=' + encodeURIComponent(String(id));
@@ -111,4 +112,27 @@ export function thamSoTuForm(f) {
 export function dongTuForm(rows) {
   const v = (x) => (x === '' || x === null || x === undefined ? null : Number(x));
   return (rows || []).map((r) => ({ id: r.id, name: r.name, taxImportPct: v(r.taxImportPct), vatPct: v(r.vatPct), note: r.note || '' }));
+}
+
+/**
+ * Đọc số tiền VNĐ người dùng gõ (10/11/2026). Kiểu Việt Nam "117.400" / "1.250.000" là NGHÌN (trước đây bị hiểu 117,4 đ và ghi thẳng vào bảng giá chung).
+ *  - chỉ một loại dấu, chia nhóm 3 chữ số ("117.400", "1,250,000")  -> dấu nghìn
+ *  - có cả '.' và ','                                                -> dấu đứng sau cùng là thập phân ("1.250.000,5", "1,250,000.5")
+ *  - còn lại: một dấu duy nhất không theo nhóm 3 -> thập phân ("117400,5", "1.5")
+ * Bỏ khoảng trắng, chữ "đ" / "vnd". Không đọc được -> NaN.
+ */
+export function docSoTien(s) {
+  let t = String(s == null ? '' : s).replace(/\s|\u00a0/g, '').replace(/(đ|vnđ|vnd)$/i, '');
+  if (!t || /[^0-9.,]/.test(t)) return NaN;
+  if (/^\d{1,3}(\.\d{3})+$/.test(t) || /^\d{1,3}(,\d{3})+$/.test(t)) return Number(t.replace(/[.,]/g, ''));
+  const coCham = t.indexOf('.') >= 0, coPhay = t.indexOf(',') >= 0;
+  if (coCham && coPhay) {
+    const thapPhan = t.lastIndexOf(',') > t.lastIndexOf('.') ? ',' : '.';
+    t = t.split(thapPhan === ',' ? '.' : ',').join('').replace(',', '.');
+  } else if (coPhay) {
+    if ((t.match(/,/g) || []).length > 1) return NaN;
+    t = t.replace(',', '.');
+  } else if ((t.match(/\./g) || []).length > 1) return NaN;
+  const n = Number(t);
+  return isFinite(n) ? n : NaN;
 }

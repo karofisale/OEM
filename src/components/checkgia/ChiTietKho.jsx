@@ -3,7 +3,7 @@ import { ScanSearch, Send, Loader2, Copy, Save, AlertTriangle } from 'lucide-rea
 import * as api from '../../services/api';
 import ConfirmDialog from '../ConfirmDialog';
 import { useToast } from '../ToastProvider';
-import { dinhDangTien, nhanDong, nhanLyDo, nhanCaoSap, dangCaoSap, duongDanSap, demThieu, bangGiaThanhTsv } from '../../utils/checkGia';
+import { dinhDangTien, nhanDong, nhanLyDo, nhanCaoSap, dangCaoSap, duongDanSap, demThieu, bangGiaThanhTsv, docSoTien } from '../../utils/checkGia';
 
 /**
  * Bảng hàng kho của một yêu cầu.
@@ -38,9 +38,17 @@ export default function ChiTietKho({ token, d, laQuanTri, onChanged }) {
     finally { setBan(''); }
   };
 
+  const huyCao = async () => {
+    if (ban) return;
+    setBan('huy');
+    try { await api.cgHuyCaoSap(token, rq.id); toast.info('Đã huỷ lượt cào SAP.'); onChanged(); }
+    catch (e) { toast.error(e.message || String(e)); }
+    finally { setBan(''); }
+  };
+
   const luuGiaVon = async (l) => {
-    const cost = Number(String(tay[l.id] || '').replace(/[^\d.]/g, ''));
-    if (!(cost > 0)) { toast.error('Nhập giá vốn lớn hơn 0.'); return; }
+    const cost = docSoTien(tay[l.id]);   // "117.400" = 117.400 đ (kiểu VN), không phải 117,4
+    if (!(cost > 0)) { toast.error('Giá vốn không đọc được — nhập số lớn hơn 0 (vd 117400 hoặc 117.400).'); return; }
     if (ban) return;
     setBan('tay:' + l.id);
     try {
@@ -87,7 +95,12 @@ export default function ChiTietKho({ token, d, laQuanTri, onChanged }) {
           <button type="button" className="btn btn-primary" onClick={kiemTraSap} disabled={!!ban || dangCao || !thieu}>
             {ban === 'sap' || dangCao ? <Loader2 size={16} className="animate-spin" /> : <ScanSearch size={16} />} Kiểm tra SAP
           </button>
-          <span style={{ fontSize: '0.82rem', color: dangCao ? 'var(--info-text)' : 'var(--text-muted)' }}>
+          {dangCao && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={huyCao} disabled={!!ban} title="Máy có SAP không nhận việc / bấm nhầm — huỷ để cào lại hoặc gửi trả lời ngay">
+              Huỷ lượt cào
+            </button>
+          )}
+          <span style={{ fontSize: '0.82rem', color: dangCao ? 'var(--info-text)' : (cao && cao.stale ? 'var(--warning-text)' : 'var(--text-muted)') }}>
             {nhanCaoSap(cao) || (thieu ? thieu + ' mã chưa có giá vốn — cào VA01 (Internal Price) trên máy có SAP, hoặc nhập giá vốn tay.' : 'Mọi mã đã có giá vốn.')}
           </span>
         </div>
@@ -128,6 +141,12 @@ export default function ChiTietKho({ token, d, laQuanTri, onChanged }) {
                           <button type="button" className="btn btn-secondary btn-sm" title="Ghi giá vốn vào CSDL" onClick={() => luuGiaVon(l)} disabled={!!ban || !(tay[l.id] || '').trim()}>
                             {ban === 'tay:' + l.id ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
                           </button>
+                          {/* Đọc lại số vừa gõ (kiểu VN "117.400" = 117.400 đ) để thấy ngay nếu gõ nhầm, trước khi ghi vào bảng giá chung */}
+                          {(tay[l.id] || '').trim() && (
+                            <span style={{ fontSize: '0.72rem', color: docSoTien(tay[l.id]) > 0 ? 'var(--text-muted)' : 'var(--danger-strong)', whiteSpace: 'nowrap' }}>
+                              {docSoTien(tay[l.id]) > 0 ? '= ' + dinhDangTien(docSoTien(tay[l.id])) + ' đ' : 'không đọc được'}
+                            </span>
+                          )}
                         </span>
                       ) : '—')}
                     </td>

@@ -515,6 +515,7 @@ export async function cgThongBao(token) { return callApi('cgThongBao', [token], 
 export async function cgChiTiet(token, id) { return callApi('cgChiTiet', [token, id], 30000); }
 export async function cgDaXem(token, id) { return callApi('cgDaXem', [token, id], 15000); }
 export async function cgSapYeuCau(token, id) { return callApi('cgSapYeuCau', [token, id]); }
+export async function cgHuyCaoSap(token, id) { return callApi('cgHuyCaoSap', [token, id], 15000); }
 export async function cgNhapGiaVonTay(token, p) { return callApi('cgNhapGiaVonTay', [token, p]); }
 export async function cgGhiChuDong(token, p) { return callApi('cgGhiChuDong', [token, p]); }
 export async function cgGuiTraLoiKho(token, p) { return callApi('cgGuiTraLoiKho', [token, p]); }

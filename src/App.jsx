@@ -453,6 +453,8 @@ export default function App() {
       <div className="main-content">
         <Navbar
           activeUser={activeUser}
+          sso={!!session.fromPortal}
+          sessionKey={session.token}
           onOpenLoginModal={() => setShowLoginModal(true)}
           onLogout={() => guard(handleLogout)}
           isSyncing={isSyncing}

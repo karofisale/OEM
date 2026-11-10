@@ -54,6 +54,15 @@ const url = (f) => pathToFileURL(path.join(__dirname, '..', 'src', 'utils', f)).
   const dl = cg.dongTuForm([{ id: 5, name: 'A', taxImportPct: '0', vatPct: '8', note: '' }, { id: 6, name: 'B', taxImportPct: '', vatPct: '', note: undefined }]);
   check('gói dòng: 0 vẫn là 0 (không thành null), rỗng → null', dl[0].taxImportPct === 0 && dl[0].vatPct === 8 && dl[1].taxImportPct === null && dl[1].vatPct === null && dl[1].note === '');
 
+  console.log('1b. Sửa lỗi sau rà soát (10/11/2026)');
+  check('docSoTien: "117.400" và "1.250.000" là NGHÌN (không phải 117,4)', cg.docSoTien('117.400') === 117400 && cg.docSoTien('1.250.000') === 1250000 && cg.docSoTien('1,250,000') === 1250000);
+  check('docSoTien: số trơn / có đ / khoảng trắng', cg.docSoTien('117400') === 117400 && cg.docSoTien(' 117 400 đ') === 117400 && cg.docSoTien('50000VND') === 50000);
+  check('docSoTien: thập phân rõ ràng', cg.docSoTien('117400,5') === 117400.5 && cg.docSoTien('1.250.000,5') === 1250000.5 && cg.docSoTien('1,250,000.5') === 1250000.5 && cg.docSoTien('1.5') === 1.5);
+  check('docSoTien: chữ / rỗng / nhiều dấu lẫn lộn -> NaN', isNaN(cg.docSoTien('abc')) && isNaN(cg.docSoTien('')) && isNaN(cg.docSoTien('1.2.3')) && isNaN(cg.docSoTien('1,2,3')));
+  check('lượt cào quá hạn (stale): không còn coi là đang cào; có câu hướng dẫn', !cg.dangCaoSap({ status: 'pending', stale: true }) && cg.dangCaoSap({ status: 'running', stale: false }) && /không phản hồi/.test(cg.nhanCaoSap({ status: 'running', stale: true })));
+  const kho2 = SRC('components/checkgia/ChiTietKho.jsx');
+  check('ô nhập giá vốn tay dùng docSoTien; có nút Huỷ lượt cào', /const cost = docSoTien\(tay\[l\.id\]\)/.test(kho2) && /api\.cgHuyCaoSap\(token, rq\.id\)/.test(kho2) && /Huỷ lượt cào/.test(kho2));
+
   console.log('2. Menu');
   const sub = nm.SUBTABS.products.map((t) => t.id);
   check('tab con Check giá bán nằm trong Sản phẩm & Bảng giá, sau Đề xuất giá', sub.join() === 'catalog,propose,checkgia,approve,calculator,cost,kits', sub);
