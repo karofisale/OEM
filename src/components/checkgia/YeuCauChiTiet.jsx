@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, RefreshCw } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trash2 } from 'lucide-react';
 import * as api from '../../services/api';
 import TableState from '../TableState';
+import ConfirmDialog from '../ConfirmDialog';
+import { useToast } from '../ToastProvider';
 import ChiTietKho from './ChiTietKho';
 import ChiTietNhapKhau from './ChiTietNhapKhau';
 import { nhanLoai, nhanTrangThai, dangCaoSap } from '../../utils/checkGia';
@@ -16,7 +18,19 @@ export default function YeuCauChiTiet({ token, id, laQuanTri, onBack, onChanged 
   const [d, setD] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loi, setLoi] = useState('');
+  const [hoiXoa, setHoiXoa] = useState(false);
+  const [dangXoa, setDangXoa] = useState(false);
+  const toast = useToast();
   const daBaoXem = useRef(0);
+
+  // Xoá yêu cầu (13/11/2026): Admin/Creator mọi yêu cầu, Sale yêu cầu của mình — ở mọi trạng thái, kể cả chưa trả lời. Giá vốn đã có không bị xoá.
+  const xoa = async () => {
+    if (dangXoa) return;
+    setDangXoa(true);
+    try { await api.cgXoa(token, id); toast.success('Đã xoá yêu cầu #' + id + '.'); setHoiXoa(false); if (onChanged) onChanged({}); onBack(); }
+    catch (e) { toast.error(e.message || String(e)); setHoiXoa(false); }
+    finally { setDangXoa(false); }
+  };
 
   const tai = useCallback(async ({ im } = {}) => {
     if (!im) setLoading(true);
@@ -55,7 +69,13 @@ export default function YeuCauChiTiet({ token, id, laQuanTri, onBack, onChanged 
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
         <button type="button" className="btn btn-secondary btn-sm" onClick={onBack}><ArrowLeft size={14} /> Danh sách yêu cầu</button>
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => tai({ im: !!d })} disabled={loading}><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Tải lại</button>
+        {d && <button type="button" className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto', color: 'var(--danger)' }} onClick={() => setHoiXoa(true)} disabled={dangXoa}><Trash2 size={14} /> Xoá yêu cầu</button>}
       </div>
+      {hoiXoa && (
+        <ConfirmDialog title={'Xoá yêu cầu #' + id + '?'}
+          message={'Xoá hẳn yêu cầu hỏi giá này và các dòng của nó' + (d && d.request.status !== 'da_tra_loi' ? ' (yêu cầu chưa được trả lời — VHKD sẽ không xử lý nữa)' : '') + '. Giá vốn đã cào / nhập vào bảng giá chung vẫn giữ nguyên. Không hoàn tác được.'}
+          danger confirmLabel="Xoá yêu cầu" busy={dangXoa} busyLabel="Đang xoá…" onConfirm={xoa} onCancel={() => { if (!dangXoa) setHoiXoa(false); }} />
+      )}
 
       <TableState loading={loading && !d} error={loi} onRetry={() => tai()} errorPrefix={'Không mở được yêu cầu #' + id}>
         {d && (

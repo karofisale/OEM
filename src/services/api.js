@@ -79,7 +79,7 @@ const NON_IDEMPOTENT_FNS = new Set([
   'addMaterial', 'addMaterials', 'deleteOrder', 'approveSop', 'approvePriceBatch', 'rejectPriceBatch',
   'changePassword', 'tlSubmitOrder',
   // Check giá bán (07/11/2026): gửi lại là sinh yêu cầu / trả lời trùng hoặc báo lỗi "đã xử lý" ở lượt hai
-  'cgGuiKho', 'cgGuiNhapKhau', 'cgSapYeuCau', 'cgGuiTraLoiKho', 'cgNhapKhauGui', 'cgYeuCauTinhLai',
+  'cgGuiKho', 'cgGuiNhapKhau', 'cgSapYeuCau', 'cgGuiTraLoiKho', 'cgNhapKhauGui', 'cgYeuCauTinhLai', 'cgXoa',
   'requestSalesPlanRevision'   // nhóm B: lượt hai báo "không có kế hoạch nào để yêu cầu sửa" (dòng đã chuyển Cần sửa ở lượt đầu)
 ]);
 // `addMaterials` thuộc nhóm B: dữ liệu AN TOÀN khi gửi lại (nó bỏ qua SKU đã có
@@ -523,4 +523,6 @@ export async function cgNhapKhauLuu(token, p) { return callApi('cgNhapKhauLuu', 
 export async function cgNhapKhauTinh(token, p) { return callApi('cgNhapKhauTinh', [token, p], 45000); }
 export async function cgNhapKhauGui(token, p) { return callApi('cgNhapKhauGui', [token, p]); }
 export async function cgYeuCauTinhLai(token, p) { return callApi('cgYeuCauTinhLai', [token, p]); }
+/** Xoá một yêu cầu hỏi giá (13/11/2026) — Admin/Creator mọi yêu cầu, Sale yêu cầu của mình, ở mọi trạng thái. Không xoá giá vốn đã có trong bảng giá chung. */
+export async function cgXoa(token, id) { return callApi('cgXoa', [token, id]); }
 export async function cgTyGia(token) { return callApi('cgTyGia', [token], 20000); }

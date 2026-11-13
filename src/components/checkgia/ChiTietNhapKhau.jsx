@@ -47,7 +47,8 @@ function SaleView({ token, d, onChanged }) {
             {d.lines.map((l) => (
               <tr key={l.id}>
                 <td style={{ fontWeight: 600 }}>{l.code}</td><td>{l.name || '—'}</td>
-                <td style={{ textAlign: 'right' }}>{dinhDangUsd(l.fobUsd)}</td><td style={{ textAlign: 'right' }}>{dinhDangTien(l.qty)}</td>
+                <td style={{ textAlign: 'right' }}>{dinhDangUsd(l.fobUsd)}</td>
+                <td style={{ textAlign: 'right' }}>{dinhDangTien(l.qty)}{l.qtyGoc !== null && l.qtyGoc !== undefined && <div style={{ fontSize: '0.72rem', color: 'var(--warning-text)' }} title="VHKD đã điều chỉnh SL để tính giá">bạn gửi {dinhDangTien(l.qtyGoc)}</div>}</td>
                 {tra && <td style={{ textAlign: 'right', fontWeight: 700 }}>{dinhDangTien(l.priceVnd)}</td>}
               </tr>
             ))}
@@ -76,7 +77,7 @@ function QuanTriView({ token, d, onChanged }) {
     fx: txt(p.fx), fxSource: p.fxSource || 'tay', lngPct: txt(p.lngPct), lngConfirmed: !!p.lngConfirmed
   });
   const [f, setF] = useState(khoiTao);
-  const [rows, setRows] = useState(() => d.lines.map((l) => ({ id: l.id, name: l.name, taxImportPct: txt(l.taxImportPct), vatPct: txt(l.vatPct), note: l.note })));
+  const [rows, setRows] = useState(() => d.lines.map((l) => ({ id: l.id, name: l.name, qty: txt(l.qty), taxImportPct: txt(l.taxImportPct), vatPct: txt(l.vatPct), note: l.note })));
   const [apThue, setApThue] = useState('');
   const [apVat, setApVat] = useState('');
   const [dirty, setDirty] = useState(false);
@@ -88,7 +89,7 @@ function QuanTriView({ token, d, onChanged }) {
   // Dữ liệu máy chủ đổi (sau Calculate / Tải lại) → dựng lại form từ máy chủ.
   useEffect(() => {
     setF(khoiTao());
-    setRows(d.lines.map((l) => ({ id: l.id, name: l.name, taxImportPct: txt(l.taxImportPct), vatPct: txt(l.vatPct), note: l.note })));
+    setRows(d.lines.map((l) => ({ id: l.id, name: l.name, qty: txt(l.qty), taxImportPct: txt(l.taxImportPct), vatPct: txt(l.vatPct), note: l.note })));
     setDirty(false);
   }, [d]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -188,7 +189,7 @@ function QuanTriView({ token, d, onChanged }) {
         <table className="custom-table">
           <thead>
             <tr>
-              <th>Mã</th><th>Tên sản phẩm</th><th style={{ textAlign: 'right' }}>FOB (USD)</th><th style={{ textAlign: 'right' }}>SL</th>
+              <th>Mã</th><th>Tên sản phẩm</th><th style={{ textAlign: 'right' }}>FOB (USD)</th><th style={{ textAlign: 'right' }} title={cho ? 'Sửa được SL để tính — Sale sẽ thấy SL đã điều chỉnh' : ''}>SL{cho ? ' (sửa được)' : ''}</th>
               <th style={{ minWidth: '90px' }}>Thuế NK %</th><th style={{ minWidth: '90px' }}>VAT %</th>
               <th style={{ textAlign: 'right' }}>Trị giá tiền hàng</th><th style={{ textAlign: 'right' }}>Thuế NK</th><th style={{ textAlign: 'right' }}>Chi phí phân bổ</th>
               <th style={{ textAlign: 'right' }}>Giá vốn chưa VAT</th><th style={{ textAlign: 'right' }}>Giá vốn có VAT</th><th style={{ textAlign: 'right' }}>Giá bán có VAT</th>
@@ -200,7 +201,10 @@ function QuanTriView({ token, d, onChanged }) {
                 <td style={{ fontWeight: 600 }}>{l.sku || l.supplierCode}{l.sku ? '' : <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '4px' }}>NCC</span>}</td>
                 <td>{l.name || '—'}</td>
                 <td style={{ textAlign: 'right' }}>{dinhDangUsd(l.fobUsd)}</td>
-                <td style={{ textAlign: 'right' }}>{dinhDangTien(l.qty)}</td>
+                <td style={{ textAlign: 'right', minWidth: '90px' }}>
+                  {cho ? inp({ value: rows[i] ? rows[i].qty : '', min: '0', 'aria-label': 'SL ' + (l.sku || l.supplierCode), style: { padding: '4px 8px', width: '100%', textAlign: 'right' }, onChange: (e) => doiDong(i, 'qty', e.target.value) }) : dinhDangTien(l.qty)}
+                  {l.qtyGoc !== null && l.qtyGoc !== undefined && <div style={{ fontSize: '0.72rem', color: 'var(--warning-text)' }} title="SL Sale gửi ban đầu">Sale gửi {dinhDangTien(l.qtyGoc)}</div>}
+                </td>
                 <td>{inp({ value: rows[i] ? rows[i].taxImportPct : '', 'aria-label': 'Thuế NK ' + (l.sku || l.supplierCode), onChange: (e) => doiDong(i, 'taxImportPct', e.target.value) })}</td>
                 <td>{inp({ value: rows[i] ? rows[i].vatPct : '', 'aria-label': 'VAT ' + (l.sku || l.supplierCode), onChange: (e) => doiDong(i, 'vatPct', e.target.value) })}</td>
                 <td style={{ textAlign: 'right' }}>{dinhDangTien(l.goodsVnd)}</td>

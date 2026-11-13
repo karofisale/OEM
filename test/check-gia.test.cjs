@@ -54,6 +54,9 @@ const url = (f) => pathToFileURL(path.join(__dirname, '..', 'src', 'utils', f)).
   const dl = cg.dongTuForm([{ id: 5, name: 'A', taxImportPct: '0', vatPct: '8', note: '' }, { id: 6, name: 'B', taxImportPct: '', vatPct: '', note: undefined }]);
   check('gói dòng: 0 vẫn là 0 (không thành null), rỗng → null', dl[0].taxImportPct === 0 && dl[0].vatPct === 8 && dl[1].taxImportPct === null && dl[1].vatPct === null && dl[1].note === '');
 
+  const dq = cg.dongTuForm([{ id: 7, name: 'Q', qty: '120', taxImportPct: '5', vatPct: '8' }, { id: 8, name: 'R', qty: '', taxImportPct: '', vatPct: '' }, { id: 9, name: 'S' }]);
+  check('gói dòng có SL (13/11/2026): SL số -> số, ô SL rỗng -> null (giữ SL cũ), form không có ô SL -> không gửi qty', dq[0].qty === 120 && dq[1].qty === null && !('qty' in dq[2]));
+
   console.log('1b. Sửa lỗi sau rà soát (10/11/2026)');
   check('docSoTien: "117.400" và "1.250.000" là NGHÌN (không phải 117,4)', cg.docSoTien('117.400') === 117400 && cg.docSoTien('1.250.000') === 1250000 && cg.docSoTien('1,250,000') === 1250000);
   check('docSoTien: số trơn / có đ / khoảng trắng', cg.docSoTien('117400') === 117400 && cg.docSoTien(' 117 400 đ') === 117400 && cg.docSoTien('50000VND') === 50000);

@@ -108,10 +108,14 @@ export function thamSoTuForm(f) {
   };
 }
 
-/** Các dòng của form admin -> mảng gửi lên. */
+/** Các dòng của form admin -> mảng gửi lên. qty (13/11/2026): SL Admin sửa để tính — chỉ gửi khi form có ô SL; rỗng = giữ SL cũ. */
 export function dongTuForm(rows) {
   const v = (x) => (x === '' || x === null || x === undefined ? null : Number(x));
-  return (rows || []).map((r) => ({ id: r.id, name: r.name, taxImportPct: v(r.taxImportPct), vatPct: v(r.vatPct), note: r.note || '' }));
+  return (rows || []).map((r) => {
+    const o = { id: r.id, name: r.name, taxImportPct: v(r.taxImportPct), vatPct: v(r.vatPct), note: r.note || '' };
+    if (r.qty !== undefined) o.qty = v(r.qty);
+    return o;
+  });
 }
 
 /**
