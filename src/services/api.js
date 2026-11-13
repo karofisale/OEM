@@ -79,7 +79,7 @@ const NON_IDEMPOTENT_FNS = new Set([
   'addMaterial', 'addMaterials', 'deleteOrder', 'approveSop', 'approvePriceBatch', 'rejectPriceBatch',
   'changePassword', 'tlSubmitOrder',
   // Check giá bán (07/11/2026): gửi lại là sinh yêu cầu / trả lời trùng hoặc báo lỗi "đã xử lý" ở lượt hai
-  'cgGuiKho', 'cgGuiNhapKhau', 'cgSapYeuCau', 'cgGuiTraLoiKho', 'cgNhapKhauGui', 'cgYeuCauTinhLai', 'cgXoa',
+  'cgGuiKho', 'cgGuiNhapKhau', 'cgSapYeuCau', 'cgGuiTraLoiKho', 'cgNhapKhauGui', 'cgYeuCauTinhLai', 'cgXoa', 'cgLuuCang',
   'requestSalesPlanRevision'   // nhóm B: lượt hai báo "không có kế hoạch nào để yêu cầu sửa" (dòng đã chuyển Cần sửa ở lượt đầu)
 ]);
 // `addMaterials` thuộc nhóm B: dữ liệu AN TOÀN khi gửi lại (nó bỏ qua SKU đã có
@@ -525,4 +525,7 @@ export async function cgNhapKhauGui(token, p) { return callApi('cgNhapKhauGui', 
 export async function cgYeuCauTinhLai(token, p) { return callApi('cgYeuCauTinhLai', [token, p]); }
 /** Xoá một yêu cầu hỏi giá (13/11/2026) — Admin/Creator mọi yêu cầu, Sale yêu cầu của mình, ở mọi trạng thái. Không xoá giá vốn đã có trong bảng giá chung. */
 export async function cgXoa(token, id) { return callApi('cgXoa', [token, id]); }
+/** Cảng đi (13/11/2026): Sale lấy tên cảng; Admin/Creator lấy cả cước cài sẵn. cgLuuCang = Admin/Creator thêm / sửa cảng + cước (USD). */
+export async function cgDsCang(token) { return callApi('cgDsCang', [token]); }
+export async function cgLuuCang(token, p) { return callApi('cgLuuCang', [token, p]); }
 export async function cgTyGia(token) { return callApi('cgTyGia', [token], 20000); }

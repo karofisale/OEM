@@ -57,6 +57,8 @@ const url = (f) => pathToFileURL(path.join(__dirname, '..', 'src', 'utils', f)).
   const dq = cg.dongTuForm([{ id: 7, name: 'Q', qty: '120', taxImportPct: '5', vatPct: '8' }, { id: 8, name: 'R', qty: '', taxImportPct: '', vatPct: '' }, { id: 9, name: 'S' }]);
   check('gói dòng có SL (13/11/2026): SL số -> số, ô SL rỗng -> null (giữ SL cũ), form không có ô SL -> không gửi qty', dq[0].qty === 120 && dq[1].qty === null && !('qty' in dq[2]));
 
+  check('tham số có cảng đi (13/11/2026): gửi khi form có ô cảng (cắt khoảng trắng), không có ô thì không gửi', cg.thamSoTuForm({ cangDi: ' Ningbo ' }).cangDi === 'Ningbo' && !('cangDi' in cg.thamSoTuForm({})));
+
   console.log('1b. Sửa lỗi sau rà soát (10/11/2026)');
   check('docSoTien: "117.400" và "1.250.000" là NGHÌN (không phải 117,4)', cg.docSoTien('117.400') === 117400 && cg.docSoTien('1.250.000') === 1250000 && cg.docSoTien('1,250,000') === 1250000);
   check('docSoTien: số trơn / có đ / khoảng trắng', cg.docSoTien('117400') === 117400 && cg.docSoTien(' 117 400 đ') === 117400 && cg.docSoTien('50000VND') === 50000);

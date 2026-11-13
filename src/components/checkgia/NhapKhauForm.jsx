@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Send, Loader2, AlertTriangle, CheckCircle2, Inbox } from 'lucide-react';
 import * as api from '../../services/api';
 import ConfirmDialog from '../ConfirmDialog';
@@ -17,12 +17,16 @@ export default function NhapKhauForm({ token, onSent, onOpenRequest }) {
   const [container, setContainer] = useState('40');
   const [delivery, setDelivery] = useState('tcm');
   const [text, setText] = useState('');
+  const [cangDi, setCangDi] = useState('');
+  const [dsCang, setDsCang] = useState([]);
   const [note, setNote] = useState('');
   const [loi, setLoi] = useState('');
   const [xacNhan, setXacNhan] = useState(false);
   const [dangGui, setDangGui] = useState(false);
   const [daGui, setDaGui] = useState(null);
 
+  // Cảng đi (13/11/2026): nút chọn nhanh các cảng thường dùng + gõ tay cảng khác. Cước mặc định của yêu cầu lấy theo cảng nếu VHKD đã cài.
+  useEffect(() => { api.cgDsCang(token).then((r) => setDsCang((r.items || []).map((x) => x.ten))).catch(() => setDsCang([])); }, [token]);
   const demDong = text.split('\n').filter((l) => l.trim()).length;
   const canhBaoCont = container === '20' || container === '40';
 
@@ -36,8 +40,8 @@ export default function NhapKhauForm({ token, onSent, onOpenRequest }) {
     if (dangGui) return;
     setDangGui(true); setLoi('');
     try {
-      const r = await api.cgGuiNhapKhau(token, { container, delivery, text, note });
-      setDaGui(r); setXacNhan(false); setText(''); setNote('');
+      const r = await api.cgGuiNhapKhau(token, { container, delivery, cangDi: cangDi.trim(), text, note });
+      setDaGui(r); setXacNhan(false); setText(''); setNote(''); setCangDi('');
       toast.success('Đã gửi yêu cầu tính giá #' + r.id + ' cho VHKD.');
       if (onSent) onSent(r);
     } catch (e) { setXacNhan(false); setLoi(e.message || String(e)); }
@@ -70,6 +74,19 @@ export default function NhapKhauForm({ token, onSent, onOpenRequest }) {
               ))}
             </div>
           </fieldset>
+        </div>
+
+        <div>
+          <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>Cảng đi</div>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }} role="group" aria-label="Chọn nhanh cảng đi">
+            {dsCang.map((c) => (
+              <button key={c} type="button" className={'btn btn-sm ' + (cangDi.trim().toLowerCase() === c.toLowerCase() ? 'btn-primary' : 'btn-secondary')}
+                aria-pressed={cangDi.trim().toLowerCase() === c.toLowerCase()} onClick={() => setCangDi(cangDi.trim().toLowerCase() === c.toLowerCase() ? '' : c)}>{c}</button>
+            ))}
+            <input className="input-field" style={{ width: '200px', padding: '4px 8px' }} list="cg-cang-ds" value={cangDi} maxLength={60}
+              placeholder="hoặc gõ cảng khác…" aria-label="Cảng đi" onChange={(e) => setCangDi(e.target.value)} />
+            <datalist id="cg-cang-ds">{dsCang.map((c) => <option key={c} value={c} />)}</datalist>
+          </div>
         </div>
 
         {canhBaoCont && (
@@ -112,7 +129,7 @@ export default function NhapKhauForm({ token, onSent, onOpenRequest }) {
       {xacNhan && (
         <ConfirmDialog
           title="Gửi VHKD tính giá?"
-          message={`Gửi ${demDong} dòng hàng (${CONT_LOAI.find((c) => c.id === container).label}, ${NOI_GIAO.find((c) => c.id === delivery).label.toLowerCase()}) cho Admin/Creator tính giá. Sau khi gửi không sửa được bảng; muốn đổi thì yêu cầu tính lại.`}
+          message={`Gửi ${demDong} dòng hàng (${CONT_LOAI.find((c) => c.id === container).label}, ${NOI_GIAO.find((c) => c.id === delivery).label.toLowerCase()}${cangDi.trim() ? ', cảng đi ' + cangDi.trim() : ''}) cho Admin/Creator tính giá. Sau khi gửi không sửa được bảng; muốn đổi thì yêu cầu tính lại.`}
           confirmLabel="Gửi yêu cầu" busy={dangGui} busyLabel="Đang gửi…"
           onConfirm={gui} onCancel={() => { if (!dangGui) setXacNhan(false); }}
         />

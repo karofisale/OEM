@@ -104,7 +104,8 @@ export function thamSoTuForm(f) {
   const v = (x) => (x === '' || x === null || x === undefined ? null : Number(x));
   return {
     freightUsd: v(f.freightUsd), customsVnd: v(f.customsVnd), truckingVnd: v(f.truckingVnd),
-    fx: v(f.fx), fxSource: f.fxSource === 'vcb' ? 'vcb' : 'tay', lngPct: v(f.lngPct), lngConfirmed: !!f.lngConfirmed
+    fx: v(f.fx), fxSource: f.fxSource === 'vcb' ? 'vcb' : 'tay', lngPct: v(f.lngPct), lngConfirmed: !!f.lngConfirmed,
+    ...(f.cangDi !== undefined ? { cangDi: String(f.cangDi || '').trim() } : {})   // 13/11/2026: Admin đổi cảng đi khi tính
   };
 }
 

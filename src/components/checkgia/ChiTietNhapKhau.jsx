@@ -37,7 +37,7 @@ function SaleView({ token, d, onChanged }) {
 
   return (
     <div className="glass-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{nhanCont(rq.container)} · {nhanGiao(rq.delivery)}</div>
+      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{nhanCont(rq.container)} · {nhanGiao(rq.delivery)}{rq.cangDi && <> · cảng đi <strong>{rq.cangDi}</strong></>}</div>
       {!tra && <div className="state-card" role="status">VHKD đang tính giá. Có kết quả bạn sẽ nhận thông báo "Hỏi giá được trả lời".</div>}
       <CanhBaoCont kc={d.kiemCont} />
       <div className="table-container">
@@ -74,9 +74,14 @@ function QuanTriView({ token, d, onChanged }) {
 
   const khoiTao = () => ({
     freightUsd: txt(p.freightUsd), customsVnd: txt(p.customsVnd), truckingVnd: txt(p.truckingVnd),
-    fx: txt(p.fx), fxSource: p.fxSource || 'tay', lngPct: txt(p.lngPct), lngConfirmed: !!p.lngConfirmed
+    fx: txt(p.fx), fxSource: p.fxSource || 'tay', lngPct: txt(p.lngPct), lngConfirmed: !!p.lngConfirmed, cangDi: rq.cangDi || ''
   });
+  // Cảng + cước cài sẵn (13/11/2026): để gợi ý cước khi Admin đổi cảng đi
+  const [dsCang, setDsCang] = useState([]);
+  useEffect(() => { api.cgDsCang(token).then((r) => setDsCang(r.items || [])).catch(() => setDsCang([])); }, [token]);
   const [f, setF] = useState(khoiTao);
+  const cangChon = dsCang.find((c) => String(c.ten || '').toLowerCase() === String(f.cangDi || '').trim().toLowerCase());
+  const cuocCangChon = cangChon ? ({ '20': cangChon.freight20, '40': cangChon.freight40, LCL: cangChon.freightLcl }[rq.container]) : null;
   const [rows, setRows] = useState(() => d.lines.map((l) => ({ id: l.id, name: l.name, qty: txt(l.qty), taxImportPct: txt(l.taxImportPct), vatPct: txt(l.vatPct), note: l.note })));
   const [apThue, setApThue] = useState('');
   const [apVat, setApVat] = useState('');
@@ -144,13 +149,19 @@ function QuanTriView({ token, d, onChanged }) {
 
   return (
     <div className="glass-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{nhanLoai(rq.kind)} · {nhanCont(rq.container)} · {nhanGiao(rq.delivery)}{p.calcAt && <> · tính lúc {p.calcAt} bởi {p.calcBy}</>}</div>
+      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{nhanLoai(rq.kind)} · {nhanCont(rq.container)} · {nhanGiao(rq.delivery)}{rq.cangDi && <> · cảng đi <strong>{rq.cangDi}</strong></>}{p.calcAt && <> · tính lúc {p.calcAt} bởi {p.calcBy}</>}</div>
       <CanhBaoCont kc={d.kiemCont} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+        <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Cảng đi
+          <input className="input-field" style={{ padding: '4px 8px', width: '100%' }} list="cg-cang-ad" value={f.cangDi} maxLength={60} disabled={!cho}
+            onChange={(e) => doiF('cangDi', e.target.value)} placeholder="Chưa có cảng đi" />
+          <datalist id="cg-cang-ad">{dsCang.filter((c) => c.active !== false).map((c) => <option key={c.ten} value={c.ten} />)}</datalist>
+          <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>{cuocCangChon ? 'Cước cài sẵn ' + nhanCont(rq.container) + ': ' + dinhDangUsd(cuocCangChon) : (f.cangDi ? 'Cảng chưa cài cước loại cont này' : '')}</span></label>
         <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Cước vận chuyển + LCC (USD)
           {inp({ value: f.freightUsd, onChange: (e) => doiF('freightUsd', e.target.value) })}
-          <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>Mặc định: {dinhDangUsd(d.macDinh.freightUsd)}</span></label>
+          <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>Mặc định: {dinhDangUsd(d.macDinh.freightUsd)} {d.macDinh.freightNguon === 'cang' ? '(theo cảng ' + (rq.cangDi || '') + ')' : '(cước chung)'}
+            {cho && cuocCangChon && Number(f.freightUsd) !== Number(cuocCangChon) && <> · <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '0 4px' }} onClick={() => doiF('freightUsd', String(cuocCangChon))}>Dùng cước cảng</button></>}</span></label>
         <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Phí hải quan (đ)
           {inp({ value: f.customsVnd, onChange: (e) => doiF('customsVnd', e.target.value) })}
           <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>Mặc định: {dinhDangTien(d.macDinh.customsVnd)}</span></label>
